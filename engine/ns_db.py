@@ -716,16 +716,22 @@ FOUNDATION_DDL = (
         after_content_id INTEGER REFERENCES contents(content_id),
         before_path TEXT, after_path TEXT,
         before_values_json TEXT, after_values_json TEXT)""",
-    # A source photo whose content a recorded edit replaced (engine-spec 10). The link
-    # is a fact; `answer` is the user's current choice, NULL until answered.
+    # A source photo whose content a recorded edit replaced (engine-spec 10), and the
+    # user's answers about it; the latest answer is current, none means waiting.
     """CREATE TABLE photo_versions (
         photo_id INTEGER PRIMARY KEY REFERENCES photos(id),
         version_of INTEGER NOT NULL REFERENCES photos(id),
         change_id INTEGER NOT NULL REFERENCES file_changes(change_id),
         found_run_id INTEGER REFERENCES runs(id), found_at TEXT NOT NULL,
-        answer TEXT CHECK(answer IN ('not_kept','keep_separate')), answered_at TEXT,
         CHECK(photo_id <> version_of))""",
     "CREATE INDEX idx_photo_versions_of ON photo_versions(version_of)",
+    """CREATE TABLE photo_version_answers (
+        answer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        photo_id INTEGER NOT NULL REFERENCES photo_versions(photo_id),
+        answer TEXT NOT NULL CHECK(answer IN ('not_kept','keep_separate')),
+        request_id TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL,
+        UNIQUE(request_id, photo_id))""",
+    "CREATE INDEX idx_photo_version_answers ON photo_version_answers(photo_id, answer_id)",
     # Equal visual hashes share an implicit zero-distance bucket. Store only
     # distinct-hash pairs, so visually identical content does not grow quadratically.
     """CREATE TABLE content_similarity (
@@ -848,7 +854,7 @@ def initialize(db_path):
                 conn.execute(statement)
             for table in ('files', 'file_origins', 'source_snapshots', 'file_observations', 'operation_files',
                           'run_configs', 'job_requests', 'operation_events', 'operation_evidence',
-                          'file_changes', 'attention_evidence', 'review_events',
+                          'file_changes', 'photo_versions', 'photo_version_answers', 'attention_evidence', 'review_events',
                           'xmp_versions', 'xmp_arrivals', 'xmp_arrival_files', 'metadata_captures', 'metadata_decisions'):
                 for action in ('UPDATE', 'DELETE'):
                     conn.execute(f"CREATE TRIGGER immutable_{table}_{action} BEFORE {action} ON {table} "
@@ -863,7 +869,7 @@ def require_schema(conn):
         required = {'photos','runs','operations','files','photo_files','source_snapshots',
                     'file_observations','operation_files','settings','run_configs','job_requests',
                     'file_origins','file_states','contents','operation_events','operation_evidence',
-                    'attention_issues','attention_evidence','file_changes','photo_versions','content_similarity','similarity_hashes',
+                    'attention_issues','attention_evidence','file_changes','photo_versions','photo_version_answers','content_similarity','similarity_hashes',
                     'similarity_count_cache','similarity_count_state',
                     'review_events','review_date_confirmations','review_calendar','thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state',
                     'xmp_versions','xmp_arrivals','xmp_arrival_files','metadata_captures','metadata_decisions'}

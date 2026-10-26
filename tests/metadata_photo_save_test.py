@@ -11,7 +11,7 @@ from unittest import mock
 from PIL import Image, ImageDraw
 
 import metadata_index_test
-from engine import review
+from engine import earlier_versions, review
 from engine import (constants, durable, fileinfo, metadata_command, metadata_decisions, metadata_edits, metadata_photo_save,
                     metadata_save, ns_db, ns_similarity, ns_similarity_cache, relocate, runtime, thumbnails)
 
@@ -334,7 +334,7 @@ class PhotoSaves(unittest.TestCase):
         # The released copy is an earlier version: held until answered, then its own photo.
         self.run_engine('--copy')
         self.assertEqual(self.c.execute('SELECT status FROM photos WHERE id=?',(alias,)).fetchone()[0],'Pending')
-        self.c.execute("UPDATE photo_versions SET answer='keep_separate' WHERE photo_id=?",(alias,));self.c.commit()
+        earlier_versions.answer(self.db,{'photo_id':alias,'answer':'keep_separate','revision':0,'request_id':'keep'})
         self.run_engine('--copy')
         self.assertEqual(self.current(),edited)
         other=self.c.execute('SELECT status,dest_path,sha1_hash FROM photos WHERE id=?',(alias,)).fetchone()

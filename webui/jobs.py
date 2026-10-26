@@ -330,16 +330,25 @@ class JobRunner:
             return answer
 
     def review_decision(self, body, *, batch=False):
+        return self._catalog_answer('--review-batch' if batch else '--review-decision', body, 120 if batch else 30,
+            {'error': 'review_unavailable',
+             'message': 'The review decision could not be confirmed. Reload the photo before retrying.'})
+
+    def version_answer(self, body):
+        return self._catalog_answer('--version-answer', body, 30, {'error': 'version_answer_unavailable',
+            'message': 'The answer could not be confirmed. Reload the photo before retrying.'})
+
+    def _catalog_answer(self, flag, body, timeout, unavailable):
+        """A short catalog-only engine command under the engine lock: JSON in, JSON out."""
         with self._start_lock:
             if self._probe_lock():
                 raise self._busy()
             try:
-                result = subprocess.run(self.cfg.engine_argv('--review-batch' if batch else '--review-decision'), input=json.dumps(body),
-                                        text=True, capture_output=True, cwd=ENGINE_CWD, timeout=120 if batch else 30)
+                result = subprocess.run(self.cfg.engine_argv(flag), input=json.dumps(body),
+                                        text=True, capture_output=True, cwd=ENGINE_CWD, timeout=timeout)
                 answer = json.loads(result.stdout)
             except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
-                raise JobRefused(503, {'error': 'review_unavailable',
-                    'message': 'The review decision could not be confirmed. Reload the photo before retrying.'}) from exc
+                raise JobRefused(503, unavailable) from exc
             if result.returncode:
                 raise JobRefused(409 if result.returncode == 3 else 400, answer)
             return answer

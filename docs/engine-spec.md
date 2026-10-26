@@ -644,7 +644,7 @@ written by recovery (4.2), `contents` and `thumbnail_cache` by the scan,
 `run_discovery` by a full Index (4.3; schema 31 adds the selected-extension counts, calculated from the already-discovered candidate list with no extra filesystem reads), `run_progress` by every job (4.3), `destination_findings` by the destination check (9.1), and the backup records by catalog backups
 (4.1). A verified metadata edit that rewrites a Library file writes `file_changes`; Index
 and that edit write `photo_versions` when a source file holds content an edit replaced
-(section 10). Index writes `content_similarity`.
+(section 10); the user's answers write `photo_version_answers`. Index writes `content_similarity`.
 Statement order matters here too:
 `contents` precedes everything referencing it, `operation_events` precedes
 `attention_issues`, and both `operation_evidence` and `attention_issues` precede
@@ -711,17 +711,27 @@ CREATE TABLE file_changes (
     before_values_json TEXT, after_values_json TEXT
 );
 
--- A source photo whose content a recorded edit replaced (section 10, earlier versions).
--- The link is a fact; answer is the user's current choice, NULL until answered.
+-- A source photo whose content a recorded edit replaced (section 10, earlier versions),
+-- and the user's answers about it: the latest is current, none means waiting. Both are
+-- append-only. Whether a link still holds is recomputed from facts (the file still has
+-- the replaced content and no organized or rejected photo has it), never stored.
 CREATE TABLE photo_versions (
     photo_id INTEGER PRIMARY KEY REFERENCES photos(id),
     version_of INTEGER NOT NULL REFERENCES photos(id),
     change_id INTEGER NOT NULL REFERENCES file_changes(change_id),
     found_run_id INTEGER REFERENCES runs(id), found_at TEXT NOT NULL,
-    answer TEXT CHECK(answer IN ('not_kept','keep_separate')), answered_at TEXT,
     CHECK(photo_id <> version_of)
 );
 CREATE INDEX idx_photo_versions_of ON photo_versions(version_of);
+
+CREATE TABLE photo_version_answers (
+    answer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    photo_id INTEGER NOT NULL REFERENCES photo_versions(photo_id),
+    answer TEXT NOT NULL CHECK(answer IN ('not_kept','keep_separate')),
+    request_id TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL,
+    UNIQUE(request_id, photo_id)
+);
+CREATE INDEX idx_photo_version_answers ON photo_version_answers(photo_id, answer_id);
 
 -- Distinct visual hashes only; equal hashes share an implicit zero-distance bucket.
 CREATE TABLE content_similarity (
@@ -847,7 +857,7 @@ CREATE INDEX idx_open_attention ON attention_issues(file_id) WHERE resolved_at I
 ```
 
 **Immutability is enforced by triggers, not convention.** `operation_events`,
-`operation_evidence`, `file_changes` and `attention_evidence` reject `UPDATE` and
+`operation_evidence`, `file_changes`, `photo_versions`, `photo_version_answers` and `attention_evidence` reject `UPDATE` and
 `DELETE` alongside the version 2 tables. `attention_issues` is deliberately
 excluded — resolving an issue must update it — as are `thumbnail_cache`,
 `content_similarity`, `similarity_count_cache`, `similarity_count_state` and
@@ -1789,7 +1799,8 @@ perceptual hash.
   the same" appears only when the recorded image chain proves it.
 * **Don't keep it** leaves the file untouched in the source, takes it out of the waiting
   count and Needs attention, and records the answer; Move never deletes it, since it is
-  not identical to anything delivered. **Keep it after all** reverses the answer.
+  not identical to anything delivered. **Keep it after all** changes the answer to Keep it
+  as its own photo. An answer covers every identical copy of that content in the source.
 * **Keep it as its own photo** releases it to be organized normally, filed by its own
   metadata (so a version from before a date fix files under the old date; the
   confirmation says so). Move then removes its original as usual. It is a 100%
