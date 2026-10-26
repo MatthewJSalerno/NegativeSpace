@@ -1198,6 +1198,12 @@ they do not interrupt the events leading into Now. Lane headings have vertical
 separators. Escape closes only this window.
 
 
+**Earlier versions** (decided 2026-10-25, being built): a source photo that is an earlier
+version of an edited Library photo waits here too, with the reason **Earlier version of a
+Library photo**, the full list of recorded changes since that version, **Don't keep it**
+and **Keep it as its own photo**, and version badges on both photos' cards
+(`engine-spec.md` §10, "Earlier versions: the agreed behaviour").
+
 **Source metadata holds.** Needs attention means the source photo cannot yet be
 organized; No usable capture date is a separate date property, not an import restriction
 by itself. Both may apply to one photo. Show the specific date issue once and refer to

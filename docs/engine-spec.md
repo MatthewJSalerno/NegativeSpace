@@ -1021,7 +1021,7 @@ outside the app, because that workflow restarts every photo's history.
 | Found | Repair |
 | :--- | :--- |
 | **Moved or renamed** (its content found elsewhere under `library/`) | Move it back to where it belongs |
-| **Missing** | Copy it back from the source or Rejects if a verified copy remains; otherwise record it gone, keeping its history |
+| **Missing** | Copy it back from the source or Rejects if a verified copy remains. If only an *earlier version* remains in the source, offer **Rebuild from the earlier version**: copy it and re-apply, as a new verified edit, every recorded change since that version (listed in the preview), refiling it where the lost file was. The result is the same picture with the same recorded details, labelled *rebuilt*, not restored: its checksum may differ from the lost file, and changes NegativeSpace did not make (external editors) cannot be re-applied. Qualified formats only; RAW sidecar edits are re-created from the retained exact XMP version. Otherwise record it gone, keeping its history |
 | **Changed** (saved over by another application) | Keep the new version in place, record its checksum as a later version (§10), and refile it if its date changed |
 | **Unknown file** (not in the catalog) | Never touched; listed so the user knows it is there |
 
@@ -1757,6 +1757,38 @@ record what NegativeSpace did, not whether the source file is still there. To ve
 building: saving a rotation into EXIF records the new checksum and recomputes the
 perceptual hash.
 
+**Earlier versions: the agreed behaviour** (decided 2026-10-25, being built on `claude/dev`).
+
+* **Two ways an earlier version appears.** A file Index finds whose checksum matches no
+  photo's current checksum but matches the *before* side of a recorded content change
+  (`file_changes.before_content_id`). And a source copy already catalogued that an edit
+  released: when a Library photo's file is rewritten, its identical source copies stop
+  being duplicates (`metadata_photo_save`). Both are treated the same way.
+* **Held, never organized silently.** An earlier version waits in Not organized → Needs
+  attention with the reason **Earlier version of a Library photo**, and Copy/Move skip it
+  until answered.
+* **The full list of changes is shown**, built only from recorded facts: every recorded
+  change from the one whose *before* content matches this file through to the Library
+  photo's current content, each with its job, time and before → after values. Recorded
+  tags are translated into plain words (Date taken, Rotated); a tag without a translation
+  is shown by its name, never guessed. "Only the photo's details changed; the picture is
+  the same" appears only when the recorded image chain proves it.
+* **Don't keep it** leaves the file untouched in the source, takes it out of the waiting
+  count and Needs attention, and records the answer; Move never deletes it, since it is
+  not identical to anything delivered. **Keep it after all** reverses the answer.
+* **Keep it as its own photo** releases it to be organized normally, filed by its own
+  metadata (so a version from before a date fix files under the old date; the
+  confirmation says so). Move then removes its original as usual. It is a 100%
+  look-alike of the edited photo, and Similar photos shows it so.
+* **A version link, never a merge.** Each file keeps its own history. The catalog records
+  "version of" between the two whatever the answer; both photos' histories and lineage
+  timelines name and link the other, and cards carry a badge: **Earlier version** (or
+  **Earlier version · waiting for your answer**) and **Has an earlier version**. This is a
+  relationship the app records, not a keyword written into either file.
+* **Look-alike earlier versions** (a resized or re-saved copy, recognised by the previous
+  perceptual hash) come later, with the strict level and low-detail rule of
+  `webui-spec.md` §7.8.
+
 **Identity across content changes:** each logical file retains a stable lineage
 identity independent of its current path and content hash. For every tool action
 that changes content, record the before/after hashes linked to that same lineage
@@ -1769,8 +1801,9 @@ attached to that photo's history.
 **The identity schema is implemented.** `files` holds the stable identity,
 `file_origins` its immutable creation provenance, `file_states` its current path and
 presence, and `source_snapshots` the original Index evidence that later scans never
-overwrite (§6.5). Content-version transitions — the before/after hashes of an edit —
-remain unimplemented, because nothing yet modifies a photo's content.
+overwrite (§6.5). Content-version transitions are recorded: each verified edit that
+rewrites a photo's file writes a `file_changes` row with its before and after content and
+the tag values it changed, linked to the same file identity.
 
 **Deletion retains lineage.** Preserve the original source snapshot, last recorded
 file state and complete recorded action history, including per-field before/after
