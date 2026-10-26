@@ -964,7 +964,9 @@ and Gmail, so that no menu has to adapt to what is selected:
 The search is in the top bar; Filters and Sort end
 the place's heading row. Every Jobs item carries a one-line explanation, and one that cannot run
 replaces it with why: a job is running, nothing is indexed, nothing is selected, or
-nothing is left (**"Nothing to copy - every photo is copied or organized."**). The
+nothing is left (**"Nothing to copy - every photo is copied or organized."**), or what
+is left needs attention first (**"Nothing ready to copy - 2 photos in Not organized need
+attention first."**). The
 **all** counts are the whole catalog's, by the engine's own rule
 (`ns_db.TRANSFER_ELIGIBLE`), never the gallery's view or search: Copy takes photos not
 yet copied, and Move also takes copied ones, deleting each source once its copy is
@@ -1198,7 +1200,7 @@ they do not interrupt the events leading into Now. Lane headings have vertical
 separators. Escape closes only this window.
 
 
-**Earlier versions** (decided 2026-10-25, being built): a source photo that is an earlier
+**Earlier versions:** a source photo that is an earlier
 version of an edited Library photo waits here too, with the reason **Earlier version of a
 Library photo**, the full list of recorded changes since that version, **Don't keep it**
 and **Keep it as its own photo**, and version badges on both photos' cards

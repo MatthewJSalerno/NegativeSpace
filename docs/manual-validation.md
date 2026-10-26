@@ -9,6 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Earlier versions:** [Tests EV1–EV3](#earlier-versions) are pending.
+
 **Destination folder preview:** [TP1–TP3](#destination-folder-preview) passed, including
 all lettered steps. No manual checks remain for this batch. The large-preview usability
 observation is recorded below for discussion.
@@ -54,7 +56,61 @@ After each maintainer report, update this queue and the batch's status; record p
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
 
-## Destination folder preview
+## Earlier versions
+
+**Status:** EV1–EV3 pending.
+
+Automated Docker checks passed: the Python unit suite (952 tests; `ci_scope_test` in the
+CI image), all three `tools/check-*.py`, and the production build with typechecking.
+Desktop dark mode was inspected for every screen below, using public NASA demo photos.
+Browser workflows and the engine smoke test run before the pull request.
+
+Use the earlier-versions test instance. Index and Copy are complete. `ev-launch.jpg`
+(Date taken 2005-12-21) and `ev-pad.jpg` (2010-10-24) are in **Library**. A
+byte-identical second copy of `ev-launch.jpg` is in another source folder, recorded as
+its duplicate. **Not organized** is empty. Clear search and refinements before each test.
+
+### Test EV1 — An edit turns the identical copy into an earlier version
+
+- **EV1a:** In **Library**, search `ev-launch.jpg` and open it. Choose **Edit metadata
+  date…**, set Date taken to `2022-11-16 01:47:44` and save. The photo moves to the
+  2022-11-16 date folder and its card shows **Has an earlier version**.
+- **EV1b:** Open **Not organized**. **Needs attention (1)** appears under it in the
+  sidebar. The only card is `ev-launch.jpg` (2005-12-21) with **Earlier version · waiting
+  for your answer**. The Index summary says the remaining files include earlier versions
+  of photos you edited.
+- **EV1c:** Choose that card control. Photo information opens with **Earlier version of a
+  Library photo**, a link to `ev-launch.jpg` in Library, "Only the photo's details changed;
+  the picture is the same", and one change, **Date saved**, with Date taken
+  `2005-12-21 13:04:53` → `2022-11-16 01:47:44` and "Details from: EXIF".
+- **EV1d:** Open **Jobs › Copy**. **Copy all (0)** is unavailable and says "Nothing
+  ready to copy - 1 photo in Not organized needs attention first." Close the menu
+  without starting a job.
+- **EV1e:** With the notice open, set browser zoom to 200%. The change table and buttons
+  wrap without overlapping and stay usable. Restore normal zoom.
+
+### Test EV2 — Answers
+
+- **EV2a:** On the earlier version, choose **Don't keep it**. The notice becomes
+  **Earlier version · not kept**, says the file stays in the source untouched, and
+  **Needs attention** disappears from the sidebar. The card shows **Earlier version · not
+  kept** and stays in Not organized.
+- **EV2b:** Choose **Keep it after all…**. The confirmation says it files under
+  **2005-12-21 13:04:53**, not **2022-11-16 01:47:44**, and that the Library photo is not
+  changed. Choose **Cancel**; nothing changes. Open it again and choose **Keep it as its
+  own photo**. The notice says your next Copy or Move organizes it as its own photo, and
+  **Your answers** lists Not kept, then Kept as its own photo.
+- **EV2c:** Run **Jobs › Copy all (1)** and wait for it to finish. **Library** now holds
+  two `ev-launch.jpg` photos: 2005-12-21 with **Earlier version** and 2022-11-16 with
+  **Has an earlier version**. Not organized is empty.
+
+### Test EV3 — Links and lineage
+
+- **EV3a:** Open the 2022-11-16 `ev-launch.jpg`. Photo information shows **Has an earlier
+  version:** with a link to `ev-launch.jpg (Library)`. Follow it: the 2005-12-21 photo opens.
+- **EV3b:** On each of the two photos choose **View lineage tree**. The line under the
+  title names and links the other photo, and says each photo keeps its own history.
+
 
 **Status:** TP1–TP3 passed, including all lettered steps.
 

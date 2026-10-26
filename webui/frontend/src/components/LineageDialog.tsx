@@ -65,6 +65,12 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
       <p className="section-note">This photo was selected for these jobs, but no file step was recorded. Open the job for its outcome.</p>
       <ul>{selections.map(s => <li key={s.run_id}><a href={logUrl({ run: s.run_id })} onClick={e => { onClose(); follow(e); }}>{jobLabel(s.run_id, s.mode)} · {instant(s.started_at)}</a></li>)}</ul>
     </details>}
+    {tree?.versions.version_of && <p>Earlier version of{" "}
+      <button className="link" onClick={() => onOpenPhoto(tree.versions.version_of!.id)}>{tree.versions.version_of.filename}</button>
+      {" "}in {tree.versions.version_of.location}, found {instant(tree.versions.version_of.found_at)}. Each photo keeps its own history.</p>}
+    {!!tree?.versions.earlier_versions.length && <p>Has an earlier version:{" "}
+      {tree.versions.earlier_versions.map((v, i) => <span key={v.id}>{i > 0 && ", "}
+        <button className="link" onClick={() => onOpenPhoto(v.id)}>{v.filename}</button> ({v.location})</span>)}. Each photo keeps its own history.</p>}
     {tree && <MetadataHistory onNavigate={onClose} filters={{ photo: photoId, run: [], status: [], q: "", since: "", until: "" }} />}
     <p><a href={logUrl({ photo: photoId })} onClick={e => { onClose(); follow(e); }}>View photo logs</a></p>
     </div>

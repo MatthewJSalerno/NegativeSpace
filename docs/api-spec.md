@@ -577,14 +577,18 @@ Everything recorded about a photo's files, for the lineage tree (`webui-spec.md`
      "operations": [{"id", "run_id", "mode", "action", "status", "timestamp", "error_message", "photo_id",
                      "source_path", "dest_path", "recovery", "consolidated_into", "consolidated_path",
                      "files": [{"file_id", "role": "source" | "destination" | "retained_copy"}]}, ...],
-     "selected_by": [{"run_id", "mode", "status", "started_at"}, ...]}
+     "selected_by": [{"run_id", "mode", "status", "started_at"}, ...],
+     "versions": {"version_of": {"id", "filename", "location", "found_at", "state"} | null,
+                  "earlier_versions": [{"id", "filename", "location", "state"}, ...]}}
 
 `files` holds the photo's source file and every file descended from it (a copy records
 the file it came from; an indexed file records itself as its own origin), and the same
 for each duplicate. `matches` says whether the file's recorded
 content is the photo's. `operations` is every operation that touched any of them, oldest
 first, with the role each file played. `selected_by` is every job the photo was chosen for
-in a selection (`run_selections`), whatever that job then did with it. A copy's size is
+in a selection (`run_selections`), whatever that job then did with it. `versions` names
+the photo this one is an earlier version of, and its own earlier versions, as in
+`GET /photos/{id}/versions`; each photo keeps its own history. A copy's size is
 its origin's: it was verified byte for byte when made. An unknown photo is `404 unknown_photo`.
 
 `created_run_id` identifies the first discovery, so later Index observations are not

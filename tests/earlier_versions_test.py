@@ -140,6 +140,15 @@ class EarlierVersions(webui_api_test.ApiCase):
         self.assertEqual(self.answer(self.alias, 'not_kept', 'again').status_code, 409, 'already the answer')
         self.assertEqual(self.answer(self.pid, 'not_kept', 'library').status_code, 409, 'not an earlier version')
 
+    def test_each_lineage_names_and_links_the_other_photo(self):
+        earlier = self.client.get(f'/api/v1/photos/{self.alias}/lineage').json()['versions']
+        self.assertEqual((earlier['version_of']['id'], earlier['version_of']['state']), (self.pid, 'waiting'))
+        self.assertEqual(earlier['earlier_versions'], [])
+        library = self.client.get(f'/api/v1/photos/{self.pid}/lineage').json()
+        self.assertIsNone(library['versions']['version_of'])
+        self.assertEqual([v['id'] for v in library['versions']['earlier_versions']], [self.alias])
+        self.assertNotIn(self.alias, library['photos'], 'a version link, never a merged history')
+
     def test_an_answer_covers_every_identical_copy(self):
         (self.cfg.source/'later').mkdir()
         (self.cfg.source/'later'/'found.jpg').write_bytes(self.original)

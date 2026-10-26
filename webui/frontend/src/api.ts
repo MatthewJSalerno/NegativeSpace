@@ -582,6 +582,8 @@ export interface Lineage {
   operations: LineageOperation[];
   // The jobs this photo was chosen for by hand (a selection), whatever each did with it.
   selected_by: { run_id: number; mode: string; status: string; started_at: string }[];
+  // Version links to other photos; each photo keeps its own history.
+  versions: { version_of: (VersionPhoto & { found_at: string }) | null; earlier_versions: VersionPhoto[] };
 }
 
 export interface Stats {

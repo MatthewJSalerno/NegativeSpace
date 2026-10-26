@@ -986,7 +986,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
       current={{ place: sourceTree ? null : similar ? "similar" : view === "review" ? "organized" : placeShown, sourceFolders: sourceTree }} matchMin={matchMin} refresh={refreshKey}
       search={searchField}
       jobs={<JobsMenu
-              state={{ jobRunning, noPhotos, eligible: status.eligible, copied: status.copied,
+              state={{ jobRunning, noPhotos, eligible: status.eligible, copied: status.copied, held: status.held,
                        folder: folderShown ? { name: folderLabel(folderShown.path), eligible: folderShown.eligible } : null,
                        folders: folders.length }}
               onIndex={start("index")}

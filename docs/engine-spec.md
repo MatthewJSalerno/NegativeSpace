@@ -1781,7 +1781,7 @@ record what NegativeSpace did, not whether the source file is still there. To ve
 building: saving a rotation into EXIF records the new checksum and recomputes the
 perceptual hash.
 
-**Earlier versions: the agreed behaviour** (decided 2026-10-25, being built on `claude/dev`).
+**Earlier versions: the agreed behaviour** (decided 2026-10-25; built for exact copies, look-alike versions not yet).
 
 * **Two ways an earlier version appears.** A file Index finds whose checksum matches no
   photo's current checksum but matches the *before* side of a recorded content change
