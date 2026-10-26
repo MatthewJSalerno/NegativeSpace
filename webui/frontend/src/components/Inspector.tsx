@@ -6,6 +6,7 @@ import { blockingDateIssue, captureDateMessage } from "../photoDates";
 import { FileLocations } from "./ui/FileLocations";
 import { ImportChoiceDialog } from "./ImportChoices";
 import { FileIssues } from "./FileIssues";
+import { EarlierVersions } from "./EarlierVersions";
 import { ReviewNote } from "./ReviewNote";
 import { TabList, tabPanel } from "./ui/Tabs";
 import type { SetActions } from "./ReviewActions";
@@ -400,6 +401,7 @@ function Details({ onRename, onImportChoices, detail: d, onLineage, refreshKey, 
         <a href={logUrl({photo:d.id})} onClick={follow}>View photo logs</a>
         </div>
       </section>}
+      {d.version && <EarlierVersions photoId={d.id} version={d.version} jobRunning={jobRunning} refreshKey={refreshKey} />}
       {review}
       {!review && IN_LIBRARY.includes(d.status) && d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. Use Edit date or the Metadata tab to correct it. <a href="/?view=suspicious">View suspicious dates</a></p>}
       {IN_LIBRARY.includes(d.status) && d.visual_issue && <p className="section-note"><strong>Visual matching unavailable:</strong> {d.visual_issue} The catalogued file is retained. Missing EXIF alone is not evidence of damage.</p>}

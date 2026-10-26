@@ -105,10 +105,32 @@ export interface MetadataAttention {
   action: string;
 }
 
+// A photo's earlier-version links, for its card badge (engine-spec 10).
+export type VersionState = "waiting" | "not_kept" | "keep_separate";
+export interface VersionBadge {
+  version_of: number | null; state: VersionState | null;
+  earlier_versions: number; waiting: number;
+}
+export interface VersionChange {
+  change_id: number; operation_id: number; at: string;
+  fields: { source: string; field: string; before: unknown; after: unknown }[];
+  tags: { tag: string; before: unknown; after: unknown }[];
+}
+export interface VersionPhoto { id: number; filename: string; location: string; state?: VersionState | null }
+export interface PhotoVersions {
+  photo_id: number; revision: number;
+  earlier_version: null | {
+    version_of: VersionPhoto; state: VersionState | null; found_at: string; answerable: boolean;
+    same_picture: boolean; changes: VersionChange[]; answers: { answer: VersionState; at: string }[];
+  };
+  earlier_versions: VersionPhoto[];
+}
+
 export interface PhotoItem {
   name_context?: { clashes: boolean; folder: string | null; original_paths: string[]; renamed_on_arrival: boolean };
   thumbnail_revision?: number;
   metadata_attention?: MetadataAttention | null;
+  version?: VersionBadge | null;
   id: number;
   status: string;
   file_size: number | null;
@@ -284,6 +306,7 @@ export interface FileIssue {
 
 export interface PhotoDetail {
   metadata_attention?: MetadataAttention | null;
+  version?: VersionBadge | null;
   issues: FileIssue[];
   failure: string | null;
   visual_issue: string | null;
@@ -806,6 +829,9 @@ export const api = {
   previewReviewBatch: (ids: number[], action: BulkReviewAction) => request<BulkReviewPlan>("POST", "/api/v1/review-batch/preview", { ids, action }),
   reviewBatch: (items: ReviewDecision[]) => request<BulkReviewResult>("POST", "/api/v1/review-batch", { items }),
   review: (id: number) => request<ReviewDetail>("GET", `/api/v1/photos/${id}/review`),
+  versions: (id: number) => request<PhotoVersions>("GET", `/api/v1/photos/${id}/versions`),
+  answerVersion: (id: number, answer: "not_kept" | "keep_separate", revision: number, request_id: string) =>
+    request<PhotoVersions>("POST", `/api/v1/photos/${id}/versions/answer`, { photo_id: id, answer, revision, request_id }),
   reviewDecision: (id: number, detail: ReviewDetail, reason: string, action: string, note: string, request_id: string, bookmark_reason?: string) =>
     request<ReviewDetail>("POST", `/api/v1/photos/${id}/review`, {
       photo_id: id, sha1: detail.sha1, revision: detail.revision, reason, action, note, request_id, ...(reason === "date" ? {date_taken:detail.date_taken} : {}), ...(bookmark_reason ? { bookmark_reason } : {}),

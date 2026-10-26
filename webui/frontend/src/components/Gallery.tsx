@@ -3,6 +3,7 @@ import { placeOf, type Place, type PhotoItem } from "../api";
 import { epoch, isFallbackDate, photoDate, plural } from "../format";
 import { Thumb } from "./Thumb";
 import { Tip } from "./Tip";
+import { versionBadge } from "./EarlierVersions";
 
 const STATUS_BADGE: Record<string, string> = {
   Completed: "Moved", Copied: "Copied", Found_At_Destination: "At destination", Failed: "Failed",
@@ -104,6 +105,9 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
                 )}
                 {item.status === "Failed" && <a href={`/logs?photo=${item.id}&status=Failed`}>File needs attention</a>}
                 {item.metadata_attention && <button className="link" onClick={() => onOpen(item.id)}>Needs attention · Metadata</button>}
+                {item.version?.state === "waiting" && item.version.version_of != null
+                  ? <button className="link" onClick={() => onOpen(item.id)}>{versionBadge(item.version)}</button>
+                  : versionBadge(item.version) && <span className="badge" title={item.version?.waiting ? `${plural(item.version.waiting, "earlier version")} waiting for your answer` : undefined}>{versionBadge(item.version)}</span>}
                 {item.duplicates > 0 && <span className="badge">{plural(item.duplicates, "duplicate")}</span>}
               </span>
             </div>

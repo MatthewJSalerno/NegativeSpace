@@ -1146,7 +1146,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               <button ref={summaryToggle} className="icon" aria-label="Close index summary" title="Close index summary"
                 onClick={() => toggleIndexSummary(indexSummaryKey)}>✕</button>
             </div>
-            <p>{indexNeedsAttention ? "The remaining files have processing errors or metadata issues. Open a marked photo below to see the affected source files and next steps." : data.index_summary.photos === 0 ? "No photos are waiting to be organized. Open By file type to see what Index found." : "Your photos are indexed. Copy or move them to build your library."}</p>
+            <p>{indexNeedsAttention ? "The remaining files have processing errors or metadata issues, or are earlier versions of photos you edited. Open a marked photo below to see what happened and the next steps." : data.index_summary.photos === 0 ? "No photos are waiting to be organized. Open By file type to see what Index found." : "Your photos are indexed. Copy or move them to build your library."}</p>
             {indexNeedsAttention ? <p><a href="/?view=unorganized&reason=attention" onClick={follow}>View {plural(indexAttentionCount, "file")} needing attention</a></p> : <>
             <p className="section-note">These totals cover all successfully indexed photos, regardless of filters. Failed files are counted separately. Small sizes and suspicious dates do not prevent Copy or Move.</p>
             <dl>

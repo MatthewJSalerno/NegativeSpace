@@ -1512,7 +1512,7 @@ notice; organized photos do not inherit this source-only hold. Index summary exc
 recorded metadata holds from Photos ready to organize and counts them under attention.
 
 **Needs attention (count)** is a source refinement, with a warning link beneath Not organized on every screen,
-showing processing failures or latest recorded metadata holds, counting each photo once.
+showing processing failures, latest recorded metadata holds and earlier versions waiting for an answer, counting each photo once.
 Its count covers all affected source files, independent of the current gallery filters.
 It opens the full attention list and persists in the URL; choosing Not organized returns
 to its full source scope. It combines with other source refinements. Search/date/type filters can narrow the list. Folder browsing lives in Source
@@ -1529,6 +1529,25 @@ hidden, so filter selection never moves the tree below it. Source-folder Copy/Mo
 controls stay visible with eligibility guidance when zero or multiple folders are shown.
 Lineage avoids repeating selection jobs already represented by a file step; selection
 jobs without a recorded file step remain in a collapsed disclosure, never erased.
+
+### Earlier versions
+
+An earlier version of an edited Library photo (`engine-spec.md` §10) waiting for an answer
+gets an **Earlier version · waiting for your answer** card control opening Photo
+information, the same treatment as **Needs attention · Metadata**. Answered ones carry a
+plain badge, **Earlier version · not kept** or **Earlier version**; the edited photo's card
+carries **Has an earlier version**. These are relationship badges, never keywords.
+
+Photo information opens with the shared notice: a link to the edited photo, "Only the
+photo's details changed; the picture is the same" only when the recorded edit chain proves
+it, and **Changes since this version**, one entry per recorded change labelled like History
+(**Date saved**, **Rotation saved**, **Metadata saved**) with a Before/After table using the
+Metadata viewer's field names and a "Details from:" source line. Orientation values read
+as words ("Turned 90° clockwise"); a changed tag with no named field shows its tag name.
+**Don't keep it** answers immediately, since nothing changes on disk; **Keep it as its own
+photo…** and **Keep it after all…** confirm first and say which Date taken the photo
+files under. Earlier answers stay listed under **Your answers**. The edited photo's
+Photo information links each earlier version with its location and answer.
 
 ### First-import XMP choices
 
