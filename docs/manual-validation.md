@@ -9,7 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Earlier versions:** EV1–EV3b passed; [EV3c](#earlier-versions) is pending.
+**Earlier versions:** [EV1–EV3](#earlier-versions) passed, including all lettered steps, on
+2026-10-26. No manual checks remain for this batch.
 
 **Destination folder preview:** [TP1–TP3](#destination-folder-preview) passed, including
 all lettered steps. No manual checks remain for this batch. The large-preview usability
@@ -58,7 +59,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Earlier versions
 
-**Status:** EV1–EV3b passed, including all lettered steps (EV2c after a Jobs-menu count fix); EV3c pending.
+**Status:** EV1–EV3 passed, including all lettered steps (EV2c after a Jobs-menu count fix, EV3c after adding the split marker), on 2026-10-26.
 
 Automated Docker checks passed: the Python unit suite (952 tests; `ci_scope_test` in the
 CI image), all three `tools/check-*.py`, and the production build with typechecking.

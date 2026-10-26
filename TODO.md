@@ -18,7 +18,7 @@ this list in the same change that adds or finishes an item. 💬 marks discussio
 development until the maintainer decides.
 
 **Organizing**
-- Earlier versions arriving again — exact copies built; EV1–EV3 pending (`docs/manual-validation.md`); look-alike versions later (`docs/engine-spec.md` §10)
+- Earlier versions arriving again — exact copies built, EV1–EV3 passed; look-alike versions later (`docs/engine-spec.md` §10)
 - Copy/Move preview grouped by destination folder — implemented; TP1–TP3 passed (`docs/manual-validation.md`, Destination folder preview; `docs/webui-spec.md` §2)
 - 💬 Source-folder handling behind the scenes
 - 💬 A content-history link from a photo to its earlier versions
