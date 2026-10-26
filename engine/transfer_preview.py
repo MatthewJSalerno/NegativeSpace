@@ -8,6 +8,7 @@ from engine import constants, destinations, metadata_import, move_confirmation, 
 PAGE_SIZE = 20
 
 
+
 def snapshot(conn, *, source, destination, photo_ids=None, source_subdir=None):
     scope = move_confirmation.snapshot(conn, source=source, destination=destination,
                                       photo_ids=photo_ids, source_subdir=source_subdir)
@@ -34,7 +35,7 @@ def check(conn, token, **scope):
 
 
 def preview(conn, *, source, destination, mode, photo_ids=None, source_subdir=None,
-            token=None, page=1, folder=None, file_page=1):
+            token=None, page=1, folder=None, file_page=1, materialize=False):
     if mode not in ('copy','move'):
         raise ValueError('Choose Copy or Move.')
     if any(type(x) is not int or x < 1 for x in (page,file_page)) or (folder is not None and not isinstance(folder,str)):
@@ -89,13 +90,22 @@ def preview(conn, *, source, destination, mode, photo_ids=None, source_subdir=No
         if reason:
             item['note'] = reason
             unplanned.append(item)
+    plan = dict(file_ids=base['file_ids'], token=current, mode=mode, total=len(rows),
+        groups=groups, unplanned=unplanned)
+    return plan if materialize else page_result(plan, page=page, folder=folder, file_page=file_page)
+
+
+def page_result(plan, *, page=1, folder=None, file_page=1):
+    if any(type(x) is not int or x < 1 for x in (page,file_page)) or (folder is not None and not isinstance(folder,str)):
+        raise ValueError('Choose a valid preview page or folder.')
+    groups, unplanned, current = plan['groups'], plan['unplanned'], plan['token']
     names = sorted(groups)
     if folder is not None:
         if folder not in groups: raise ValueError('This destination folder is not in the preview.')
         items = groups[folder]
         return dict(token=current,folder=folder,total=len(items),page=file_page,
                     items=items[(file_page-1)*PAGE_SIZE:file_page*PAGE_SIZE])
-    return dict(file_ids=base['file_ids'],token=current,mode=mode,total=len(rows),
+    return dict(file_ids=plan['file_ids'],token=current,mode=plan['mode'],total=plan['total'],
         planned=sum(len(v) for v in groups.values()),group_total=len(names),page=page,page_size=PAGE_SIZE,
         groups=[dict(path=n,total=len(groups[n]),items=groups[n][:PAGE_SIZE])
                 for n in names[(page-1)*PAGE_SIZE:page*PAGE_SIZE]],

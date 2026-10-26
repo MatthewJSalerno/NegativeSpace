@@ -66,7 +66,16 @@ with sync_playwright() as p:
     assert response.ok and response.request.post_data_json=={'source_subdir':'trip/day 1'},response.text()
     assert len(response.json()['file_ids'])==10
     dialog=page.get_by_role('alertdialog');expect(dialog.get_by_role('button',name='Move',exact=True)).to_be_enabled()
-    dialog.get_by_role('button',name='Cancel',exact=True).click()
+    expect(dialog.get_by_label('Index used for preview')).to_contain_text('for folder trip/day 1')
+    with page.expect_response(lambda r:r.url.endswith('/api/v1/jobs/start') and r.request.method=='POST') as folder_index:
+        dialog.get_by_role('button',name='Index this folder',exact=True).click()
+    response=folder_index.value
+    assert response.ok,response.text()
+    assert response.request.post_data_json['mode']=='index'
+    assert response.request.post_data_json['source_subdir']=='trip/day 1'
+    assert 'file_ids' not in response.request.post_data_json
+    expect(dialog).to_have_count(0)
+    wait(response.json()['id'])
     page.goto(sys.argv[1]+'/?view=organized')
     dialog=all_move()
     expect(dialog.get_by_role('button',name='Move',exact=True)).to_be_disabled()

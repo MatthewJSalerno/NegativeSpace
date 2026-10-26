@@ -18,7 +18,7 @@ function Folder({ group, plan, busy, onInvalid }: { group: TransferPreview["grou
   const load = async (next: number) => {
     setLoading(true);
     try {
-      const answer = await api.previewTransferFolder({ mode: plan.mode, file_ids: plan.file_ids,
+      const answer = await api.previewTransferFolder({ mode: plan.mode,
         token: plan.token, folder: group.path, file_page: next });
       setItems(answer.items); setPage(next);
     } catch (e) { onInvalid(e instanceof Error ? e.message : "Could not load this folder. Refresh the preview."); }

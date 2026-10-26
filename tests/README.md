@@ -2221,6 +2221,14 @@ Manual checks and acceptance live in [manual validation](../docs/manual-validati
 
 ## Destination folder previews
 
+**VERIFIED — focused Docker run, 2026-10-25:** `audit043_test`, `review_test` and
+`transfer_preview_test` passed 62 tests. `audit043_test.py` covers preview/start lock
+separation, token-only cached paging, stale/expired plans, per-item batch skips,
+bookmark default ordering, opt-in review counts and shared size policy. Regression
+failures before the fixes and synthetic measurements are recorded in the private
+audit response; full-suite and browser validation remain pending.
+
+
 `transfer_preview_test.py` covers actual date/Undated paths, source scoping, duplicate
 and Rejects treatment, paged results, read-only previews, API/engine stale-state
 checks, idempotent submission and XMP-primary filing against verified delivery.

@@ -12,8 +12,6 @@ BOOKMARK_REASONS = {
 }
 REASONS = ('small', 'later', 'date')
 
-DELIVERED = "'Completed','Copied','Found_At_Destination'"
-LIMIT_SQL = "(SELECT CAST(value_json AS INTEGER) FROM settings WHERE key='small_image_min' AND value_json!='null')"
 
 
 def predicate(reason='all'):
@@ -21,9 +19,9 @@ def predicate(reason='all'):
         raise ValueError('Unknown review reason')
     small = review_history.small_pending_sql()
     date = review_history.date_pending_sql()
-    later = (f"p.status IN ({DELIVERED}) AND "
+    later = (f"p.status IN ({ns_db.sql_values(ns_db.DELIVERED_STATUSES)}) AND "
              "(SELECT e.action FROM review_events e WHERE e.photo_id=p.id AND e.reason='later' ORDER BY e.id DESC LIMIT 1)='later'")
-    issues = f"p.status IN ({DELIVERED}) AND ({attention.predicate()})"
+    issues = f"p.status IN ({ns_db.sql_values(ns_db.DELIVERED_STATUSES)}) AND ({attention.predicate()})"
     return {'small': small, 'later': later, 'issues': issues, 'date': date, 'all': f'(({small}) OR ({later}) OR ({issues}) OR ({date}))'}[reason]
 
 
@@ -50,7 +48,7 @@ def details(conn, photo_id):
         if conn.execute(f'SELECT 1 FROM photos p WHERE p.id=? AND ({predicate(reason)})', (photo_id,)).fetchone():
             if reason == 'small':
                 dims = conn.execute("SELECT width,height FROM contents WHERE hash_algorithm='sha1' AND digest=?", (row[2],)).fetchone()
-                limit = conn.execute(f'SELECT {LIMIT_SQL}').fetchone()[0]
+                limit = conn.execute(f'SELECT {review_history.MIN_SIZE_SQL}').fetchone()[0]
                 reasons.append({'reason': reason, 'label': 'Small image',
                     'message': f'{dims[0]} × {dims[1]} — below your {limit}-pixel minimum on the shorter side.'})
             elif reason == 'date':
@@ -62,7 +60,7 @@ def details(conn, photo_id):
                                 'message': note, 'bookmark_reason': preset})
     return {'reasons': reasons, 'history': history, 'revision': history[0]['id'] if history else 0,
             'date_taken':meta.get('date_taken'), 'date_confirmed':bool(warning[1]),
-            'date_warning':warning[0], 'date_message':date_message, 'sha1': row[2], 'location': 'Library' if row[1] in ('Completed','Copied','Found_At_Destination') else
+            'date_warning':warning[0], 'date_message':date_message, 'sha1': row[2], 'location': 'Library' if row[1] in ns_db.DELIVERED_STATUSES else
             'Rejects' if row[1] in ns_db.REJECTED_STATUSES else 'Not organized'}
 
 

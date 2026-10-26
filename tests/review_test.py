@@ -528,7 +528,7 @@ class ReviewTests(ApiCase):
         plan, body = self.batch([1, 2, 3, 999], 'small')
         self.assertEqual([row['decision']['photo_id'] for row in plan['items']], [1])
         self.assertEqual({row['photo_id'] for row in plan['skipped']}, {2, 3, 999})
-        selection = self.client.post('/api/v1/photos/selection', json={'ids':[1,2,3,999]}).json()
+        selection = self.client.post('/api/v1/photos/selection', json={'ids':[1,2,3,999], 'include_review_actions':True}).json()
         self.assertEqual(selection['review_actions'], dict(small=1, date=1, done=0, keep=0))
         saved = self.client.post('/api/v1/review-batch', json=body)
         self.assertEqual(saved.status_code, 200, saved.text)

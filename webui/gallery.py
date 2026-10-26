@@ -6,7 +6,7 @@ import posixpath
 from pathlib import Path
 from typing import Optional
 
-from engine import ns_db, review, review_batch, review_history, attention, metadata_choices
+from engine import index_history, ns_db, review, review_batch, review_history, attention, metadata_choices
 from engine import ns_similarity_cache
 from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
 from . import photo_orientation, catalog, metadata_view, card_names, discovery
@@ -169,7 +169,7 @@ def _filters(q, undated, dates, types=None, folders=None, root=None, *, group_se
     if size_below is not None:
         if type(size_below) is not int or not 1 <= size_below <= 100000:
             raise ValueError('Size cutoff must be between 1 and 100000 pixels.')
-        filtered += " AND p.status!='Failed' AND EXISTS (SELECT 1 FROM contents c WHERE c.hash_algorithm='sha1' AND c.digest=p.sha1_hash AND c.width>0 AND c.height>0 AND min(c.width,c.height)<?)"
+        filtered += f" AND p.status!='Failed' AND {review_history.small_dimensions_sql(minimum='?')}"
         params += (size_below,)
     if similar:
         filtered += f" AND p.id IN ({ns_similarity_cache.matched_ids(match_min)})"
@@ -229,7 +229,7 @@ def _review_cards(conn, rows):
     if not rows:
         return {}
     found = conn.execute(f"""SELECT p.id, p.status, c.width, c.height,
-        {review.LIMIT_SQL} AS minimum,
+        {review_history.MIN_SIZE_SQL} AS minimum,
         ({review.predicate('small')}) AS small,
         ({review.predicate('date')}) AS date_review,
         ({review.predicate('later')}) AS later,
@@ -268,13 +268,13 @@ def _index_summary(conn):
         COALESCE(SUM(p.status='Processing'),0) AS unfinished,
         COALESCE(SUM(p.status='Pending' AND ({_date_warning_sql()}) IS NOT NULL),0) AS suspicious,
         COALESCE(SUM(p.status='Pending' AND {_UNDATED}),0) AS undated,
-        COALESCE(SUM(p.status='Pending' AND c.width>0 AND c.height>0 AND min(c.width,c.height)<{review.LIMIT_SQL}),0) AS small,
+        COALESCE(SUM(p.status='Pending' AND {review_history.shorter_side_sql()}),0) AS small,
         COALESCE(SUM(p.status='Pending' AND (c.width IS NULL OR c.height IS NULL OR c.width<=0 OR c.height<=0)),0) AS unknown_dimensions,
         COALESCE(SUM(p.status='Failed'),0) AS failed
         FROM photos p LEFT JOIN contents c ON c.hash_algorithm='sha1' AND c.digest=p.sha1_hash
         WHERE {where}""").fetchone()
     result = dict(row)
-    result['minimum'] = conn.execute(f'SELECT {review.LIMIT_SQL}').fetchone()[0]
+    result['minimum'] = conn.execute(f'SELECT {review_history.MIN_SIZE_SQL}').fetchone()[0]
     result['duplicates'] = conn.execute(f"""SELECT COUNT(*) FROM photos d WHERE d.status='Duplicate'
         AND EXISTS (SELECT 1 FROM photos p WHERE {where} AND p.sha1_hash=d.sha1_hash)""").fetchone()[0]
     result['similar'] = None  # Source-only visual comparisons are not calculated.
@@ -360,7 +360,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
                         suspicious=key == 'suspicious' or suspicious, reason=target,
                         run=run, set_reference=set_reference, size_below=None if key == 'size' else size_below, source_summary=source_summary, other_names=other_names)
         if key == 'size':
-            sql += f" AND p.status!='Failed' AND EXISTS (SELECT 1 FROM contents c WHERE c.hash_algorithm='sha1' AND c.digest=p.sha1_hash AND c.width>0 AND c.height>0 AND min(c.width,c.height)<{review.LIMIT_SQL})"
+            sql += f" AND p.status!='Failed' AND {review_history.small_dimensions_sql()}"
         return sql, values
 
     with catalog.connect(db_path) as conn:
@@ -488,13 +488,15 @@ ACTION_STATUSES = {"copy": ns_db.TRANSFER_ELIGIBLE["copy"], "move": ns_db.TRANSF
                    "reject": catalog.DELIVERED, "return": IN_REJECTS_STATUSES}
 
 
-def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, match_min=75, action=None) -> dict:
+def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, match_min=75, action=None, include_review_actions=False) -> dict:
     """The selected photos, whatever view, search or dates would hide them, one page at a
     time (webui-spec 2, Show only selected and the review before Copy/Move). `missing` names ids no longer in the catalog,
     so a selection is never silently shortened."""
     _check_view("similar" if sort == "matches" else "all", sort, page, page_size)
     if not isinstance(ids, list) or any(type(i) is not int or i < 1 for i in ids):
         raise ValueError("ids must be a list of photo ids")
+    if type(include_review_actions) is not bool:
+        raise ValueError('include_review_actions must be a boolean')
     wanted = sorted(set(ids))
     # json_each reads the list as a table, with no write to the catalog.
     join = "FROM photos p JOIN json_each(?) w ON w.value = p.id"
@@ -512,7 +514,7 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, ma
         counts = conn.execute(
             "SELECT " + ", ".join(f"COALESCE(SUM(p.status IN ({ns_db.sql_values(v)})), 0)" for v in ACTION_STATUSES.values())
             + f" {join}", (json.dumps(wanted),)).fetchone()
-        review_counts = review_batch.counts(conn, wanted)
+        review_counts = review_batch.counts(conn, wanted) if include_review_actions else None
         # The photos one action takes, for its review: never the ones it would skip.
         takes = None
         if action is not None:
@@ -524,7 +526,8 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, ma
     return {"items": items, "page": page, "page_size": page_size, "total": len(found),
             "missing": [i for i in wanted if i not in found],
             "in_rejects": sorted(r[0] for r in places if r[1]),
-            "actions": dict(zip(ACTION_STATUSES, counts)), "review_actions": review_counts,
+            "actions": dict(zip(ACTION_STATUSES, counts)),
+            **({"review_actions": review_counts} if include_review_actions else {}),
             **({"takes": takes} if takes is not None else {})}
 
 
@@ -640,25 +643,7 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
 
 
 def _last_indexed(conn, source: str):
-    """When each part of this source was last read in full: the end of the latest Completed
-    Index of the whole source, and of each folder an Index was scoped to. A cancelled,
-    failed or interrupted Index, or one scoped to selected photos, may not have read a whole
-    folder, so it does not count. Completed runs with run-level failures also leave
-    prior coverage unchanged, even for readable siblings; individual photo failures
-    do not mean traversal was incomplete."""
-    whole, by_folder = None, {}
-    for targeting, ended in conn.execute(
-            "SELECT r.file_ids_filter, r.ended_at FROM runs r WHERE r.mode = 'INDEX' AND r.status = 'Completed' "
-            "AND r.ended_at IS NOT NULL AND rtrim(r.source_path, '/') = ? "
-            "AND NOT EXISTS (SELECT 1 FROM operations o WHERE o.run_id = r.id "
-            "AND o.photo_id IS NULL AND o.status = 'Failed')", (source,)):
-        scope = json.loads(targeting) if targeting else {}
-        if not scope:
-            whole = max(whole or ended, ended)
-        elif "source_subdir" in scope:
-            folder = scope["source_subdir"].strip("/")
-            by_folder[folder] = max(by_folder.get(folder) or ended, ended)
-    return whole, by_folder
+    return index_history.coverage(conn,source)
 
 
 def thumbnail_record(conn, photo_id: int, size: int):

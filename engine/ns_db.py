@@ -52,6 +52,8 @@ class PhotoStatus:
 # The destination's layout (engine-spec 9.9): organized photos live in `library/` under
 # --dest (dated folders and Undated/<year> alike), so folders beside it, such as Rejects
 # (engine-spec 9.5), never reach a gallery application pointed at dest/library.
+DELIVERED_STATUSES = (PhotoStatus.COMPLETED, PhotoStatus.COPIED, PhotoStatus.FOUND_AT_DESTINATION)
+
 LIBRARY_FOLDER = "library"
 
 

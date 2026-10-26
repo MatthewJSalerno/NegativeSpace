@@ -360,7 +360,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         try:
             result = gallery.photos_by_ids(cfg.db_path, body.get("ids"), sort=body.get("sort", "newest"),
                                          page=body.get("page", 1), page_size=body.get("page_size", 60), match_min=body.get("match_min", 75),
-                                         action=body.get("action"))
+                                         action=body.get("action"), include_review_actions=body.get("include_review_actions", False))
             with catalog.connect(cfg.db_path) as conn:
                 pairs = pair_retry.preview(conn,source=cfg.source,destination=cfg.dest,photo_ids=body.get('ids')) if body.get('ids') else []
             result['pair_retries'] = sum(not row['blocked'] for row in pairs)

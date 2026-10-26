@@ -16,7 +16,7 @@ import uuid
 from typing import Optional
 
 from engine import move_confirmation, transfer_preview, pair_retry, ns_db
-from . import catalog, catalog_backups, outcomes
+from . import catalog, catalog_backups, outcomes, transfer_plans
 from .config import ENGINE_CWD, Config
 
 MODES = {"index": None, "copy": "--copy", "move": "--move",
@@ -101,6 +101,7 @@ class JobRunner:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self._start_lock = threading.Lock()
+        self._transfer_plans = transfer_plans.PlanCache()
         self._procs = {}                      # run_id -> Popen
         self._previews = threading.BoundedSemaphore(PREVIEW_CONCURRENCY)
         self._backing_up = False
@@ -255,16 +256,16 @@ class JobRunner:
         _, selection = validate_request(self.cfg, mode, body.get('file_ids'), body.get('source_subdir'))
         with self._start_lock:
             if self._probe_lock(): raise self._busy()
-            with catalog.connect(self.cfg.db_path) as conn:
-                conn.execute('BEGIN')
-                try:
-                    return transfer_preview.preview(conn, source=self.cfg.source, destination=self.cfg.dest,
-                        mode=mode, photo_ids=selection, source_subdir=body.get('source_subdir'),
-                        **{k:body[k] for k in ('token','page','folder','file_page') if k in body})
-                except ns_db.RevisionConflict as exc:
-                    raise JobRefused(409, {'error':'transfer_preview_changed','message':str(exc)}) from exc
-                except (ValueError,ns_db.SelectionRefused) as exc:
-                    raise JobRefused(400, {'error':'invalid_request','message':str(exc)}) from exc
+        with catalog.connect(self.cfg.db_path) as conn:
+            conn.execute('BEGIN')
+            try:
+                return self._transfer_plans.preview(conn, source=self.cfg.source, destination=self.cfg.dest,
+                    mode=mode, photo_ids=selection, source_subdir=body.get('source_subdir'),
+                    **{k:body[k] for k in ('token','page','folder','file_page') if k in body})
+            except ns_db.RevisionConflict as exc:
+                raise JobRefused(409, {'error':'transfer_preview_changed','message':str(exc)}) from exc
+            except (ValueError,ns_db.SelectionRefused) as exc:
+                raise JobRefused(400, {'error':'invalid_request','message':str(exc)}) from exc
 
     def start(self, mode: str, file_ids=None, source_subdir=None, request_id=None,
               confirm_edited_sources=False, move_preview_token=None, transfer_preview_token=None) -> int:

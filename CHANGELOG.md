@@ -9,6 +9,15 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- READ (`webui/jobs.py`, `webui/transfer_plans.py`): destination previews no longer
+  hold the job-start lock while planning; pages reuse the plan with a token.
+- READ (`review_batch.py`, `catalog.py`, `gallery.py`): invalid Keep items are
+  reported individually, missing bookmark reasons sort as Check the date, and
+  selection pages omit review counts unless requested by review controls.
+- READ (`DestinationPreview.tsx`): Copy/Move confirmation shows the last finished
+  Index's time, outcome and scope.
+
+
 - Remove unused per-view gallery count queries and obsolete retention/XMP helpers;
   preserve current sidebar, refinement and cross-place search counts. Refresh the
   README and guide screenshots and correct stale workflow documentation.

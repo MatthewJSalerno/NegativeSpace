@@ -73,6 +73,12 @@ export function lastIndexed(iso: string | null | undefined): string {
   return Date.now() - t < 365 * 86_400_000 ? `Last indexed ${ago(iso)}` : `Last indexed ${day(iso)}`;
 }
 
+export function indexTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    day: "numeric", month: "short", hour: "numeric", minute: "2-digit",
+  });
+}
+
 export function indexedExact(iso: string | null | undefined): string {
   return iso ? `Last indexed ${instant(iso)}` : "No Index has finished reading this whole folder yet.";
 }

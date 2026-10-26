@@ -15,7 +15,7 @@ from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
 
 
 GRID_SIZE = 320
-DELIVERED = (PhotoStatus.COMPLETED, PhotoStatus.COPIED, PhotoStatus.FOUND_AT_DESTINATION)
+DELIVERED = ns_db.DELIVERED_STATUSES
 # A Move that delivered a verified copy but could not delete the original is recorded
 # as Copied with a reason (ns_db.ORIGINAL_KEPT). The log shows it as its own status,
 # derived here and never stored, so it reads as neither a Move nor a failure.
@@ -46,7 +46,7 @@ REJECTS_LISTING_SECONDS = 5.0
 _rejects_listings = {}
 SORTS = {
     "duplicates": "(SELECT COUNT(*) FROM photos d WHERE d.sha1_hash=p.sha1_hash AND d.id!=p.id) DESC, p.id ASC",
-    "bookmark": "COALESCE((SELECT CASE json_extract(e.payload,'$.bookmark_reason') WHEN 'date' THEN 0 WHEN 'compare' THEN 1 WHEN 'rotation' THEN 2 WHEN 'details' THEN 3 WHEN 'keep' THEN 4 WHEN 'ask' THEN 5 ELSE 6 END FROM review_events e WHERE e.photo_id=p.id AND e.reason='later' AND e.action='later' ORDER BY e.id DESC LIMIT 1),7), p.id ASC",
+    "bookmark": "COALESCE((SELECT CASE COALESCE(json_extract(e.payload,'$.bookmark_reason'),'date') WHEN 'date' THEN 0 WHEN 'compare' THEN 1 WHEN 'rotation' THEN 2 WHEN 'details' THEN 3 WHEN 'keep' THEN 4 WHEN 'ask' THEN 5 ELSE 6 END FROM review_events e WHERE e.photo_id=p.id AND e.reason='later' AND e.action='later' ORDER BY e.id DESC LIMIT 1),7), p.id ASC",
     "matches": "similar_count DESC, p.id ASC",
     # Undated rows carry their modification-time fallback in date_taken, labelled by
     # date_source (webui-spec 3.1); a row with no date at all sorts last either way.

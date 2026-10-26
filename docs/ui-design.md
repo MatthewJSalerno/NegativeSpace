@@ -382,6 +382,14 @@ focused. Loading/failure blocks submission, and a stale preview offers an explic
 refresh before another confirmation. Move retains its Include/Leave decision for
 edited originals. The CSV idea is deferred in TODO, not part of this confirmation.
 
+**Read — `webui/frontend/src/components/Confirm.tsx:104`:** every Copy/Move preview
+names its Index at the top, in normal text: "Based on the Index from **14 Oct, 9:02 AM**
+(3 days ago). Photos added to the source since then aren't included." A folder preview
+names the folder and uses its completed coverage time, shared with Source folders.
+Beside it, **Index source** or **Index this folder** starts Index only when clicked and
+closes the preview after acceptance. There is no age warning or automatic Index.
+If no complete Index is recorded, say so; do not substitute a failed or partial run.
+
 ## Move confirmation after embedded edits
 
 Use the shared transfer confirmation for single-photo, selected, folder and whole-source

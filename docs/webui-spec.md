@@ -250,6 +250,18 @@ keep its warnings and confirmation buttons. These are proposed destinations, not
 completed operations; actual outcomes belong in the job log. Apply the same
 selection counts and stale-preview safeguards used by other confirmed actions.
 
+**The preview names the Index it is based on** (decided 2026-10-25).
+**Read — `webui/frontend/src/components/Confirm.tsx:104`, `engine/cli.py:618`:**
+a confirmed Copy/Move acts on the previewed catalogued IDs; it does not walk the
+source to discover added photos or mark vanished originals. Transfer verification
+still checks the files it acts on. At the top of every Copy/Move preview, in normal
+text, show: "Based on the Index from **14 Oct, 9:02 AM** (3 days ago). Photos added to
+the source since then aren't included." Always show it, not only when the Index is
+old. A folder's Copy/Move uses that folder's own last-indexed time (§2) and names the
+folder. Beside it, **Index source** (or **Index this folder**) starts that Index on
+request, closing the preview after acceptance; it never starts by itself. If there
+is no recorded complete Index for this scope, say so instead of inventing a time.
+
 **Downloadable operation plan — deferred for discussion (2026-10-24):** do not build
 or offer a CSV download with the folder preview. Revisit only after every other
 requirement is built. The suggested use case is inspecting or saving a large proposed

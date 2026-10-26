@@ -7,9 +7,17 @@ with every deliberate answer retained in append-only review_events.
 import json
 from engine import ns_db
 
-DELIVERED = "'Completed','Copied','Found_At_Destination'"
 MIN_YEAR_SQL = f"COALESCE((SELECT CAST(value_json AS INTEGER) FROM settings WHERE key='suspicious_min_year'),{ns_db.SUSPICIOUS_MIN_YEAR_DEFAULT})"
 MIN_SIZE_SQL = "(SELECT CAST(value_json AS INTEGER) FROM settings WHERE key='small_image_min' AND value_json!='null')"
+
+
+def shorter_side_sql(alias='c', minimum=MIN_SIZE_SQL):
+    return f"{alias}.width>0 AND {alias}.height>0 AND min({alias}.width,{alias}.height)<{minimum}"
+
+
+def small_dimensions_sql(alias='p', minimum=MIN_SIZE_SQL):
+    return (f"EXISTS (SELECT 1 FROM contents c WHERE c.hash_algorithm='sha1' "
+            f"AND c.digest={alias}.sha1_hash AND {shorter_side_sql(minimum=minimum)})")
 
 
 def date_value(alias='p'):
@@ -34,14 +42,13 @@ def confirmed_sql(alias='p'):
 
 
 def date_pending_sql(alias='p', minimum=MIN_YEAR_SQL, latest="(CAST(strftime('%Y','now') AS INTEGER)+1)"):
-    return (f"{alias}.status IN ({DELIVERED}) AND ({date_warning_sql(alias, minimum, latest)}) IS NOT NULL "
+    return (f"{alias}.status IN ({ns_db.sql_values(ns_db.DELIVERED_STATUSES)}) AND ({date_warning_sql(alias, minimum, latest)}) IS NOT NULL "
             f"AND NOT ({confirmed_sql(alias)})")
 
 
 def small_pending_sql(alias='p', minimum=MIN_SIZE_SQL, dimensions=None):
-    dims = dimensions or (f"EXISTS (SELECT 1 FROM contents c WHERE c.hash_algorithm='sha1' "
-        f"AND c.digest={alias}.sha1_hash AND c.width>0 AND c.height>0 AND min(c.width,c.height)<{minimum})")
-    return (f"{alias}.status IN ({DELIVERED}) AND ({dims}) AND NOT EXISTS "
+    dims = dimensions or small_dimensions_sql(alias, minimum)
+    return (f"{alias}.status IN ({ns_db.sql_values(ns_db.DELIVERED_STATUSES)}) AND ({dims}) AND NOT EXISTS "
             f"(SELECT 1 FROM review_events e WHERE e.photo_id={alias}.id AND e.reason='small' "
             f"AND e.sha1={alias}.sha1_hash AND e.action='reviewed')")
 
@@ -88,10 +95,10 @@ def ddl():
     # Capture OLD eligibility before invalidating confirmation. Replacing the date
     # with another suspicious value keeps the concern pending rather than clearing it.
     date_clear = _cleared('date', 'date_changed',
-        f"p.id=NEW.id AND OLD.status IN ({DELIVERED}) AND NEW.status IN ({DELIVERED}) "
+        f"p.id=NEW.id AND OLD.status IN ({ns_db.sql_values(ns_db.DELIVERED_STATUSES)}) AND NEW.status IN ({ns_db.sql_values(ns_db.DELIVERED_STATUSES)}) "
         f"AND ({date_pending_sql('OLD')}) AND ({date_warning_sql('NEW')}) IS NULL AND NOT ({confirmed_sql('NEW')})")
     small_clear = _cleared('small', 'dimensions_changed',
-        f"p.id=NEW.id AND OLD.status IN ({DELIVERED}) AND NEW.status IN ({DELIVERED}) "
+        f"p.id=NEW.id AND OLD.status IN ({ns_db.sql_values(ns_db.DELIVERED_STATUSES)}) AND NEW.status IN ({ns_db.sql_values(ns_db.DELIVERED_STATUSES)}) "
         f"AND ({small_pending_sql('OLD')}) AND EXISTS (SELECT 1 FROM contents c WHERE c.hash_algorithm='sha1' "
         f"AND c.digest=NEW.sha1_hash AND c.width>0 AND c.height>0 AND min(c.width,c.height)>={MIN_SIZE_SQL})")
     old_size = "(CASE WHEN OLD.value_json!='null' THEN CAST(OLD.value_json AS INTEGER) END)"
@@ -106,7 +113,7 @@ def ddl():
         # intermediate Pending/Duplicate source row within that scan transaction.
         # Clearing must inspect the prior answer BEFORE deleting it, in one trigger.
         f"CREATE TRIGGER review_photo_date AFTER UPDATE OF metadata_json,status ON photos "
-        f"WHEN NEW.status IN ({DELIVERED},'Rejected','Rejected_Copied') BEGIN "
+        f"WHEN NEW.status IN ({ns_db.sql_values(ns_db.DELIVERED_STATUSES)},'Rejected','Rejected_Copied') BEGIN "
         + date_clear + f" DELETE FROM review_date_confirmations WHERE photo_id=NEW.id AND date_taken IS NOT {date_value('NEW')}; END",
         "CREATE TRIGGER review_photo_size AFTER UPDATE OF sha1_hash ON photos WHEN OLD.sha1_hash IS NOT NEW.sha1_hash BEGIN "
         + small_clear + ' END',
@@ -117,14 +124,12 @@ def ddl():
         "WHEN NEW.key='suspicious_min_year' AND OLD.value_json IS NOT NEW.value_json BEGIN "
         + _cleared('date', 'date_rule_changed', f"({date_pending_sql(minimum=old_year)}) AND NOT ({date_pending_sql()})") + ' END',
     ]
-    def dims(alias):
-        return f"{alias}.width>0 AND {alias}.height>0 AND min({alias}.width,{alias}.height)<{MIN_SIZE_SQL}"
     statements.append("CREATE TRIGGER review_date_setting_first AFTER INSERT ON settings "
         "WHEN NEW.key='suspicious_min_year' BEGIN "
         + _cleared('date', 'date_rule_changed', f"({date_pending_sql(minimum=str(ns_db.SUSPICIOUS_MIN_YEAR_DEFAULT))}) AND NOT ({date_pending_sql()})") + ' END')
     statements.append("CREATE TRIGGER review_content_size AFTER UPDATE OF width,height ON contents "
         "WHEN NEW.hash_algorithm='sha1' AND (OLD.width IS NOT NEW.width OR OLD.height IS NOT NEW.height) BEGIN "
-        + _cleared('small', 'dimensions_changed', f"p.sha1_hash=NEW.digest AND ({small_pending_sql(dimensions=dims('OLD'))}) "
+        + _cleared('small', 'dimensions_changed', f"p.sha1_hash=NEW.digest AND ({small_pending_sql(dimensions=shorter_side_sql('OLD'))}) "
                    f"AND NEW.width>0 AND NEW.height>0 AND min(NEW.width,NEW.height)>={MIN_SIZE_SQL}") + ' END')
     return statements
 

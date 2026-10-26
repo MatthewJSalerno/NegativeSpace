@@ -3,7 +3,7 @@ Project: NegativeSpace (Core Engine)
 Description: A backend engine for organizing large photo collections based on spec.
 Run it as `python -m engine` from the folder holding this package.
 
-Package layout, by area: cli (arguments and the job each mode runs), scan (Index),
+Package layout, by area: cli (arguments and the job each mode runs), scan (Index), index_history (completed source coverage),
 transfer (Copy and Move), transfer_preview (read-only destination folders and stale-state guards), relocate (Rename, Reject, Return to library), reconcile
 (settling interrupted work at the start of every job), durable (copy-verify-delete and
 the fsync steps), store (catalog writes), fileinfo (dates, metadata, hashes), thumbnails,

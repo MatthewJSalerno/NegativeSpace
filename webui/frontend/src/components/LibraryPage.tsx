@@ -168,6 +168,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [reason, setReason] = useState(initial.reason);
   const [reviewPhoto, setReviewPhoto] = useState<number | null>(initial.reviewPhoto);
   const reviewFilter = reason;
+  const bulkReason = view === "review" ? reason : reason === "later" && (view === "organized" || similar) ? "later" : null;
   const [otherNames, setOtherNames] = useState(initial.otherNames);
   const [sourceSummary, setSourceSummary] = useState<string | undefined>(initial.sourceSummary);
   const [sizeBelow, setSizeBelow] = useState<number | undefined>(initial.sizeBelow);
@@ -423,10 +424,10 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     const ids = [...selected];
     setReviewCounts(null);
     if (ids.length === 0) { setSelectionActions(NO_ACTIONS); setPairRetryCount(0); }
-    else api.selection(ids, "newest", 1, 1, galleryMinimum)
+    else api.selection(ids, "newest", 1, 1, galleryMinimum, undefined, bulkReason !== null && ["small", "date", "later"].includes(bulkReason))
       .then((s) => { if(live) { setReviewCounts(s.review_actions ?? null); setSelectionActions(s.actions ?? NO_ACTIONS); setPairRetryCount(s.pair_retries ?? 0); } }, () => { if(live) { setSelectionActions(NO_ACTIONS); setPairRetryCount(0); } });
     return () => { live = false; };
-  }, [selected, galleryMinimum, refreshKey]);
+  }, [selected, galleryMinimum, refreshKey, bulkReason]);
   useEffect(() => {
     let live = true;
     api.types({ view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, source_summary: sourceSummary, other_names: otherNames, run: jobRun ?? undefined, match_min: galleryMinimum, q, undated, dates, folders }).then((t) => live && setTypeCounts(t.types), () => live && setTypeCounts(null));
@@ -993,7 +994,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               onTransfer={(mode, scope) => (scope === "folder" ? askFolder(mode) : askTransfer(mode))} />}
       selection={selected.size > 0 ? (
         <SelectionBar reviewActions={<BulkReviewActions ids={[...selected]} counts={reviewCounts} disabled={jobRunning}
-                      reason={view === "review" ? reason : reason === "later" && (view === "organized" || similar) ? "later" : null}
+                      reason={bulkReason}
                       onSaved={ids => { const saved = new Set(ids); setSelected(current => new Set([...current].filter(id => !saved.has(id)))); }} />} pairRetryIds={[...selected]} pairRetryCount={pairRetryCount} capacity={status.photos} selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
                       onRotate={selectionActions.reject > 0 ? () => setRotationIds([...selected]) : undefined} counts={selectionActions} place={place} jobRunning={jobRunning} search={searchField} onAction={transferSelected}
                       onShowSelected={showSelected} onBack={backToResults} onClear={clearSelection} />
