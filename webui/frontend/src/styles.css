@@ -607,6 +607,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 .lineage-operation-path { margin-block: var(--space-1); }
 .lineage-operation-path + .lineage-operation-path { border-top: 1px solid var(--border); padding-top: var(--space-1); }
 .lineage-failure { margin-block: var(--space-2); }
+/* Where an earlier version branched off: an accent rule, like Stats' semantic tile borders. */
+.lineage-split { border-inline-start: 3px solid var(--accent); padding-inline-start: var(--space-2); margin-block: var(--space-2); }
 .lineage-now { display: grid; grid-template-columns: var(--lineage-lanes) minmax(0, 1fr); gap: var(--space-3); position: sticky; bottom: -24px; background: var(--surface); border-top: 1px solid var(--border); padding-block: var(--space-3); z-index: 2; }
 .lineage-now p { margin: 0; }
 .lineage-now details { max-height: 25vh; overflow: auto; overflow-wrap: anywhere; }
@@ -961,6 +963,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .review-metadata-table tbody th { font-weight: var(--weight-normal); }
 .review-metadata-table small { display: block; color: var(--muted); font-size: inherit; }
 .review-metadata-table [data-different=true] { background: var(--surface-2); }
+.version-changes { margin: 0; padding-left: var(--space-4); display: grid; gap: var(--space-3); }
 .review-score { font-weight: var(--weight-strong); }
 .review-candidates { min-width: 0; border-top: 1px solid var(--border); padding-top: var(--space-3); }
 .review-candidate-heading { margin-bottom: var(--space-2); }

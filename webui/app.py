@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
-from engine import constants, ns_db, review, review_batch, attention, pair_retry, metadata_choices
+from engine import constants, earlier_versions, ns_db, review, review_batch, attention, pair_retry, metadata_choices
 from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, metadata_history, oplog, outcomes, stats
@@ -403,6 +403,23 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         if type(body.get('photo_id')) is not int or body.get('photo_id') != photo_id:
             raise HTTPException(400, {"error": "invalid_request", "message": "The photo must match the URL."})
         return jobs.review_decision(body)
+
+    @app.get("/api/v1/photos/{photo_id}/versions")
+    def photo_versions(photo_id: int):
+        if not 1 <= photo_id <= 2**63-1:
+            raise HTTPException(404, {"error": "unknown_photo", "message": "No such photo."})
+        found = earlier_versions.read(cfg.db_path, photo_id)
+        if found is None:
+            raise HTTPException(404, {"error": "unknown_photo", "message": "No such photo."})
+        return found
+
+    @app.post("/api/v1/photos/{photo_id}/versions/answer")
+    def answer_version(photo_id: int, body: dict = Body(...)):
+        if len(json.dumps(body)) > 8192:
+            raise HTTPException(400, {'error': 'invalid_request', 'message': 'Answer request is too large.'})
+        if type(body.get('photo_id')) is not int or body.get('photo_id') != photo_id:
+            raise HTTPException(400, {"error": "invalid_request", "message": "The photo must match the URL."})
+        return jobs.version_answer(body)
 
     @app.get("/api/v1/photos/{photo_id}/import-choices")
     def import_choices(photo_id: int):

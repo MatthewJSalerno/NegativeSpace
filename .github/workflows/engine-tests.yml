@@ -440,6 +440,9 @@ jobs:
       - name: Externally removed original in a browser
         run: DRIVER=copied_source_browser_drive.py sh tests/browser/webui_browser_test.sh
 
+      - name: Earlier versions in a browser
+        run: DRIVER=earlier_versions_browser_drive.py sh tests/browser/webui_browser_test.sh
+
       - name: File issue recovery in a browser
         run: SIMILARITY_RECOVERY_FIXTURE=1 DRIVER=attention_browser_drive.py sh tests/browser/webui_browser_test.sh
 
