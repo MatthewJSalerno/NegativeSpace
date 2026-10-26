@@ -73,8 +73,9 @@ its duplicate. **Not organized** is empty. Clear search and refinements before e
 ### Test EV1 — An edit turns the identical copy into an earlier version
 
 - **EV1a:** In **Library**, search `ev-launch.jpg` and open it. Choose **Edit metadata
-  date…**, set Date taken to `2022-11-16 01:47:44` and save. The photo moves to the
-  2022-11-16 date folder and its card shows **Has an earlier version**.
+  date…**, replace the text in the **Date taken** field (not the Calendar date picker)
+  with `2022-11-16T01:47:44` and save. The photo moves to the 2022-11-16 date folder and
+  its card shows **Has an earlier version**.
 - **EV1b:** Open **Not organized**. **Needs attention (1)** appears under it in the
   sidebar. The only card is `ev-launch.jpg` (2005-12-21) with **Earlier version · waiting
   for your answer**. The Index summary says the remaining files include earlier versions
