@@ -385,6 +385,10 @@ def db_writer_worker(db_path: str):
                 error=result.error_message, prior_status=prior_status,
                 observed_at=result.observed_at,
             )
+            from engine import earlier_versions
+            earlier = earlier_versions.find(conn, result.sha1_hash, photo_id) if status != PhotoStatus.FAILED else None
+            if earlier:
+                earlier_versions.record(conn, photo_id, *earlier, run_id=result.run_id)
 
             # Content identity, which thumbnails and similarity both key on so
             # that byte-identical copies share one row. Written here rather than

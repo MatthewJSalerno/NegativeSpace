@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 import uuid
 
-from engine import review_history
+from engine import earlier_versions, review_history
 from engine import (constants, durable, fileinfo, metadata_capture, metadata_duplicates, metadata_embedded, metadata_relocate,
                     metadata_save, metadata_transfer, ns_db, relocate, thumbnails)
 
@@ -241,6 +241,11 @@ def _record_saved(conn, op, pid, m, output):
         conn.execute('INSERT INTO file_changes(event_id,file_id,before_content_id,after_content_id,before_path,after_path,'
             'before_values_json,after_values_json) VALUES(?,?,?,?,?,?,?,?)',
             (event,m['retained_id'],before,after,m['photo'],m['photo'],json.dumps(output['tags_before']),json.dumps(output['tags_after'])))
+        change=conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        # A released source copy still holds the old bytes: an earlier version, held for an answer.
+        for alias,status,_,_ in aliases:
+            if status=='Duplicate':
+                earlier_versions.record(conn,alias,pid,change)
         ns_db.record_evidence(conn,operation_id=op,file_id=m['retained_id'],location_role='destination',
             observed_path=m['photo'],observation_kind='sha1',result='match',
             details={'before_sha1':m['sha1'],'after_sha1':output['after_sha1'],'exact_duplicate_photo_ids':duplicates})

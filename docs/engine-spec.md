@@ -342,7 +342,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 32 and refuses incompatible catalogs before processing.
+initializes schema version 33 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -642,7 +642,9 @@ CREATE INDEX idx_lineage_file ON operation_files(file_id,operation_id);
 **Recovery, content, cache, discovery and backup records.** The first five are
 written by recovery (4.2), `contents` and `thumbnail_cache` by the scan,
 `run_discovery` by a full Index (4.3; schema 31 adds the selected-extension counts, calculated from the already-discovered candidate list with no extra filesystem reads), `run_progress` by every job (4.3), `destination_findings` by the destination check (9.1), and the backup records by catalog backups
-(4.1); `file_changes` is defined but not yet written. Index writes `content_similarity`.
+(4.1). A verified metadata edit that rewrites a Library file writes `file_changes`; Index
+and that edit write `photo_versions` when a source file holds content an edit replaced
+(section 10). Index writes `content_similarity`.
 Statement order matters here too:
 `contents` precedes everything referencing it, `operation_events` precedes
 `attention_issues`, and both `operation_evidence` and `attention_issues` precede
@@ -697,8 +699,8 @@ CREATE TABLE attention_evidence (
     PRIMARY KEY(issue_id, evidence_id)
 );
 
--- file_changes: defined, not yet written. Index writes content_similarity and
--- thumbnail_cache; catalog backups (4.1) write the backup records.
+-- file_changes: one row per verified edit that rewrote a Library file. Index writes
+-- content_similarity and thumbnail_cache; catalog backups (4.1) write the backup records.
 CREATE TABLE file_changes (
     change_id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id INTEGER NOT NULL REFERENCES operation_events(event_id),
@@ -708,6 +710,18 @@ CREATE TABLE file_changes (
     before_path TEXT, after_path TEXT,
     before_values_json TEXT, after_values_json TEXT
 );
+
+-- A source photo whose content a recorded edit replaced (section 10, earlier versions).
+-- The link is a fact; answer is the user's current choice, NULL until answered.
+CREATE TABLE photo_versions (
+    photo_id INTEGER PRIMARY KEY REFERENCES photos(id),
+    version_of INTEGER NOT NULL REFERENCES photos(id),
+    change_id INTEGER NOT NULL REFERENCES file_changes(change_id),
+    found_run_id INTEGER REFERENCES runs(id), found_at TEXT NOT NULL,
+    answer TEXT CHECK(answer IN ('not_kept','keep_separate')), answered_at TEXT,
+    CHECK(photo_id <> version_of)
+);
+CREATE INDEX idx_photo_versions_of ON photo_versions(version_of);
 
 -- Distinct visual hashes only; equal hashes share an implicit zero-distance bucket.
 CREATE TABLE content_similarity (
@@ -1979,7 +1993,7 @@ The history records the cause; explicit saved-date answers also link to their jo
 Neither reads nor repeated unchanged writes add history. Bookmarks are never cleared by
 these triggers. At the next job after a calendar-year advance, a once-per-year check records dates
 that have fallen within range, with that job ID; ordinary jobs only read the year marker.
-Automatic clearing for future unbuilt reasons remains with those workstreams. Development catalogs require schema 32; no migration.
+Automatic clearing for future unbuilt reasons remains with those workstreams. Development catalogs require schema 33; no migration.
 
 
 Bulk review uses the same single-photo decision guards and history under one engine

@@ -17,7 +17,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 32
+SCHEMA_VERSION = 33
 
 # --- Status vocabularies -----------------------------------------------------
 #
@@ -716,6 +716,16 @@ FOUNDATION_DDL = (
         after_content_id INTEGER REFERENCES contents(content_id),
         before_path TEXT, after_path TEXT,
         before_values_json TEXT, after_values_json TEXT)""",
+    # A source photo whose content a recorded edit replaced (engine-spec 10). The link
+    # is a fact; `answer` is the user's current choice, NULL until answered.
+    """CREATE TABLE photo_versions (
+        photo_id INTEGER PRIMARY KEY REFERENCES photos(id),
+        version_of INTEGER NOT NULL REFERENCES photos(id),
+        change_id INTEGER NOT NULL REFERENCES file_changes(change_id),
+        found_run_id INTEGER REFERENCES runs(id), found_at TEXT NOT NULL,
+        answer TEXT CHECK(answer IN ('not_kept','keep_separate')), answered_at TEXT,
+        CHECK(photo_id <> version_of))""",
+    "CREATE INDEX idx_photo_versions_of ON photo_versions(version_of)",
     # Equal visual hashes share an implicit zero-distance bucket. Store only
     # distinct-hash pairs, so visually identical content does not grow quadratically.
     """CREATE TABLE content_similarity (
@@ -853,7 +863,7 @@ def require_schema(conn):
         required = {'photos','runs','operations','files','photo_files','source_snapshots',
                     'file_observations','operation_files','settings','run_configs','job_requests',
                     'file_origins','file_states','contents','operation_events','operation_evidence',
-                    'attention_issues','attention_evidence','file_changes','content_similarity','similarity_hashes',
+                    'attention_issues','attention_evidence','file_changes','photo_versions','content_similarity','similarity_hashes',
                     'similarity_count_cache','similarity_count_state',
                     'review_events','review_date_confirmations','review_calendar','thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state',
                     'xmp_versions','xmp_arrivals','xmp_arrival_files','metadata_captures','metadata_decisions'}
