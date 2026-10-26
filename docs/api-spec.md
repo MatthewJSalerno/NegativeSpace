@@ -578,8 +578,9 @@ Everything recorded about a photo's files, for the lineage tree (`webui-spec.md`
                      "source_path", "dest_path", "recovery", "consolidated_into", "consolidated_path",
                      "files": [{"file_id", "role": "source" | "destination" | "retained_copy"}]}, ...],
      "selected_by": [{"run_id", "mode", "status", "started_at"}, ...],
-     "versions": {"version_of": {"id", "filename", "location", "found_at", "state"} | null,
-                  "earlier_versions": [{"id", "filename", "location", "state"}, ...]}}
+     "versions": {"version_of": {"id", "filename", "location", "split_operation_id", "split_at",
+                                 "found_at", "state"} | null,
+                  "earlier_versions": [{"id", "filename", "location", "state", "split_operation_id"}, ...]}}
 
 `files` holds the photo's source file and every file descended from it (a copy records
 the file it came from; an indexed file records itself as its own origin), and the same
@@ -1383,7 +1384,8 @@ The photo's earlier-version links (`engine-spec.md` §10, "Earlier versions: the
 behaviour"). Returns `photo_id`, `revision` (the latest answer's ID, 0 when unanswered),
 `earlier_version` and `earlier_versions`. `earlier_version` is null unless this file is an
 earlier version of a Library photo; otherwise it has `version_of` (`id`, `filename`,
-`location`), `state` as in photo listings, `found_at`, `answerable` (still in the source and
+`location`, and `split_operation_id`/`split_at`: the edit that replaced this file's content
+and when), `state` as in photo listings, `found_at`, `answerable` (still in the source and
 still held), `same_picture` (true only when verified embedded edits connect the two
 contents, so the picture itself is unchanged), `answers` (every answer with its time, in
 order) and `changes`: every recorded content change from the one that replaced this file's
@@ -1391,7 +1393,8 @@ content to the Library photo's current content, each with `change_id`, `operatio
 `fields` (`source`, `field`, `before`, `after` for named metadata fields) and `tags`
 (`tag`, `before`, `after` for changed recorded tags with no named field). `earlier_versions`
 lists, for a Library photo, the source photos linked as its earlier versions (`id`,
-`filename`, `location`, `state`), one per content. A missing photo returns 404
+`filename`, `location`, `state`, and `split_operation_id`, the edit that split each off),
+one per content. A missing photo returns 404
 `unknown_photo`. This endpoint only reads.
 
 ### `POST /api/v1/photos/{photo_id}/versions/answer`

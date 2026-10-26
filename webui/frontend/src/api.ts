@@ -116,7 +116,11 @@ export interface VersionChange {
   fields: { source: string; field: string; before: unknown; after: unknown }[];
   tags: { tag: string; before: unknown; after: unknown }[];
 }
-export interface VersionPhoto { id: number; filename: string; location: string; state?: VersionState | null }
+export interface VersionPhoto {
+  id: number; filename: string; location: string; state?: VersionState | null;
+  // The edit that replaced the earlier content, and when (engine-spec 10).
+  split_operation_id?: number | null; split_at?: string | null;
+}
 export interface PhotoVersions {
   photo_id: number; revision: number;
   earlier_version: null | {

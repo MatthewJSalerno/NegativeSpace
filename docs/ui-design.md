@@ -1548,6 +1548,10 @@ as words ("Turned 90° clockwise"); a changed tag with no named field shows its 
 photo…** and **Keep it after all…** confirm first and say which Date taken the photo
 files under. Earlier answers stay listed under **Your answers**. The edited photo's
 Photo information links each earlier version with its location and answer.
+In the lineage dialog the split is marked with an accent rule: on the edited photo, the
+edit that replaced the content carries **Version split:** naming and linking the earlier
+version; on the earlier version, the line under the title says which edit it split off at,
+and when. Each photo's timeline otherwise stays its own.
 
 ### First-import XMP choices
 

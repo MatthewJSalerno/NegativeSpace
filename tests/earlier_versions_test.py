@@ -148,6 +148,11 @@ class EarlierVersions(webui_api_test.ApiCase):
         self.assertIsNone(library['versions']['version_of'])
         self.assertEqual([v['id'] for v in library['versions']['earlier_versions']], [self.alias])
         self.assertNotIn(self.alias, library['photos'], 'a version link, never a merged history')
+        # The split is the date edit itself, an operation in the edited photo's timeline.
+        edit = [op['id'] for op in library['operations'] if op['mode'] == 'METADATA']
+        self.assertEqual([v['split_operation_id'] for v in library['versions']['earlier_versions']], edit)
+        self.assertEqual(earlier['version_of']['split_operation_id'], edit[0])
+        self.assertIsNotNone(earlier['version_of']['split_at'])
 
     def test_an_answer_covers_every_identical_copy(self):
         (self.cfg.source/'later').mkdir()

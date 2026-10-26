@@ -142,13 +142,18 @@ def details(conn, photo_id):
             same_picture = False
         answers = [dict(answer=r['answer'], at=r['created_at']) for r in query(
             'SELECT answer,created_at FROM photo_version_answers WHERE photo_id=? ORDER BY answer_id', (photo_id,))]
-        earlier = dict(version_of=dict(id=target['id'], filename=_name(target), location=_location(target['status'])),
+        earlier = dict(version_of=dict(id=target['id'], filename=_name(target), location=_location(target['status']),
+                                       split_operation_id=changes[0]['operation_id'] if changes else None,
+                                       split_at=changes[0]['at'] if changes else None),
                        state=me['state'], found_at=link['found_at'], same_picture=same_picture,
                        changes=changes, answers=answers,
                        answerable=me['state'] is not None and me['status'] in _IN_SOURCE)
-    versions = [dict(id=r['id'], filename=_name(r), location=_location(r['status']), state=r['state'])
-                for r in query(f'SELECT p.id,p.status,p.source_path,p.dest_path,{state_sql()} AS state '
+    # split_operation_id: the edit whose change replaced that content, for the timeline.
+    versions = [dict(id=r['id'], filename=_name(r), location=_location(r['status']), state=r['state'],
+                     split_operation_id=r['operation_id'])
+                for r in query(f'SELECT p.id,p.status,p.source_path,p.dest_path,{state_sql()} AS state,e.operation_id '
                                       'FROM photo_versions pv JOIN photos p ON p.id=pv.photo_id '
+                                      'JOIN file_changes fc ON fc.change_id=pv.change_id JOIN operation_events e ON e.event_id=fc.event_id '
                                       f"WHERE pv.version_of=? AND p.status<>'Duplicate' ORDER BY p.id", (photo_id,))]
     revision = conn.execute('SELECT COALESCE(MAX(answer_id),0) FROM photo_version_answers WHERE photo_id=?',
                             (photo_id,)).fetchone()[0]

@@ -9,7 +9,7 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Earlier versions:** [Tests EV1–EV3](#earlier-versions) are pending.
+**Earlier versions:** EV1–EV3b passed; [EV3c](#earlier-versions) is pending.
 
 **Destination folder preview:** [TP1–TP3](#destination-folder-preview) passed, including
 all lettered steps. No manual checks remain for this batch. The large-preview usability
@@ -58,7 +58,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Earlier versions
 
-**Status:** EV1–EV3 pending.
+**Status:** EV1–EV3b passed, including all lettered steps (EV2c after a Jobs-menu count fix); EV3c pending.
 
 Automated Docker checks passed: the Python unit suite (952 tests; `ci_scope_test` in the
 CI image), all three `tools/check-*.py`, and the production build with typechecking.
@@ -111,6 +111,10 @@ its duplicate. **Not organized** is empty. Clear search and refinements before e
   version:** with a link to `ev-launch.jpg (Library)`. Follow it: the 2005-12-21 photo opens.
 - **EV3b:** On each of the two photos choose **View lineage tree**. The line under the
   title names and links the other photo, and says each photo keeps its own history.
+- **EV3c:** In the 2022-11-16 `ev-launch.jpg` lineage, the **Date saved** event shows a
+  highlighted **Version split:** note linking the earlier `ev-launch.jpg`. In the
+  2005-12-21 one, the highlighted line under the title says it split off when that photo
+  was edited, with the time of that Date saved.
 
 
 **Status:** TP1–TP3 passed, including all lettered steps.
