@@ -2,8 +2,9 @@
 // behaviour"): the hold's reason, the full recorded change list, the answers, and the
 // links between the two photos. Answers change no files.
 import { useEffect, useState } from "react";
-import { api, type PhotoVersions, type VersionBadge, type VersionChange, type VersionState } from "../api";
-import { instant } from "../format";
+import { api, type PhotoVersions, type VersionBadge, type VersionChange, type VersionFiling, type VersionState } from "../api";
+import { instant, isFallbackDate, photoDate } from "../format";
+import { jobLabel } from "../jobs";
 import { follow, logUrl, photoUrl } from "../nav";
 import { LABELS, display } from "./metadataFields";
 import { Modal } from "./ui/Modal";
@@ -37,12 +38,13 @@ function changeLabel(change: VersionChange) {
   return "Metadata saved";
 }
 
-function Changes({ changes }: { changes: VersionChange[] }) {
+function Changes({ changes, photoId }: { changes: VersionChange[]; photoId: number }) {
   return <ol className="version-changes">
     {changes.map(change => {
       const sources = [...new Set(change.fields.map(f => SOURCE[f.source] ?? f.source))];
       return <li key={change.change_id}>
-        <strong>{changeLabel(change)}</strong> · {instant(change.at)}
+        <strong>{changeLabel(change)}</strong> · {instant(change.at)} ·{" "}
+        <a href={logUrl({ run: change.run_id, photo: photoId })} onClick={follow}>{jobLabel(change.run_id, change.mode)}</a>
         <table className="review-metadata-table"><thead><tr><th>Detail</th><th>Before</th><th>After</th></tr></thead><tbody>
           {change.fields.map(f => <tr key={`${f.source}:${f.field}`}><th>{LABELS[f.field] ?? f.field.replaceAll("_", " ")}</th>
             <td>{value(f.field, f.before)}</td><td>{value(f.field, f.after)}</td></tr>)}
@@ -53,6 +55,15 @@ function Changes({ changes }: { changes: VersionChange[] }) {
       </li>;
     })}
   </ol>;
+}
+
+// Where a photo files, from its recorded filing date, worded as the Inspector words the
+// source and the Undated fallback.
+function filedUnder(filing: VersionFiling) {
+  if (!filing.date_taken) return <>a date that is not recorded</>;
+  if (isFallbackDate(filing.date_source)) return <><strong>Undated</strong> ({filing.date_taken.slice(0, 4)}, the file's modification year)</>;
+  const source = filing.date_source === "exif" ? "EXIF" : filing.date_source === "xmp" ? "XMP" : null;
+  return <><strong>{photoDate(filing.date_taken)}</strong>{source ? ` (filing date from ${source})` : ""}</>;
 }
 
 const ANSWER: Record<VersionState, string> = {
@@ -90,11 +101,6 @@ export function EarlierVersions({ photoId, version, jobRunning, refreshKey }: {
   if (!data) return error ? <p className="error" role="alert">{error}</p> : null;
   const earlier = data.earlier_version;
   const waitTitle = jobRunning ? "Wait for the running job to finish." : undefined;
-  const fieldChange = (field: string) => {
-    const rows = earlier?.changes.flatMap(c => c.fields.filter(f => f.field === field)) ?? [];
-    return rows.length ? { before: rows[0].before, after: rows[rows.length - 1].after } : null;
-  };
-  const date = fieldChange("date_taken");
 
   return <>
     {earlier && earlier.state != null && <section className="notice" aria-label="Earlier version">
@@ -104,7 +110,7 @@ export function EarlierVersions({ photoId, version, jobRunning, refreshKey }: {
         organized, so Copy and Move {earlier.state === "keep_separate" ? "treat it as a photo of its own." : "leave it in the source."}</p>
       {earlier.same_picture && <p>Only the photo's details changed; the picture is the same.</p>}
       <p>Changes since this version:</p>
-      <Changes changes={earlier.changes} />
+      <Changes changes={earlier.changes} photoId={earlier.version_of.id} />
       {earlier.state === "not_kept" && <p>It stays in the source untouched. NegativeSpace never removes it.</p>}
       {earlier.state === "keep_separate" && earlier.answerable && <p>Your next Copy or Move organizes it as its own photo, filed by its own details.</p>}
       {error && <p className="error" role="alert">{error}</p>}
@@ -128,10 +134,10 @@ export function EarlierVersions({ photoId, version, jobRunning, refreshKey }: {
     </p>}
     {confirming && earlier && <Modal label="Keep it as its own photo" onClose={() => setConfirming(false)} busy={busy}>
       <h2>Keep it as its own photo?</h2>
-      <p>Your next Copy or Move organizes this earlier version as a separate photo, filed by its own details.
-        {date && <> Its Date taken is <strong>{value("date_taken", date.before)}</strong>, so it files under that date,
-          not <strong>{value("date_taken", date.after)}</strong>.</>}</p>
-      <p>{earlier.version_of.filename} in {earlier.version_of.location} is not changed. The two stay linked as versions.</p>
+      <p>Your next Copy or Move organizes this earlier version as a separate photo, filed by its own details,
+        under {filedUnder(earlier.filing)}.</p>
+      <p>{earlier.version_of.filename} in {earlier.version_of.location} is filed under {filedUnder(earlier.version_of.filing)}
+        {" "}and is not changed. The two stay linked as versions.</p>
       {error && <p className="error" role="alert">{error}</p>}
       <footer className="settings-actions"><button disabled={busy} onClick={() => setConfirming(false)}>Cancel</button>
         <button className="primary" disabled={busy || jobRunning} title={waitTitle} onClick={() => void answer("keep_separate")}>Keep it as its own photo</button></footer>
