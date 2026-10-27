@@ -10,8 +10,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 ## Pending checks
 
 **Earlier versions:** [EV1–EV3](#earlier-versions) passed, including all lettered steps, on
-2026-10-26; do not repeat them. [EV4](#test-ev4--job-links-and-filing-dates) rechecks
-the notice and confirmation after the audit 045 fixes and is pending.
+2026-10-26, and [EV4](#test-ev4--job-links-and-filing-dates), the recheck after the audit
+045 fixes, passed on 2026-10-27. No manual checks remain for this batch.
 
 **Destination folder preview:** [TP1–TP3](#destination-folder-preview) passed, including
 all lettered steps. No manual checks remain for this batch. The large-preview usability
@@ -60,7 +60,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Earlier versions
 
-**Status:** EV1–EV3 passed, including all lettered steps (EV2c after a Jobs-menu count fix, EV3c after adding the split marker), on 2026-10-26. EV4 pending.
+**Status:** EV1–EV3 passed, including all lettered steps (EV2c after a Jobs-menu count fix, EV3c after adding the split marker), on 2026-10-26. EV4 passed, including all lettered steps, on 2026-10-27.
 
 Automated Docker checks passed: the Python unit suite (952 tests; `ci_scope_test` in the
 CI image), all three `tools/check-*.py`, and the production build with typechecking.
@@ -120,7 +120,7 @@ its duplicate. **Not organized** is empty. Clear search and refinements before e
 
 ### Test EV4 — Job links and filing dates
 
-**Status:** pending. Only the notice's change entries and the **Keep it as its own photo**
+**Status:** passed, including all lettered steps, on 2026-10-27. Only the notice's wording, change entries and the **Keep it as its own photo**
 confirmation changed; the holds, answers and counts EV1–EV3 accepted are covered by
 `tests/earlier_versions_test.py`.
 
