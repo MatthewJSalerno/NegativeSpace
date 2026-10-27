@@ -9,7 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Message boxes:** [MB1](#message-boxes) is pending.
+**Message boxes:** [MB1](#message-boxes) passed, including all lettered steps, on
+2026-10-27. No manual checks remain for this batch.
 
 **Earlier versions:** [EV1–EV3](#earlier-versions) passed, including all lettered steps, on
 2026-10-26, and [EV4](#test-ev4--job-links-and-filing-dates), the recheck after the audit
@@ -64,7 +65,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Message boxes
 
-**Status:** MB1 pending. The standard is in `docs/ui-design.md`, Message boxes. Only the
+**Status:** MB1 passed, including all lettered steps, on 2026-10-27. The standard is in `docs/ui-design.md`, Message boxes. Only the
 boxes' appearance changed; their wording and actions did not.
 
 Use the audit-045 review instance after its web image is updated. Its catalog has four
