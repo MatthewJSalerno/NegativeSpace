@@ -1538,7 +1538,10 @@ information, the same treatment as **Needs attention · Metadata**. Answered one
 plain badge, **Earlier version · not kept** or **Earlier version**; the edited photo's card
 carries **Has an earlier version**. These are relationship badges, never keywords.
 
-Photo information opens with the shared notice: a link to the edited photo, "Only the
+Photo information opens with the shared notice: a link to the edited photo; that the edit
+changed that file, so this one is no longer an identical copy of it (why it is not an
+ordinary duplicate); while waiting, that Copy and Move leave it in the source until you
+choose, never implying the difference is the reason it stays; "Only the
 photo's details changed; the picture is the same" only when the recorded edit chain proves
 it, and **Changes since this version**, one entry per recorded change labelled like History
 (**Date saved**, **Rotation saved**, **Metadata saved**), its time, and its job as a link to

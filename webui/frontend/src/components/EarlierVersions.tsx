@@ -106,8 +106,9 @@ export function EarlierVersions({ photoId, version, jobRunning, refreshKey }: {
     {earlier && earlier.state != null && <section className="notice" aria-label="Earlier version">
       <strong>{earlier.state === "waiting" ? "Earlier version of a Library photo" : `Earlier version · ${ANSWER[earlier.state].toLowerCase()}`}</strong>
       <p>This file is how <a href={photoUrl(earlier.version_of.id)} onClick={follow}>{earlier.version_of.filename}</a> in
-        {" "}{earlier.version_of.location} looked before it was edited in NegativeSpace. It is not identical to anything
-        organized, so Copy and Move {earlier.state === "keep_separate" ? "treat it as a photo of its own." : "leave it in the source."}</p>
+        {" "}{earlier.version_of.location} looked before it was edited in NegativeSpace. The edit changed that file,
+        so this one is no longer an identical copy of it.
+        {earlier.state === "waiting" && " Copy and Move leave it in the source until you choose what to do with it."}</p>
       {earlier.same_picture && <p>Only the photo's details changed; the picture is the same.</p>}
       <p>Changes since this version:</p>
       <Changes changes={earlier.changes} photoId={earlier.version_of.id} />

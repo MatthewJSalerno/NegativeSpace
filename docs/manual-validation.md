@@ -132,7 +132,10 @@ has been answered. Clear search and refinements before each step, and cancel eve
 confirmation: these steps answer nothing.
 
 - **EV4a:** In **Not organized**, search `ev4-dated.jpg` and choose **Earlier version ·
-  waiting for your answer**. The change **Date saved** shows its time followed by a
+  waiting for your answer**. The notice's first paragraph reads: "…looked before it was
+  edited in NegativeSpace. The edit changed that file, so this one is no longer an
+  identical copy of it. Copy and Move leave it in the source until you choose what to do
+  with it." The change **Date saved** shows its time followed by a
   **Job #3 · Metadata** link. Follow it: **Logs** opens on Job #3 with one Completed
   entry for `ev4-dated.jpg`. Go back.
 - **EV4b:** On the same notice choose **Keep it as its own photo…**. The confirmation says
