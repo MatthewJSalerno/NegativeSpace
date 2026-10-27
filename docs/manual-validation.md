@@ -10,7 +10,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 ## Pending checks
 
 **Earlier versions:** [EV1–EV3](#earlier-versions) passed, including all lettered steps, on
-2026-10-26. No manual checks remain for this batch.
+2026-10-26; do not repeat them. [EV4](#test-ev4--job-links-and-filing-dates) rechecks
+the notice and confirmation after the audit 045 fixes and is pending.
 
 **Destination folder preview:** [TP1–TP3](#destination-folder-preview) passed, including
 all lettered steps. No manual checks remain for this batch. The large-preview usability
@@ -59,7 +60,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Earlier versions
 
-**Status:** EV1–EV3 passed, including all lettered steps (EV2c after a Jobs-menu count fix, EV3c after adding the split marker), on 2026-10-26.
+**Status:** EV1–EV3 passed, including all lettered steps (EV2c after a Jobs-menu count fix, EV3c after adding the split marker), on 2026-10-26. EV4 pending.
 
 Automated Docker checks passed: the Python unit suite (952 tests; `ci_scope_test` in the
 CI image), all three `tools/check-*.py`, and the production build with typechecking.
@@ -116,6 +117,34 @@ its duplicate. **Not organized** is empty. Clear search and refinements before e
   highlighted **Version split:** note linking the earlier `ev-launch.jpg`. In the
   2005-12-21 one, the highlighted line under the title says it split off when that photo
   was edited, with the time of that Date saved.
+
+### Test EV4 — Job links and filing dates
+
+**Status:** pending. Only the notice's change entries and the **Keep it as its own photo**
+confirmation changed; the holds, answers and counts EV1–EV3 accepted are covered by
+`tests/earlier_versions_test.py`.
+
+Use the audit-045 review instance. Index and Copy are complete. `ev4-dated.jpg` (Date
+taken 2011-05-22 14:28:31) had its Date taken changed to 2022-11-16 01:47:44, and
+`ev4-turned.jpg` (no capture date, so filed Undated) was turned 90° clockwise. Each one's
+byte-identical second copy now waits in **Not organized** as an earlier version; nothing
+has been answered. Clear search and refinements before each step, and cancel every
+confirmation: these steps answer nothing.
+
+- **EV4a:** In **Not organized**, search `ev4-dated.jpg` and choose **Earlier version ·
+  waiting for your answer**. The change **Date saved** shows its time followed by a
+  **Job #3 · Metadata** link. Follow it: **Logs** opens on Job #3 with one Completed
+  entry for `ev4-dated.jpg`. Go back.
+- **EV4b:** On the same notice choose **Keep it as its own photo…**. The confirmation says
+  it files under **2011-05-22 14:28:31** (filing date from EXIF), and that
+  `ev4-dated.jpg` in Library is filed under **2022-11-16 01:47:44** (filing date from
+  EXIF) and is not changed. Choose **Cancel**; the notice still waits for your answer.
+- **EV4c:** Search `ev4-turned.jpg` and open its earlier version the same way. The only
+  change is **Rotation saved** with a **Job #4 · Metadata** link, and Orientation reads
+  Not recorded → Turned 90° clockwise. Choose **Keep it as its own photo…**: both lines
+  say **Undated** (2026, the file's modification year). Keep it open.
+- **EV4d:** Set browser zoom to 200%. The confirmation text wraps without overlapping and
+  both buttons stay reachable. Restore normal zoom and choose **Cancel**.
 
 ## Destination folder preview
 
