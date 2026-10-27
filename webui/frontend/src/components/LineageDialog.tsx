@@ -40,7 +40,8 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
   const events = useMemo(() => tree ? timelineEvents(tree) : [], [tree]);
   const rows = useMemo(() => tree ? laneRows(tree, events) : new Map<string, LaneRow>(), [tree, events]);
   const sources = useMemo(() => tree ? sourceLanes(tree) : new Map<number, number>(), [tree]);
-  const groups = useMemo(() => eventGroups(events), [events]);
+  const groups = useMemo(() => eventGroups(events, new Set(tree?.versions.earlier_versions
+    .flatMap(v => v.split_operation_id == null ? [] : [v.split_operation_id]))), [events, tree]);
   const retry = async (op: LineageOperation) => {
     const mode = RETRY_MODE[op.mode ?? ""];
     if (!mode || op.photo_id == null || retrying) return;

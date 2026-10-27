@@ -17,7 +17,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 33
+SCHEMA_VERSION = 34
 
 # --- Status vocabularies -----------------------------------------------------
 #
@@ -716,22 +716,26 @@ FOUNDATION_DDL = (
         after_content_id INTEGER REFERENCES contents(content_id),
         before_path TEXT, after_path TEXT,
         before_values_json TEXT, after_values_json TEXT)""",
-    # A source photo whose content a recorded edit replaced (engine-spec 10), and the
-    # user's answers about it; the latest answer is current, none means waiting.
+    # Earlier-version lookups at Index find a file's content on the before side.
+    "CREATE INDEX idx_file_changes_before ON file_changes(before_content_id, change_id)",
+    # A source photo whose content a recorded edit replaced (engine-spec 10), one link per
+    # change found for it, and the user's answers about each link; the latest answer is
+    # current, none means waiting.
     """CREATE TABLE photo_versions (
-        photo_id INTEGER PRIMARY KEY REFERENCES photos(id),
+        link_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        photo_id INTEGER NOT NULL REFERENCES photos(id),
         version_of INTEGER NOT NULL REFERENCES photos(id),
         change_id INTEGER NOT NULL REFERENCES file_changes(change_id),
         found_run_id INTEGER REFERENCES runs(id), found_at TEXT NOT NULL,
-        CHECK(photo_id <> version_of))""",
+        UNIQUE(photo_id, change_id), CHECK(photo_id <> version_of))""",
     "CREATE INDEX idx_photo_versions_of ON photo_versions(version_of)",
     """CREATE TABLE photo_version_answers (
         answer_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        photo_id INTEGER NOT NULL REFERENCES photo_versions(photo_id),
+        link_id INTEGER NOT NULL REFERENCES photo_versions(link_id),
         answer TEXT NOT NULL CHECK(answer IN ('not_kept','keep_separate')),
         request_id TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL,
-        UNIQUE(request_id, photo_id))""",
-    "CREATE INDEX idx_photo_version_answers ON photo_version_answers(photo_id, answer_id)",
+        UNIQUE(request_id, link_id))""",
+    "CREATE INDEX idx_photo_version_answers ON photo_version_answers(link_id, answer_id)",
     # Equal visual hashes share an implicit zero-distance bucket. Store only
     # distinct-hash pairs, so visually identical content does not grow quadratically.
     """CREATE TABLE content_similarity (
@@ -806,7 +810,8 @@ FOUNDATION_DDL = (
         error_category TEXT, error_detail TEXT,
         xmp_arrival_highwater INTEGER NOT NULL DEFAULT 0 CHECK(xmp_arrival_highwater>=0),
         metadata_capture_highwater INTEGER NOT NULL DEFAULT 0 CHECK(metadata_capture_highwater>=0),
-        metadata_decision_highwater INTEGER NOT NULL DEFAULT 0 CHECK(metadata_decision_highwater>=0))""",
+        metadata_decision_highwater INTEGER NOT NULL DEFAULT 0 CHECK(metadata_decision_highwater>=0),
+        version_answer_highwater INTEGER NOT NULL DEFAULT 0 CHECK(version_answer_highwater>=0))""",
     # 'pruned' is the retention limit removing the file; 'missing' is the file
     # gone for a reason the application did not record.
     # What the web interface remembers for its user, beside the catalog it describes:
@@ -1621,9 +1626,11 @@ def _snapshot(conn, attempt_id, final):
             highwater = dst.execute("SELECT COALESCE(MAX(arrival_id),0) FROM xmp_arrivals").fetchone()[0]
             metadata_highwater = dst.execute("SELECT COALESCE(MAX(capture_id),0) FROM metadata_captures").fetchone()[0]
             decision_highwater = dst.execute("SELECT COALESCE(MAX(decision_id),0) FROM metadata_decisions").fetchone()[0]
+            answer_highwater = dst.execute("SELECT COALESCE(MAX(answer_id),0) FROM photo_version_answers").fetchone()[0]
             dst.execute("UPDATE backup_attempts SET outcome='succeeded', ended_at=?, "
-                        "xmp_arrival_highwater=?, metadata_capture_highwater=?, metadata_decision_highwater=? WHERE attempt_id=?",
-                        (utc_now(), highwater, metadata_highwater, decision_highwater, attempt_id))
+                        "xmp_arrival_highwater=?, metadata_capture_highwater=?, metadata_decision_highwater=?, "
+                        "version_answer_highwater=? WHERE attempt_id=?",
+                        (utc_now(), highwater, metadata_highwater, decision_highwater, answer_highwater, attempt_id))
             dst.commit()
             check = dst.execute("PRAGMA quick_check").fetchone()[0]
             version = dst.execute("SELECT version FROM catalog_schema").fetchone()[0]
@@ -1635,7 +1642,7 @@ def _snapshot(conn, attempt_id, final):
         os.rename(packed, final)
         _fsync_dir(final.parent)
         raw.unlink()
-        return final.stat().st_size, highwater, metadata_highwater, decision_highwater
+        return final.stat().st_size, highwater, metadata_highwater, decision_highwater, answer_highwater
     except BackupFailed:
         for leftover in owned:
             leftover.unlink(missing_ok=True)
@@ -1677,7 +1684,8 @@ def backup_catalog(db_path, backups_dir, appdata_dir, *, trigger, related_run_id
         filename = f"{BACKUP_PREFIX}{stamp}-{attempt_id:06d}-{trigger}{BACKUP_SUFFIX}"
         try:
             _check_backup_storage(backups_dir, appdata_dir)
-            size, highwater, metadata_highwater, decision_highwater = _snapshot(conn, attempt_id, Path(backups_dir) / filename)
+            size, highwater, metadata_highwater, decision_highwater, answer_highwater = _snapshot(
+                conn, attempt_id, Path(backups_dir) / filename)
         except BackupFailed as exc:
             with transaction(conn):
                 conn.execute("UPDATE backup_attempts SET outcome='failed', ended_at=?, "
@@ -1688,8 +1696,9 @@ def backup_catalog(db_path, backups_dir, appdata_dir, *, trigger, related_run_id
         now = utc_now()
         with transaction(conn):
             conn.execute("UPDATE backup_attempts SET outcome='succeeded', ended_at=?, "
-                         "xmp_arrival_highwater=?, metadata_capture_highwater=?, metadata_decision_highwater=? WHERE attempt_id=?",
-                         (now, highwater, metadata_highwater, decision_highwater, attempt_id))
+                         "xmp_arrival_highwater=?, metadata_capture_highwater=?, metadata_decision_highwater=?, "
+                         "version_answer_highwater=? WHERE attempt_id=?",
+                         (now, highwater, metadata_highwater, decision_highwater, answer_highwater, attempt_id))
             conn.execute("INSERT INTO backup_artifacts(attempt_id,relative_filename,size,compression_format,"
                          "created_at,availability,last_checked_at) VALUES(?,?,?,?,?,'present',?)",
                          (attempt_id, filename, size, BACKUP_COMPRESSION, now, now))
@@ -1705,8 +1714,9 @@ def backup_catalog(db_path, backups_dir, appdata_dir, *, trigger, related_run_id
 def unbacked_changes(conn, *, exclude_run_id=None):
     """Catalog records no successful backup holds: operations written after the newest
     successful backup started, other than Skipped and Cancelled rows, which record that
-    nothing was done, plus review events, XMP arrivals, metadata captures and catalog-only decisions. XMP coverage uses the
-    actual snapshot's arrival-ID watermark rather than wall-clock ordering.
+    nothing was done, plus review events, XMP arrivals, metadata captures, catalog-only decisions and
+    earlier-version answers. XMP, capture, decision and answer coverage use the actual
+    snapshot's ID watermarks rather than wall-clock ordering.
     Returns (count, newest successful backup's start or None, sorted run ids). `exclude_run_id` leaves out a run still in progress, whose own post-job
     backup will cover it. webui-spec 9: report this after an interruption or a failed
     backup; never take a backup automatically at startup."""
@@ -1751,7 +1761,11 @@ def unbacked_changes(conn, *, exclude_run_id=None):
                                       "FROM backup_attempts WHERE outcome='succeeded'").fetchone()[0]
     decision_count = conn.execute('SELECT COUNT(*) FROM metadata_decisions WHERE decision_id>?',
                                   (decision_highwater,)).fetchone()[0]
-    return count + xmp_count + metadata_count + decision_count, since, sorted(run_ids)
+    answer_highwater = conn.execute("SELECT COALESCE(MAX(version_answer_highwater),0) "
+                                    "FROM backup_attempts WHERE outcome='succeeded'").fetchone()[0]
+    answer_count = conn.execute('SELECT COUNT(*) FROM photo_version_answers WHERE answer_id>?',
+                                (answer_highwater,)).fetchone()[0]
+    return count + xmp_count + metadata_count + decision_count + answer_count, since, sorted(run_ids)
 
 
 def backup_retention(conn):

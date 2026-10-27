@@ -1538,19 +1538,32 @@ information, the same treatment as **Needs attention · Metadata**. Answered one
 plain badge, **Earlier version · not kept** or **Earlier version**; the edited photo's card
 carries **Has an earlier version**. These are relationship badges, never keywords.
 
-Photo information opens with the shared notice: a link to the edited photo, "Only the
+Photo information opens with the shared notice: a link to the edited photo; that the edit
+changed that file, so this one is no longer an identical copy of it (why it is not an
+ordinary duplicate); while waiting, that Copy and Move leave it in the source until you
+choose, never implying the difference is the reason it stays; "Only the
 photo's details changed; the picture is the same" only when the recorded edit chain proves
 it, and **Changes since this version**, one entry per recorded change labelled like History
-(**Date saved**, **Rotation saved**, **Metadata saved**) with a Before/After table using the
+(**Date saved**, **Rotation saved**, **Metadata saved**), its time, and its job as a link to
+that job's log (**Job #N · Metadata**, the lineage dialog's job label), with a Before/After table using the
 Metadata viewer's field names and a "Details from:" source line. Orientation values read
 as words ("Turned 90° clockwise"); a changed tag with no named field shows its tag name.
+When a change has named rows, its unnamed tags fold under a native disclosure, **N other
+recorded tags changed**, never dropped. The first three changes show, then **Show all N
+changes** / **Show fewer** (`aria-expanded`), as long lists do elsewhere. The answer
+buttons stay at the end of the notice and float at the bottom of Photo information while a
+long list scrolls past (sticky, like the lineage dialog's Now row).
 **Don't keep it** answers immediately, since nothing changes on disk; **Keep it as its own
-photo…** and **Keep it after all…** confirm first and say which Date taken the photo
-files under. Earlier answers stay listed under **Your answers**. The edited photo's
+photo…** and **Keep it after all…** confirm first and name both photos' recorded filing
+dates with their source (the Inspector's "filing date from EXIF/XMP"), or **Undated** with
+the modification year when a file has no usable Date taken: the earlier version's, which
+it files under, and the edited photo's. These come from each photo's catalog record, never
+from the changed fields, so a rotation-only edit names the same date twice. Earlier answers stay listed under **Your answers**. The edited photo's
 Photo information links each earlier version with its location and answer.
 In the lineage dialog the split is marked with an accent rule: on the edited photo, the
 edit that replaced the content carries **Version split:** naming and linking the earlier
-version; on the earlier version, the line under the title says which edit it split off at,
+version, and that event never folds into a group of similar events (like failures and
+recovery); on the earlier version, the line under the title says which edit it split off at,
 and when. Each photo's timeline otherwise stays its own.
 
 ### First-import XMP choices

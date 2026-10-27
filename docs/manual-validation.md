@@ -10,7 +10,10 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 ## Pending checks
 
 **Earlier versions:** [EV1–EV3](#earlier-versions) passed, including all lettered steps, on
-2026-10-26. No manual checks remain for this batch.
+2026-10-26, and [EV4](#test-ev4--job-links-and-filing-dates), the recheck after the audit
+045 fixes, passed on 2026-10-27. [EV5](#test-ev5--long-change-lists) (folded tags, long change
+lists, floating answers, the lineage split) passed on 2026-10-27. No manual checks remain
+for this batch.
 
 **Destination folder preview:** [TP1–TP3](#destination-folder-preview) passed, including
 all lettered steps. No manual checks remain for this batch. The large-preview usability
@@ -59,7 +62,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Earlier versions
 
-**Status:** EV1–EV3 passed, including all lettered steps (EV2c after a Jobs-menu count fix, EV3c after adding the split marker), on 2026-10-26.
+**Status:** EV1–EV3 passed, including all lettered steps (EV2c after a Jobs-menu count fix, EV3c after adding the split marker), on 2026-10-26. EV4 and EV5 passed, including all lettered steps, on 2026-10-27.
 
 Automated Docker checks passed: the Python unit suite (952 tests; `ci_scope_test` in the
 CI image), all three `tools/check-*.py`, and the production build with typechecking.
@@ -117,6 +120,62 @@ its duplicate. **Not organized** is empty. Clear search and refinements before e
   2005-12-21 one, the highlighted line under the title says it split off when that photo
   was edited, with the time of that Date saved.
 
+### Test EV4 — Job links and filing dates
+
+**Status:** passed, including all lettered steps, on 2026-10-27. Only the notice's wording, change entries and the **Keep it as its own photo**
+confirmation changed; the holds, answers and counts EV1–EV3 accepted are covered by
+`tests/earlier_versions_test.py`.
+
+Use the audit-045 review instance. Index and Copy are complete. `ev4-dated.jpg` (Date
+taken 2011-05-22 14:28:31) had its Date taken changed to 2022-11-16 01:47:44, and
+`ev4-turned.jpg` (no capture date, so filed Undated) was turned 90° clockwise. Each one's
+byte-identical second copy now waits in **Not organized** as an earlier version; nothing
+has been answered. Clear search and refinements before each step, and cancel every
+confirmation: these steps answer nothing.
+
+- **EV4a:** In **Not organized**, search `ev4-dated.jpg` and choose **Earlier version ·
+  waiting for your answer**. The notice's first paragraph reads: "…looked before it was
+  edited in NegativeSpace. The edit changed that file, so this one is no longer an
+  identical copy of it. Copy and Move leave it in the source until you choose what to do
+  with it." The change **Date saved** shows its time followed by a
+  **Job #3 · Metadata** link. Follow it: **Logs** opens on Job #3 with one Completed
+  entry for `ev4-dated.jpg`. Go back.
+- **EV4b:** On the same notice choose **Keep it as its own photo…**. The confirmation says
+  it files under **2011-05-22 14:28:31** (filing date from EXIF), and that
+  `ev4-dated.jpg` in Library is filed under **2022-11-16 01:47:44** (filing date from
+  EXIF) and is not changed. Choose **Cancel**; the notice still waits for your answer.
+- **EV4c:** Search `ev4-turned.jpg` and open its earlier version the same way. The only
+  change is **Rotation saved** with a **Job #4 · Metadata** link, and Orientation reads
+  Not recorded → Turned 90° clockwise. Choose **Keep it as its own photo…**: both lines
+  say **Undated** (2026, the file's modification year). Keep it open.
+- **EV4d:** Set browser zoom to 200%. The confirmation text wraps without overlapping and
+  both buttons stay reachable. Restore normal zoom and choose **Cancel**.
+
+### Test EV5 — Long change lists
+
+**Status:** passed, including all lettered steps, on 2026-10-27.
+
+Same instance as EV4. Since EV4, `ev4-dated.jpg` in Library had three more Date taken
+saves (Jobs #5, #6 and #7), the last back to 2022-11-16 01:47:44, so its earlier version
+lists four changes. Nothing has been answered; these steps answer nothing.
+
+- **EV5a:** In **Not organized**, search `ev4-turned.jpg` and choose **Earlier version ·
+  waiting for your answer**. Under **Rotation saved**, the table shows only Orientation
+  (Not recorded → Turned 90° clockwise), followed by a closed **4 other recorded tags
+  changed**. Open it: four `IFD0:` rows appear, each Not recorded → a value.
+- **EV5b:** Search `ev4-dated.jpg` and open its earlier version. **Changes since this
+  version** lists three **Date saved** entries (Jobs #3, #5 and #6), then **Show all 4
+  changes**. Choose it: the fourth (Job #7) appears and the control reads **Show fewer**.
+- **EV5c:** With all four showing, set browser zoom to 200% and scroll Photo information
+  from the top of the notice down. While the changes scroll, **Don't keep it** and **Keep
+  it as its own photo…** stay at the bottom edge of the panel over the list; past the last
+  change they settle in place below it. Restore normal zoom.
+- **EV5d:** In **Library**, search `ev4-dated.jpg`, open it and choose **View lineage
+  tree**. The first **Date saved** event carries the highlighted **Version split:** note
+  linking the earlier `ev4-dated.jpg`; the three later Date saved events are folded after
+  it ("3 date saved…", **Show events**). Close the dialog.
+
+## Destination folder preview
 
 **Status:** TP1–TP3 passed, including all lettered steps.
 
