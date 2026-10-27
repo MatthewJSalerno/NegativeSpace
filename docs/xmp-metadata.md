@@ -24,7 +24,7 @@ embedded EXIF fields and validated XMP sources; see the adapter boundary below.
 Both are independently tested, including generated ExifTool output.
 
 `engine/xmp_store.py` now retains exact originals, parsed snapshots and immutable
-arrival/participant records (introduced in schema 23; current catalog schema 32), with
+arrival/participant records (introduced in schema 23; current catalog schema 34), with
 verified catalog backup coverage.
 
 **Index now reads associated XMP as capture-only evidence.** It retains qualified

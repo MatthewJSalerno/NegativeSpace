@@ -112,7 +112,7 @@ security concern, specified in `webui-spec.md` §5.6.
 *   **Catalog backups:** one verified snapshot of the whole catalog (photo records, lineage, history, settings; never photo files or thumbnails) is written to `--backups` after every Index, Copy or Move that recorded changes — including a failed or cancelled one — once the run has settled and before the lock is released, so the snapshot holds the run's final status. A job whose only records are `Skipped` or `Cancelled`, such as an unchanged Index or a repeated Copy, changed nothing and is not backed up. **Why not back up every job:** each no-op run would push a meaningful automatic backup out of the retention limit and replace it with a near-identical one. `--backup-now` writes one manual backup and exits `0`, or `1` when it fails. It takes the engine lock like any other action and is therefore refused while a job runs. **Why not allow it during a job:** a mid-job snapshot records a catalog halfway through changes the job is still making, the post-job backup captures the finished state moments later, and a backup outside the lock could not safely settle an attempt left unfinished by a kill. Mechanics (`ns_db.backup_catalog`):
     *   SQLite's online backup API into `<name>.db.partial` beside the destination, switched to `journal_mode=DELETE` so no `-wal`/`-shm` companion ever sits beside a backup, and checked with `quick_check` and the schema version. It is then compressed and verified as described below, and the compressed file is renamed into place and the directory fsynced. The copy records its own attempt as succeeded, so a restored catalog does not settle the backup it came from as interrupted.
     *   Storage is never created or substituted. A missing folder (`storage_unavailable`), one overlapping `--base` (`storage_overlaps_appdata`), an unwritable one (`storage_unwritable`) or the image's own `/backups` left unmounted (`storage_not_mounted`: a backup there would vanish with the container) fails the attempt with that category. Write errors are `insufficient_space` or `write_failed`; the partial file is removed.
-    *   A failed post-job backup is logged beside the job's result and never changes it, and nothing retries it automatically. An attempt found without an outcome at startup was interrupted: it is recorded so and its partial file removed. After reconciling, every start also reports what is **left outside every backup**. `ns_db.unbacked_changes` counts the operations written after the newest successful backup started, excluding `Skipped` and `Cancelled` rows and the current run, which backs itself up. When that count is above zero, the engine logs a warning naming the runs and the last good backup, or saying there has never been one, and pointing at `--backup-now`. It is a report, never an automatic backup (`webui-spec.md` §9).
+    *   A failed post-job backup is logged beside the job's result and never changes it, and nothing retries it automatically. An attempt found without an outcome at startup was interrupted: it is recorded so and its partial file removed. After reconciling, every start also reports what is **left outside every backup**. `ns_db.unbacked_changes` counts the operations written after the newest successful backup started, excluding `Skipped` and `Cancelled` rows and the current run, which backs itself up, plus review events, and the XMP arrivals, metadata captures, metadata decisions and earlier-version answers above the ID watermarks read from the newest successful snapshot itself, so a record written while a backup ran stays counted. When that count is above zero, the engine logs a warning naming the runs and the last good backup, or saying there has never been one, and pointing at `--backup-now`. It is a report, never an automatic backup (`webui-spec.md` §9).
     *   Retention: the `backup_retention` setting (default 20) limits automatic backups. After a new backup succeeds, the oldest automatic ones beyond the limit are deleted and marked `pruned`; manual backups are never pruned. Settings previews how many currently present automatic backups a lower limit would remove before it is applied. Settings observes each unpruned backup live as `present` or `missing`, or `unknown` when `--backups` itself cannot be reached, without updating the catalog. The engine records creation and pruning; it does not routinely refresh stored availability after external changes. `refresh_backup_availability` is a tested helper, not called by the current engine workflow.
     *   Compressed with Zstandard at level 10, with a frame checksum, as `<name>.db.zst` (`webui-spec.md` §9 has the measurements behind the choice). The verified snapshot is compressed to `<name>.db.zst.partial` and fsynced, then decompressed again and compared with the snapshot by hash. Only then is it renamed into place and the uncompressed `<name>.db.partial` removed. A mismatch fails the attempt as `verification_failed` and publishes nothing. `compression_format` records `zstd` for each such backup, and NULL for backups written before compression. The backup screen reads it per backup to say which library compressed the file and how to open it, so it describes the file itself, never a setting.
 *   **Moving to a network share asks first.** An `fsync` on a network share can be acknowledged before the data is on the server's disk (an NFS export marked `async`), and a client cannot see how a share is exported, so a Move's deletion there rests on a promise the engine cannot check. `filesystem_type` reads the destination's type from `/proc/self/mountinfo`: inside a container, a bind mount reports the storage behind it, `nfs4` or `ext4`. For a network filesystem (`NETWORK_FILESYSTEMS`: NFS, SMB/CIFS, sshfs, Ceph and the like), a Move stops before its space check, copying or deleting anything. It opens one `network_destination_unconfirmed` needs-attention issue recommending Copy, and records every selected photo, duplicates included, `Skipped` with a reason pointing at it. `--confirm-network-destination` (Move anyway) or a Copy (the recommended answer) closes it. Copy is never stopped, since it deletes nothing. A mount table that cannot be read is treated as local. **Why not refuse Move outright:** a share exported `sync` is as safe as local disk, and the user can know that where the engine cannot.
@@ -342,7 +342,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 32 and refuses incompatible catalogs before processing.
+initializes schema version 34 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -642,7 +642,9 @@ CREATE INDEX idx_lineage_file ON operation_files(file_id,operation_id);
 **Recovery, content, cache, discovery and backup records.** The first five are
 written by recovery (4.2), `contents` and `thumbnail_cache` by the scan,
 `run_discovery` by a full Index (4.3; schema 31 adds the selected-extension counts, calculated from the already-discovered candidate list with no extra filesystem reads), `run_progress` by every job (4.3), `destination_findings` by the destination check (9.1), and the backup records by catalog backups
-(4.1); `file_changes` is defined but not yet written. Index writes `content_similarity`.
+(4.1). A verified metadata edit that rewrites a Library file writes `file_changes`; Index
+and that edit write `photo_versions` when a source file holds content an edit replaced
+(section 10); the user's answers write `photo_version_answers`. Index writes `content_similarity`.
 Statement order matters here too:
 `contents` precedes everything referencing it, `operation_events` precedes
 `attention_issues`, and both `operation_evidence` and `attention_issues` precede
@@ -697,8 +699,8 @@ CREATE TABLE attention_evidence (
     PRIMARY KEY(issue_id, evidence_id)
 );
 
--- file_changes: defined, not yet written. Index writes content_similarity and
--- thumbnail_cache; catalog backups (4.1) write the backup records.
+-- file_changes: one row per verified edit that rewrote a Library file. Index writes
+-- content_similarity and thumbnail_cache; catalog backups (4.1) write the backup records.
 CREATE TABLE file_changes (
     change_id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id INTEGER NOT NULL REFERENCES operation_events(event_id),
@@ -708,6 +710,33 @@ CREATE TABLE file_changes (
     before_path TEXT, after_path TEXT,
     before_values_json TEXT, after_values_json TEXT
 );
+-- Index looks a file's content up on the before side (section 10, earlier versions).
+CREATE INDEX idx_file_changes_before ON file_changes(before_content_id, change_id);
+
+-- A source photo whose content a recorded edit replaced (section 10, earlier versions):
+-- one link per change found for it, and the user's answers about each link (the latest
+-- is current, none means waiting). Both are append-only. The current link is the newest
+-- whose replaced content is the file's current content; new bytes at the same path never
+-- inherit an answer given about other bytes. Whether a link holds is recomputed from
+-- facts (the file has that content and no organized or rejected photo has it), never stored.
+CREATE TABLE photo_versions (
+    link_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    photo_id INTEGER NOT NULL REFERENCES photos(id),
+    version_of INTEGER NOT NULL REFERENCES photos(id),
+    change_id INTEGER NOT NULL REFERENCES file_changes(change_id),
+    found_run_id INTEGER REFERENCES runs(id), found_at TEXT NOT NULL,
+    UNIQUE(photo_id, change_id), CHECK(photo_id <> version_of)
+);
+CREATE INDEX idx_photo_versions_of ON photo_versions(version_of);
+
+CREATE TABLE photo_version_answers (
+    answer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    link_id INTEGER NOT NULL REFERENCES photo_versions(link_id),
+    answer TEXT NOT NULL CHECK(answer IN ('not_kept','keep_separate')),
+    request_id TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL,
+    UNIQUE(request_id, link_id)
+);
+CREATE INDEX idx_photo_version_answers ON photo_version_answers(link_id, answer_id);
 
 -- Distinct visual hashes only; equal hashes share an implicit zero-distance bucket.
 CREATE TABLE content_similarity (
@@ -802,7 +831,8 @@ CREATE TABLE backup_attempts (
     error_category TEXT, error_detail TEXT,
     xmp_arrival_highwater INTEGER NOT NULL DEFAULT 0 CHECK(xmp_arrival_highwater>=0),
     metadata_capture_highwater INTEGER NOT NULL DEFAULT 0 CHECK(metadata_capture_highwater>=0),
-    metadata_decision_highwater INTEGER NOT NULL DEFAULT 0 CHECK(metadata_decision_highwater>=0)
+    metadata_decision_highwater INTEGER NOT NULL DEFAULT 0 CHECK(metadata_decision_highwater>=0),
+    version_answer_highwater INTEGER NOT NULL DEFAULT 0 CHECK(version_answer_highwater>=0)
 );
 
 -- 'pruned': retention removed the file. 'missing': gone for a reason the
@@ -833,7 +863,7 @@ CREATE INDEX idx_open_attention ON attention_issues(file_id) WHERE resolved_at I
 ```
 
 **Immutability is enforced by triggers, not convention.** `operation_events`,
-`operation_evidence`, `file_changes` and `attention_evidence` reject `UPDATE` and
+`operation_evidence`, `file_changes`, `photo_versions`, `photo_version_answers` and `attention_evidence` reject `UPDATE` and
 `DELETE` alongside the version 2 tables. `attention_issues` is deliberately
 excluded — resolving an issue must update it — as are `thumbnail_cache`,
 `content_similarity`, `similarity_count_cache`, `similarity_count_state` and
@@ -1021,7 +1051,7 @@ outside the app, because that workflow restarts every photo's history.
 | Found | Repair |
 | :--- | :--- |
 | **Moved or renamed** (its content found elsewhere under `library/`) | Move it back to where it belongs |
-| **Missing** | Copy it back from the source or Rejects if a verified copy remains; otherwise record it gone, keeping its history |
+| **Missing** | Copy it back from the source or Rejects if a verified copy remains. If only an *earlier version* remains in the source, offer **Rebuild from the earlier version**: copy it and re-apply, as a new verified edit, every recorded change since that version (listed in the preview), refiling it where the lost file was. The result is the same picture with the same recorded details, labelled *rebuilt*, not restored: its checksum may differ from the lost file, and changes NegativeSpace did not make (external editors) cannot be re-applied. Qualified formats only; RAW sidecar edits are re-created from the retained exact XMP version. Otherwise record it gone, keeping its history |
 | **Changed** (saved over by another application) | Keep the new version in place, record its checksum as a later version (§10), and refile it if its date changed |
 | **Unknown file** (not in the catalog) | Never touched; listed so the user knows it is there |
 
@@ -1757,6 +1787,47 @@ record what NegativeSpace did, not whether the source file is still there. To ve
 building: saving a rotation into EXIF records the new checksum and recomputes the
 perceptual hash.
 
+**Earlier versions: the agreed behaviour** (decided 2026-10-25; built for exact copies, look-alike versions not yet).
+
+* **Two ways an earlier version appears.** A file Index finds whose checksum matches no
+  photo's current checksum but matches the *before* side of a recorded content change
+  (`file_changes.before_content_id`). And a source copy already catalogued that an edit
+  released: when a Library photo's file is rewritten, its identical source copies stop
+  being duplicates (`metadata_photo_save`). Both are treated the same way.
+* **Held, never organized silently.** An earlier version waits in Not organized → Needs
+  attention with the reason **Earlier version of a Library photo**, and Copy/Move skip it
+  until answered.
+* **The full list of changes is shown**, built only from recorded facts: every recorded
+  change from the one whose *before* content matches this file through to the Library
+  photo's current content, each with its job, time and before → after values. Recorded
+  tags are translated into plain words (Date taken, Rotated); a tag without a translation
+  is shown by its name, never guessed. "Only the photo's details changed; the picture is
+  the same" appears only when the recorded image chain proves it.
+* **Don't keep it** leaves the file untouched in the source, takes it out of the waiting
+  count and Needs attention, and records the answer; Move never deletes it, since it is
+  not identical to anything delivered. **Keep it after all** changes the answer to Keep it
+  as its own photo. An answer covers every identical copy of that content in the source,
+  whichever edited photo each copy is linked to.
+* **An answer is about those bytes and that edit.** Each recorded change found for a file
+  is its own link, and an answer belongs to the link. If the file at the same path is
+  later replaced by other bytes that are also an earlier version, it is held again for
+  those bytes; the earlier answer stays recorded on its own link and is never reused. A
+  later edit that replaces the same content again (for example after the kept copy is
+  itself edited) is a new link and waits for its own answer, since its change list differs.
+* **Keep it as its own photo** releases it to be organized normally, filed by its own
+  metadata (so a version from before a date fix files under the old date; the
+  confirmation names both photos' recorded filing dates, or Undated when a file falls
+  back to its modification time). Move then removes its original as usual. It is a 100%
+  look-alike of the edited photo, and Similar photos shows it so.
+* **A version link, never a merge.** Each file keeps its own history. The catalog records
+  "version of" between the two whatever the answer; both photos' histories and lineage
+  timelines name and link the other, and cards carry a badge: **Earlier version** (or
+  **Earlier version · waiting for your answer**) and **Has an earlier version**. This is a
+  relationship the app records, not a keyword written into either file.
+* **Look-alike earlier versions** (a resized or re-saved copy, recognised by the previous
+  perceptual hash) come later, with the strict level and low-detail rule of
+  `webui-spec.md` §7.8.
+
 **Identity across content changes:** each logical file retains a stable lineage
 identity independent of its current path and content hash. For every tool action
 that changes content, record the before/after hashes linked to that same lineage
@@ -1769,8 +1840,9 @@ attached to that photo's history.
 **The identity schema is implemented.** `files` holds the stable identity,
 `file_origins` its immutable creation provenance, `file_states` its current path and
 presence, and `source_snapshots` the original Index evidence that later scans never
-overwrite (§6.5). Content-version transitions — the before/after hashes of an edit —
-remain unimplemented, because nothing yet modifies a photo's content.
+overwrite (§6.5). Content-version transitions are recorded: each verified edit that
+rewrites a photo's file writes a `file_changes` row with its before and after content and
+the tag values it changed, linked to the same file identity.
 
 **Deletion retains lineage.** Preserve the original source snapshot, last recorded
 file state and complete recorded action history, including per-field before/after
@@ -1946,7 +2018,7 @@ The history records the cause; explicit saved-date answers also link to their jo
 Neither reads nor repeated unchanged writes add history. Bookmarks are never cleared by
 these triggers. At the next job after a calendar-year advance, a once-per-year check records dates
 that have fallen within range, with that job ID; ordinary jobs only read the year marker.
-Automatic clearing for future unbuilt reasons remains with those workstreams. Development catalogs require schema 32; no migration.
+Automatic clearing for future unbuilt reasons remains with those workstreams. Development catalogs require schema 34; no migration.
 
 
 Bulk review uses the same single-photo decision guards and history under one engine

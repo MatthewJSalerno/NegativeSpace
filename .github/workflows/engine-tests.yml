@@ -256,6 +256,9 @@ jobs:
       - name: Notification read receipts
         run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p notifications_test.py -v
 
+      - name: Earlier versions
+        run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p earlier_versions_test.py -v
+
       - name: Low-detail hash evidence and matches
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p low_detail_test.py -v
 
@@ -439,6 +442,9 @@ jobs:
 
       - name: Externally removed original in a browser
         run: DRIVER=copied_source_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Earlier versions in a browser
+        run: DRIVER=earlier_versions_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: File issue recovery in a browser
         run: SIMILARITY_RECOVERY_FIXTURE=1 DRIVER=attention_browser_drive.py sh tests/browser/webui_browser_test.sh

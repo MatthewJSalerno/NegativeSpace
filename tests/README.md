@@ -30,7 +30,8 @@ CI coverage is split between two workflows:
   `tools/check-*.py`, synthetic similarity validation, container CPU/timezone/CLI
   checks, and the PR/main browser drivers listed below. `ci_scope_test.py` runs
   in the small Git-equipped CI test image; application suites use the app image.
-  `sidebar_refinements_test.py` and `notifications_test.py` use `PYTHONPATH=/app/tests:/app`.
+  `sidebar_refinements_test.py`, `notifications_test.py` and `earlier_versions_test.py` use
+  `PYTHONPATH=/app/tests:/app`.
   RAW smoke tests require the optional read-only public samples locally; GitHub has
   no such samples and reports those two skips.
 - **Nightly at 05:37 UTC and manual Extended browser tests runs**:
@@ -54,6 +55,7 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | `backup_browser_drive.py` | PR / main / manual | `BACKUP_FIXTURE=1` |
 | `attention_browser_drive.py` | PR / main / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
 | `copied_source_browser_drive.py` | PR / main / manual | — |
+| `earlier_versions_browser_drive.py` | PR / main / manual | — |
 | `sidebar_refinements_browser_drive.py` | PR / main / manual | — |
 | `fresh_start_browser_drive.py` | PR / main / manual | — |
 | `gallery_position_browser_drive.py` | PR / main / manual | — |
@@ -347,6 +349,17 @@ remain in scope. Existing phone-emulation checks guard implemented behavior rath
 establishing a mobile release requirement.
 
 ### What each driver checks
+
+`DRIVER=earlier_versions_browser_drive.py sh tests/browser/webui_browser_test.sh` edits the
+date of `photo-000.jpg` after Copy, which releases its identical generated copy as an earlier
+version; a rotation of photo-001 and its copy, stripped of EXIF for this driver, records tags
+with no plain name. It checks the waiting card control and notice, that each change links its
+job's log, that unnamed tags fold, that only three of four changes show until **Show all**,
+that the answers float over the list in a short window, that the confirmation names both
+photos' filing dates, that the split stays visible when the later edits fold, that **Don't keep it** and **Keep it
+after all…** change **Copy all**'s count without a reload, and that both lineage dialogs mark
+the split. Removing the status refresh on catalog-only answers makes it fail. With `SHOTS`
+set it saves dark-mode screenshots of the notice and the confirmation, also at 200% text.
 
 `DRIVER=similar_browser_drive.py sh tests/browser/webui_browser_test.sh` checks the empty review after Index, then Copies
 the isolated generated fixtures and checks cumulative Inspector counts, inline match
@@ -1389,6 +1402,16 @@ For production metadata/backup costs without photos, run
 The command uses generated temporary data and prints aggregate JSON; measured scope and
 results are in [xmp-storage-measurements.md](../docs/xmp-storage-measurements.md).
 
+## Earlier versions
+
+Run `python3 -m unittest discover -s tests -p earlier_versions_test.py -v` in the app image
+with `PYTHONPATH=/app/tests:/app`. Generated photos and real date and rotation saves through
+the API cover released copies and later arrivals being held, Move never removing an
+unanswered version, a source replaced by other earlier bytes being held for those bytes,
+one answer covering identical copies linked to different edits, guarded and replayable
+answers, both lineage links, each change's job and both filing dates, answers counted as
+unbacked until a snapshot holds them (including one written during a backup), and the
+indexed Index lookup.
 
 ## Embedded JPEG working-copy verification
 

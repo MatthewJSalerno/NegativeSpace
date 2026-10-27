@@ -974,7 +974,9 @@ and Gmail, so that no menu has to adapt to what is selected:
 The search is in the top bar; Filters and Sort end
 the place's heading row. Every Jobs item carries a one-line explanation, and one that cannot run
 replaces it with why: a job is running, nothing is indexed, nothing is selected, or
-nothing is left (**"Nothing to copy - every photo is copied or organized."**). The
+nothing is left (**"Nothing to copy - every photo is copied or organized."**), or what
+is left needs attention first (**"Nothing ready to copy - 2 photos in Not organized need
+attention first."**). The
 **all** counts are the whole catalog's, by the engine's own rule
 (`ns_db.TRANSFER_ELIGIBLE`), never the gallery's view or search: Copy takes photos not
 yet copied, and Move also takes copied ones, deleting each source once its copy is
@@ -1207,6 +1209,12 @@ choices, photo logs and jobs without a file step remain accessible above the tim
 they do not interrupt the events leading into Now. Lane headings have vertical
 separators. Escape closes only this window.
 
+
+**Earlier versions:** a source photo that is an earlier
+version of an edited Library photo waits here too, with the reason **Earlier version of a
+Library photo**, the full list of recorded changes since that version, **Don't keep it**
+and **Keep it as its own photo**, and version badges on both photos' cards
+(`engine-spec.md` §10, "Earlier versions: the agreed behaviour").
 
 **Source metadata holds.** Needs attention means the source photo cannot yet be
 organized; No usable capture date is a separate date property, not an import restriction
@@ -1999,7 +2007,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 32 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 34 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a

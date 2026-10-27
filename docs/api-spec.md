@@ -64,9 +64,12 @@ rule (`ns_db.TRANSFER_ELIGIBLE`): Copy takes `Pending`; Move also takes `Copied`
 each source against its verified copy, and `Rejected_Copied`, deleting it against its copy
 in Rejects. `copied` and `rejected_with_source` are how many of Move's are each of those.
 Both count the whole catalog, whatever the gallery's view or search. Pending photos
-whose latest source metadata capture holds import are excluded. `held` counts
-unorganized Failed photos and other unorganized photos with that latest metadata hold,
-without double counting. A newer source observation does not remove Copied or
+whose latest source metadata capture holds import are excluded, and so are earlier
+versions of edited Library photos that are waiting for an answer or that the user chose
+not to keep (`GET /photos/{id}/versions`). `held` counts what needs attention:
+unorganized Failed photos and other unorganized photos with that latest metadata hold or
+an unanswered earlier version, without double counting; a not-kept earlier version is
+excluded from both. A newer source observation does not remove Copied or
 Rejected_Copied originals from Move's existing confirmation and live verification.
 
 `rejects` is what Rejects holds now and what has been emptied from it so far: every
@@ -423,7 +426,16 @@ Not organized photos with issues in their latest metadata capture. Its `issues` 
 contains `code`, readable `reason`, source-relative `files` and optional `detail`;
 `action` explains source correction/reindexing. It does not establish a failed photo
 or a Library review task. The Not organized `index_summary.metadata_held` count excludes
-failed photos already counted in `failed`; `ready` excludes recorded metadata holds.
+failed photos already counted in `failed`; `ready` excludes recorded metadata holds and
+held earlier versions. The `attention` reason filter and `metadata_held` also include
+earlier versions waiting for an answer.
+
+Photo listing items and photo inspection also include nullable `version`, the photo's
+version links for its badge: `version_of` (the Library photo this file is an earlier
+version of, or null), `state` (`waiting`, `not_kept`, `keep_separate`, or null once the
+file is no longer held as one), and for a Library photo `earlier_versions` and `waiting`
+(distinct earlier contents, and how many await an answer). Full details are in
+`GET /photos/{id}/versions`.
 
 ### `GET /api/v1/photos/{id}/metadata`
 
@@ -565,14 +577,19 @@ Everything recorded about a photo's files, for the lineage tree (`webui-spec.md`
      "operations": [{"id", "run_id", "mode", "action", "status", "timestamp", "error_message", "photo_id",
                      "source_path", "dest_path", "recovery", "consolidated_into", "consolidated_path",
                      "files": [{"file_id", "role": "source" | "destination" | "retained_copy"}]}, ...],
-     "selected_by": [{"run_id", "mode", "status", "started_at"}, ...]}
+     "selected_by": [{"run_id", "mode", "status", "started_at"}, ...],
+     "versions": {"version_of": {"id", "filename", "location", "split_operation_id", "split_at",
+                                 "found_at", "state"} | null,
+                  "earlier_versions": [{"id", "filename", "location", "state", "split_operation_id"}, ...]}}
 
 `files` holds the photo's source file and every file descended from it (a copy records
 the file it came from; an indexed file records itself as its own origin), and the same
 for each duplicate. `matches` says whether the file's recorded
 content is the photo's. `operations` is every operation that touched any of them, oldest
 first, with the role each file played. `selected_by` is every job the photo was chosen for
-in a selection (`run_selections`), whatever that job then did with it. A copy's size is
+in a selection (`run_selections`), whatever that job then did with it. `versions` names
+the photo this one is an earlier version of, and its own earlier versions, as in
+`GET /photos/{id}/versions`; each photo keeps its own history. A copy's size is
 its origin's: it was verified byte for byte when made. An unknown photo is `404 unknown_photo`.
 
 `created_run_id` identifies the first discovery, so later Index observations are not
@@ -1362,6 +1379,46 @@ Returns the current review detail on success. Identical request replay is idempo
 content/revision, photos outside Library, or conflicting request reuse; 409 `job_already_running` refuses a
 busy engine; 503 `review_unavailable` means the result could not be confirmed, so
 reload before retrying. Success is shown only after acknowledgement.
+
+### `GET /api/v1/photos/{photo_id}/versions`
+
+The photo's earlier-version links (`engine-spec.md` §10, "Earlier versions: the agreed
+behaviour"). Returns `photo_id`, `revision` (the current link's latest answer ID, 0 when
+unanswered), `earlier_version` and `earlier_versions`. A photo has one link per recorded
+change found for it; the current link is the newest one whose replaced content is the
+file's current content, else its newest. `earlier_version` is null unless this file has a
+link; otherwise it describes the current link: `version_of` (`id`, `filename`,
+`location`, `filing`, and `split_operation_id`/`split_at`: the edit that replaced this
+file's content and when), `filing` (this file's `date_taken` and `date_source` as its
+catalog row records them: what Copy/Move files it by; `version_of.filing` is the Library
+photo's), `state` as in photo listings, `found_at`, `answerable` (still in the source and
+still held), `same_picture` (true only when verified embedded edits connect the two
+contents, so the picture itself is unchanged), `answers` (every answer on this link with
+its time, in order) and `changes`: every recorded content change from the one that
+replaced this file's content to the Library photo's current content, each with
+`change_id`, `operation_id`, `run_id` and `mode` (the job that made it), `at`,
+`fields` (`source`, `field`, `before`, `after` for named metadata fields) and `tags`
+(`tag`, `before`, `after` for changed recorded tags with no named field). `earlier_versions`
+lists, for a Library photo, the source photos linked as its earlier versions (`id`,
+`filename`, `location`, `state`, and `split_operation_id`, the edit that split each off),
+one per content. A missing photo returns 404
+`unknown_photo`. This endpoint only reads.
+
+### `POST /api/v1/photos/{photo_id}/versions/answer`
+
+Body: `photo_id`, `answer` (`not_kept` or `keep_separate`), `revision` (from the GET), and
+`request_id` (1–128 alphanumeric, underscore or hyphen characters). The engine appends the
+answer under its lock to the current link of every identical copy of this content still
+in the source and still held or answered, whichever Library photo each is linked to; no
+photo files change. `not_kept` keeps the file in the source untouched and out of Needs
+attention; `keep_separate` lets the next Copy/Move organize it as its own photo, filed by
+its own metadata. Sending `keep_separate` after `not_kept` is **Keep it after all**.
+Returns the GET detail. Identical request replay is idempotent. 400 `invalid_request`
+rejects malformed input; 409 `version_changed` refuses a stale revision, the current
+answer again, a photo that is not a held earlier version in the source, or conflicting
+request reuse; 409 `job_already_running` refuses a busy engine; 503
+`version_answer_unavailable` means the result could not be confirmed, so reload before
+retrying.
 
 ### `POST /api/v1/review-batch/preview`
 

@@ -565,7 +565,10 @@ with sync_playwright() as p:
     # Everything copyable is copied, but Move still has every copied photo to finish.
     menu = open_actions(page, "Copy")
     expect(menu.get_by_role("menuitem", name="Copy all (0)")).to_be_disabled()
-    expect(menu).to_contain_text("Nothing to copy")
+    # The failed photo is held in Not organized, so the hint names it rather than claiming
+    # every photo is copied.
+    expect(menu).to_contain_text("Nothing ready to copy")
+    expect(menu).to_contain_text("attention first")
     menu.get_by_role("menuitem", name="Move", exact=True).click()
     expect(menu.get_by_role("menuitem", name=f"Move all ({PHOTOS - 1:,})")).to_be_enabled()
     expect(menu).to_contain_text(f"including {PHOTOS - 1:,} already copied")

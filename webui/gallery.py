@@ -6,7 +6,7 @@ import posixpath
 from pathlib import Path
 from typing import Optional
 
-from engine import ns_db, review, review_batch, review_history, attention, metadata_choices
+from engine import earlier_versions, ns_db, review, review_batch, review_history, attention, metadata_choices
 from engine import ns_similarity_cache
 from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
 from . import photo_orientation, catalog, metadata_view, card_names, discovery
@@ -161,7 +161,7 @@ def _filters(q, undated, dates, types=None, folders=None, root=None, *, group_se
             'unknown_dimensions': "p.status='Pending' AND NOT EXISTS (SELECT 1 FROM contents c WHERE c.hash_algorithm='sha1' AND c.digest=p.sha1_hash AND c.width>0 AND c.height>0)",
             'unfinished': "p.status='Processing'",
             'failed': "p.status='Failed'",
-            'metadata_held': f"p.status!='Failed' AND ({catalog.source_metadata_hold_sql()})",
+            'metadata_held': f"p.status!='Failed' AND ({metadata_view.source_attention_predicate()})",
         }
         if source_summary not in predicates:
             raise ValueError('Unknown source summary filter')
@@ -263,7 +263,7 @@ def _index_summary(conn):
     """Facts about remaining indexed source photos; no destination review eligibility."""
     where = _view_clause('unorganized')
     row = conn.execute(f"""SELECT COUNT(*) AS photos,
-        COALESCE(SUM(p.status='Pending' AND NOT ({metadata_view.source_attention_predicate()})),0) AS ready,
+        COALESCE(SUM(p.status='Pending' AND NOT {catalog.source_hold_sql()}),0) AS ready,
         COALESCE(SUM(p.status!='Failed' AND ({metadata_view.source_attention_predicate()})),0) AS metadata_held,
         COALESCE(SUM(p.status='Processing'),0) AS unfinished,
         COALESCE(SUM(p.status='Pending' AND ({_date_warning_sql()}) IS NOT NULL),0) AS suspicious,
@@ -289,6 +289,7 @@ def _items(conn, rows, *, name_scope, name_params, include_review=False) -> list
     names = card_names.describe(conn, rows, name_scope, name_params, _FILENAME_SQL)
     review_cards = _review_cards(conn, rows) if include_review else {}
     metadata_notes = metadata_view.source_attention(conn, [r["id"] for r in rows])
+    version_links = earlier_versions.badges(conn, [r["id"] for r in rows])
     # A saved edit invalidates this photo's preview, not every healthy grid image
     # after any job. Fetch revisions once for the page, including legacy rows.
     thumbnail_revisions = dict(conn.execute(
@@ -298,6 +299,7 @@ def _items(conn, rows, *, name_scope, name_params, include_review=False) -> list
         item = dict(r)
         item["name_context"] = names[r["id"]]
         item["metadata_attention"] = metadata_notes.get(r["id"])
+        item["version"] = version_links.get(r["id"])
         item["thumbnail_revision"] = thumbnail_revisions.get(r["id"], 0)
         sha1 = item.pop("sha1_hash")
         item["duplicates"] = conn.execute(
@@ -722,6 +724,7 @@ def inspect_photo(db_path: Path, photo_id: int, *, source_root=None, destination
             content['width'] if content else None, content['height'] if content else None)
         issues = attention.for_photo(conn, photo_id)
         metadata_attention = metadata_view.source_attention(conn, [photo_id]).get(photo_id)
+        version = earlier_versions.badges(conn, [photo_id]).get(photo_id)
         failure = None
         if p["status"] == PhotoStatus.FAILED:
             last = conn.execute("SELECT error_message FROM operations WHERE photo_id = ? AND status = ? ORDER BY id DESC LIMIT 1",
@@ -744,7 +747,7 @@ def inspect_photo(db_path: Path, photo_id: int, *, source_root=None, destination
         "file_modified": snapshot["file_mtime"] if snapshot else p["file_mtime"],
         "date_taken": meta.get("date_taken"), "date_source": meta.get("date_source"),
         "date_warning": p["date_warning"],
-        "camera": camera, "visual_issue": visual_issue, "failure": failure, "issues": issues, "metadata_attention": metadata_attention,
+        "camera": camera, "visual_issue": visual_issue, "failure": failure, "issues": issues, "metadata_attention": metadata_attention, "version": version,
         # A capture time's offset, when the camera recorded one; without it the
         # time zone is unknown and must not be shown as UTC (webui-spec 10).
         "date_offset": _exif_tag(meta, "ExifIFD", "OffsetTimeOriginal"),

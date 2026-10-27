@@ -11,7 +11,7 @@ import json
 import os
 from pathlib import Path
 
-from engine import constants, metadata_capture, metadata_decisions, metadata_edits, metadata_save, ns_db
+from engine import constants, metadata_capture, metadata_decisions, metadata_edits, metadata_save, ns_db, earlier_versions
 
 
 def plan(conn, photo_id, run_id, *, config=None, destination_root=None):
@@ -19,7 +19,7 @@ def plan(conn, photo_id, run_id, *, config=None, destination_root=None):
     row = conn.execute('SELECT p.source_path,p.dest_path,p.sha1_hash,p.status,p.metadata_json,pf.file_id '
         'FROM photos p JOIN photo_files pf ON pf.photo_id=p.id WHERE p.id=?',(photo_id,)).fetchone()
     active = metadata_save.active(conn, photo_id)
-    if active and active.get('content_changed'):
+    if (active and active.get('content_changed')) or earlier_versions.hold(conn, photo_id):
         raise ValueError(metadata_decisions.transfer_hold(conn, photo_id))
     if conn.execute("SELECT 1 FROM operations o JOIN operation_events e ON e.operation_id=o.id "
             "WHERE o.photo_id=? AND e.step='intent' AND json_extract(e.detail_json,'$.kind')=? "
