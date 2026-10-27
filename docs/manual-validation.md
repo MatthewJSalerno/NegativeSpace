@@ -9,6 +9,9 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Audit 043:** [A1a–A1d](#audit-043-preview-index) checks the Index notice/action in
+Copy/Move confirmation. Maintainer acceptance is pending. EV1–EV3 need not be repeated.
+
 **Earlier versions:** [EV1–EV3](#earlier-versions) passed, including all lettered steps, on
 2026-10-26. No manual checks remain for this batch.
 
@@ -56,6 +59,34 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Audit 043 preview Index
+
+**Status:** A1a–A1d pending maintainer acceptance. Read — the implemented notice and
+explicit Index action are in `webui/frontend/src/components/Confirm.tsx:96`.
+
+Verified — the generated metadata review catalog contains one searchable
+`md-exif-only.jpg` in Library, with source folder `agree/exif_only`; Index and Copy
+are complete. Automated coverage exercises both Copy and Move; the steps below use
+Move previews only, without moving source files.
+
+### Test A1 — See which Index a transfer uses
+
+- **A1a:** Open **Library**, search `md-exif-only.jpg`, then choose **Jobs › Move ›
+  Move all**. At the top of the confirmation, check that **Based on the Index from**
+  gives a date/time and relative age, followed by the notice that photos added since
+  then are not included. **Index source** is visibly actionable. Cancel; do not start Move.
+- **A1b:** Reopen the same preview and choose **Index source**. The preview closes and
+  an Index starts. Once finished, reopen the preview and check that its Index time
+  reflects that run. Cancel again.
+- **A1c:** Clear search. Open **Not organized › Source folders**, choose **Still in
+  source**, expand **agree**, and select only **exif_only**. Open **Move this folder**.
+  Check that the notice names **agree/exif_only** and offers **Index this folder**.
+  Choose it; the preview closes and the Index job targets that folder. Reopen the
+  folder preview after it finishes and check the updated folder Index time, then Cancel.
+- **A1d:** Reopen either preview at 200% text/zoom. The Index explanation and link
+  remain readable, with no overlap or sideways scrolling; Cancel remains reachable.
+  Restore normal zoom and close the preview.
 
 ## Earlier versions
 

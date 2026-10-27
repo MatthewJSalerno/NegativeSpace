@@ -2,6 +2,8 @@
 import concurrent.futures
 import json
 import threading
+import unittest
+import earlier_versions_test
 from unittest import mock
 
 from webui_api_test import ApiCase
@@ -144,3 +146,32 @@ class Audit043Tests(ApiCase):
             c.commit()
         basis=self.app_jobs().preview_transfer({'mode':'copy','source_subdir':'./trip/child/'})['index_basis']
         self.assertEqual(basis,dict(indexed_at='2026-01-04T12:00:00Z',source_subdir='trip/child'))
+
+
+class VersionAnswerPreviewTests(unittest.TestCase):
+    def check_answer(self, answer, cached):
+        f=earlier_versions_test.EarlierVersions()
+        f.setUp()
+        try:
+            if cached:
+                response=f.client.post('/api/v1/jobs/transfer-preview',json={'mode':'copy','file_ids':[f.alias]})
+                self.assertEqual(response.status_code,200,response.text)
+                plan=response.json()
+            else:
+                with ns_db.connect(f.cfg.db_path) as c:
+                    plan=transfer_preview.preview(c,source=f.cfg.source,destination=f.cfg.dest,mode='copy',photo_ids=[f.alias])
+            self.assertEqual(f.answer(f.alias,answer,'preview-answer').status_code,200)
+            if cached:
+                page=f.client.post('/api/v1/jobs/transfer-preview',json={'mode':'copy','token':plan['token'],'page':1})
+                self.assertEqual(page.status_code,409,page.text)
+            confirmed=f.client.post('/api/v1/jobs/start',json={'mode':'copy','file_ids':plan['file_ids'],'transfer_preview_token':plan['token'],'request_id':'confirm-after-answer'})
+            if confirmed.status_code == 202: f.wait_for(confirmed.json()['id'])
+            self.assertEqual(confirmed.status_code,409,confirmed.text)
+            self.assertEqual(confirmed.json()['error'],'transfer_preview_changed')
+        finally:
+            f.tearDown()
+
+    def test_not_kept_invalidates_uncached_confirmation(self):self.check_answer('not_kept',False)
+    def test_keep_separate_invalidates_uncached_confirmation(self):self.check_answer('keep_separate',False)
+    def test_not_kept_invalidates_cached_page_and_confirmation(self):self.check_answer('not_kept',True)
+    def test_keep_separate_invalidates_cached_page_and_confirmation(self):self.check_answer('keep_separate',True)

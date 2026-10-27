@@ -14,8 +14,11 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 - READ (`review_batch.py`, `catalog.py`, `gallery.py`): invalid Keep items are
   reported individually, missing bookmark reasons sort as Check the date, and
   selection pages omit review counts unless requested by review controls.
-- READ (`DestinationPreview.tsx`): Copy/Move confirmation shows the last finished
-  Index's time, outcome and scope.
+- Read (`webui/frontend/src/components/Confirm.tsx:97`): Copy/Move confirmation
+  shows the last completed Index covering the source or selected folder, with an
+  explicit action to Index that scope.
+- Read (`engine/transfer_preview.py:21`): earlier-version answers invalidate
+  outstanding destination-preview tokens, including cached pages.
 
 
 - Remove unused per-view gallery count queries and obsolete retention/XMP helpers;

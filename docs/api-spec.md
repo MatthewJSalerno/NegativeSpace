@@ -689,7 +689,9 @@ not a fresh source scan.
  Changed state returns `409 transfer_preview_changed`; invalid
 input returns `400 invalid_request`; a running engine returns `409 busy`. No files
 are read or changed, no filenames reserved, no job created. Catalog settings, metadata
-captures/decisions and matching destination records participate in the guard.
+captures/decisions, earlier-version answers and matching destination records participate in the guard.
+Read — `engine/transfer_preview.py:21`: the token includes the latest earlier-version
+answer ID; a changed answer invalidates both cached pages and confirmation.
 Filing reuses the import metadata planner. Source filenames identify originals, not
 reserved destination names; live file checks and collision handling remain job work.
 

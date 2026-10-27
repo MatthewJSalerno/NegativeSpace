@@ -18,6 +18,7 @@ def snapshot(conn, *, source, destination, photo_ids=None, source_subdir=None):
         "FROM photos p WHERE p.id IN (SELECT value FROM json_each(?)) ORDER BY p.id", (ids,)).fetchall()
     config = {**ns_db.METADATA_DEFAULTS, **{k:json.loads(v) for k,v in conn.execute('SELECT key,value_json FROM settings')}}
     config['metadata_decision_highwater'] = conn.execute('SELECT COALESCE(MAX(decision_id),0) FROM metadata_decisions').fetchone()[0]
+    config['version_answer_highwater'] = conn.execute('SELECT COALESCE(MAX(answer_id),0) FROM photo_version_answers').fetchone()[0]
     # Matching rows outside this source can affect duplicate delivery. Include their
     # recorded paths/statuses without walking another source or the destination.
     anchors = conn.execute("SELECT id,source_path,dest_path,status,sha1_hash FROM photos WHERE sha1_hash IN "
