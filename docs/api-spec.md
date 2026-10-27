@@ -719,7 +719,9 @@ replay precedes these checks. A network Move's Copy alternative retains this gua
 and frozen scope while dropping deletion consent.
 
 The browser freezes Copy/Move all/folder to the previewed catalogued IDs; newly indexed
-photos are not silently added. Preview-confirmed Move (and its Copy-instead alternative) may span Library and Rejects
+photos are not silently added. A confirmed Copy/Move is therefore a targeted run: it does
+not walk the source, so it records no discovery and marks no vanished originals; only
+Index does (`engine/cli.py`, the full-walk branch). Preview-confirmed Move (and its Copy-instead alternative) may span Library and Rejects
 (the existing whole-source Move behavior), with an explicit Rejects warning. Ordinary
 selection submissions still refuse mixed places. Source-empty/network answers carry
 consent and token only along the same Move request chain; choosing Copy drops deletion consent but retains the frozen scope/token.
