@@ -66,7 +66,7 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
       <p className="section-note">This photo was selected for these jobs, but no file step was recorded. Open the job for its outcome.</p>
       <ul>{selections.map(s => <li key={s.run_id}><a href={logUrl({ run: s.run_id })} onClick={e => { onClose(); follow(e); }}>{jobLabel(s.run_id, s.mode)} · {instant(s.started_at)}</a></li>)}</ul>
     </details>}
-    {tree?.versions.version_of && <p className="lineage-split">Earlier version of{" "}
+    {tree?.versions.version_of && <p className="notice notice-accent lineage-split">Earlier version of{" "}
       <button className="link" onClick={() => onOpenPhoto(tree.versions.version_of!.id)}>{tree.versions.version_of.filename}</button>
       {" "}in {tree.versions.version_of.location}. {tree.versions.version_of.split_at
         ? <>It split off when that photo was edited on {instant(tree.versions.version_of.split_at)}, and keeps the content from before.</>
@@ -78,7 +78,7 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
     <p><a href={logUrl({ photo: photoId })} onClick={e => { onClose(); follow(e); }}>View photo logs</a></p>
     </div>
     <div className="lineage-pinned-head">
-      {tree && <p className="lineage-summary">{historySummary(tree, events)}</p>}
+      {tree && <p className="notice lineage-summary">{historySummary(tree, events)}</p>}
       <p className="section-note">Last recorded file history, not a live disk check. Path information includes size and content fingerprint.</p>
       {tree && <div className="lineage-lane-head" aria-hidden="true">{LANES.map(lane => <span key={lane}>{lane}</span>)}</div>}
     </div>
@@ -144,7 +144,7 @@ function EventRow({ event, tree, row, sources, jobRunning, onRetry, onOpenPhoto 
         })}
         <a href={logUrl({ run: op.run_id, photo: tree.photo_id })} onClick={follow}>View in log</a>
         {tree.versions.earlier_versions.filter(v => v.split_operation_id === op.id).map(v =>
-          <p className="lineage-split" key={v.id}><strong>Version split:</strong> the earlier version{" "}
+          <p className="notice notice-accent lineage-split" key={v.id}><strong>Version split:</strong> the earlier version{" "}
             <button className="link" onClick={() => onOpenPhoto(v.id)}>{v.filename}</button> ({v.location}) keeps the content from before this change.</p>)}
         {op.consolidated_into != null && <p>Became identical; kept <a href={photoUrl(op.consolidated_into)} onClick={e => {
           if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;

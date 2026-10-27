@@ -34,7 +34,14 @@ code { font: inherit; word-break: break-all; }
 .ok { color: var(--good); }
 .warning { color: var(--warn); margin: var(--space-1) 0; }
 .notice { background: var(--surface-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius); }
-.notice-first-run { border-left: 4px solid var(--accent); display: grid; gap: var(--space-1); }
+/* A highlighted message: the neutral box plus a left edge whose colour carries its role
+   (ui-design.md, Message boxes). A screen adds layout only, never its own box. */
+.notice-accent, .notice-good, .notice-warn, .notice-bad, .notice-neutral { border-left: 4px solid var(--accent); }
+.notice-good { border-left-color: var(--good); }
+.notice-warn { border-left-color: var(--warn); }
+.notice-bad { border-left-color: var(--bad); }
+.notice-neutral { border-left-color: var(--muted); }
+.notice-first-run { display: grid; gap: var(--space-1); }
 .notice-first-run p { margin: 0; }
 /* Related explanation paragraphs keep a readable gap in every container. */
 .message-copy { display: grid; gap: var(--space-3); }
@@ -115,18 +122,12 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
 /* A finished job's result, under the toolbar until dismissed. */
 .finished-banner {
   display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--gap);
-  margin: 0 var(--space-4) var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius);
-  background: var(--surface-2); border-left: 4px solid var(--accent);
+  margin: 0 var(--space-4) var(--space-2);
 }
 /* The Rejects reminder: under the header on every page while Rejects is past a limit. */
-.rejects-reminder { margin: 0 var(--space-6) var(--space-4); padding: var(--space-2) var(--space-4); border-radius: var(--radius);
-  background: var(--surface-2); border-left: 4px solid var(--accent); }
+.rejects-reminder { margin: 0 var(--space-6) var(--space-4); padding: var(--space-2) var(--space-4); }
 .rejects-reminder p { margin: 0; }
 .rejects-reminder p + p { margin-top: var(--space-1); max-width: 72ch; }
-.finished-good { border-left-color: var(--good); }
-.finished-warn { border-left-color: var(--warn); }
-.finished-bad { border-left-color: var(--bad); }
-.finished-neutral { border-left-color: var(--muted); }
 
 /* Supplemental help: real text with an explicit keyboard/touch button. */
 .tip { position: relative; display: inline-flex; align-items: center; gap: var(--space-1); }
@@ -342,8 +343,7 @@ body.dragging { cursor: col-resize; user-select: none; }
    An inset outline draws the frame without enlarging the control box. */
 .selection-line { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4);
   min-height: var(--control-height); outline: 0; }
-.focus-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-bottom: var(--space-2); padding: var(--space-2) var(--space-3);
-  border-left: 4px solid var(--accent); background: var(--surface-2); border-radius: var(--radius); }
+.focus-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-bottom: var(--space-2); }
 .focus-head .warning { flex-basis: 100%; margin: 0; }
 .safety-questions { grid-column: 1 / -1; padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
 .safety-questions p { margin: var(--space-2) 0; }
@@ -412,15 +412,11 @@ body.dragging { cursor: col-resize; user-select: none; }
 /* A folder row: the name ends in "…" when the panel is narrower than it; hover shows it whole. */
 .folder-row { grid-template-columns: auto 18px minmax(0, 1fr) auto; }
 .folder-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.drawer {
-  margin: 0 var(--space-4) var(--space-2); background: var(--surface-2); border-left: 4px solid var(--accent);
-  border-radius: var(--radius); padding: var(--space-2) var(--space-3); display: grid; gap: var(--space-2);
-}
+.drawer { margin: 0 var(--space-4) var(--space-2); display: grid; gap: var(--space-2); }
 .drawer p { margin: 0; }
 .drawer-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); }
 .drawer-actions { display: flex; gap: var(--space-2); justify-content: flex-end; }
 .drawer-text { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); align-items: baseline; }
-.drawer-lost { border-left-color: var(--warn); }
 .bar { height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
 .bar > div { height: 100%; background: var(--accent); transition: width 0.5s; }
 .bar-indeterminate > div { width: 30%; animation: slide 1.4s ease-in-out infinite; }
@@ -590,7 +586,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 .lineage-head { position: sticky; top: -24px; z-index: 3; background: var(--surface); padding-block: var(--space-3); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .lineage-tools { margin-top: var(--space-3); }
 .lineage-head h2 { margin: 0; font-size: var(--type-lg); overflow-wrap: anywhere; }
-.lineage-summary { background: var(--surface-2); padding: var(--space-3); border-radius: var(--control-radius); margin-block: var(--space-3); }
+.lineage-summary { padding: var(--space-3); margin-block: var(--space-3); }
 .lineage-lane-head { width: var(--lineage-lanes); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); text-align: center; font-size: var(--type-xs); color: var(--muted); overflow-wrap: anywhere; }
 .lineage-lane-head > span { padding: var(--space-1); font-weight: var(--weight-strong); }
 .lineage-lane-head > span + span { border-inline-start: 1px solid var(--border); }
@@ -608,7 +604,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 .lineage-operation-path + .lineage-operation-path { border-top: 1px solid var(--border); padding-top: var(--space-1); }
 .lineage-failure { margin-block: var(--space-2); }
 /* Where an earlier version branched off: an accent rule, like Stats' semantic tile borders. */
-.lineage-split { border-inline-start: 3px solid var(--accent); padding-inline-start: var(--space-2); margin-block: var(--space-2); }
+.lineage-split { margin-block: var(--space-2); }
 .lineage-now { display: grid; grid-template-columns: var(--lineage-lanes) minmax(0, 1fr); gap: var(--space-3); position: sticky; bottom: -24px; background: var(--surface); border-top: 1px solid var(--border); padding-block: var(--space-3); z-index: 2; }
 .lineage-now p { margin: 0; }
 .lineage-now details { max-height: 25vh; overflow: auto; overflow-wrap: anywhere; }
@@ -1116,11 +1112,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .notifications-panel > p { margin: var(--space-3) 0; }
 .notifications-head, .notification-heading { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
 .notifications-head h2 { font-size: var(--type-md); margin: 0; }
-.notification-item { border-left: 4px solid var(--muted); background: var(--surface-2); border-radius: var(--radius);
-  padding: var(--space-3); margin: var(--space-3) 0; }
-.notification-item.finished-good { border-left-color: var(--good); }
-.notification-item.finished-warn { border-left-color: var(--warn); }
-.notification-item.finished-bad { border-left-color: var(--bad); }
+.notification-item { padding: var(--space-3); margin: var(--space-3) 0; }
 .notification-item h3 { margin: 0; font-size: var(--type-sm); text-transform: none; letter-spacing: normal; color: var(--text); }
 .notification-item p { margin: var(--space-2) 0; }
 .notification-details { margin-top: var(--space-2); }
