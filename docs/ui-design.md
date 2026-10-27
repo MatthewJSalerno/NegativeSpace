@@ -127,8 +127,10 @@ partial result; red for a failure; muted for a finished job that changed nothing
 The heading or first words always say the same thing in text (**Failed**, **Warning**,
 **Version split:**), so the colour is never the only signal; forced-colours mode keeps
 the edge as a border. A screen may add layout to a box (margins, a grid of actions),
-never its own background, corners or edge. Status edges on containers that are not
-messages, such as Stats tiles and job groups in Logs, use the same four colours.
+never its own background, corners or edge. Lists stay quiet: in a list of many items,
+such as job groups in Logs and Stats tiles, only warnings (amber) and failures (red)
+get an edge, so problems stand out; successful and unchanged items have none. A single
+finished-job message (the banner, a notification card) shows its tone in full.
 Live regions (`role="status"`, `role="alert"`) and labelled regions stay on the
 element that carries them; the box classes change appearance only.
 
