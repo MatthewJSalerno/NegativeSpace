@@ -109,6 +109,31 @@ Stats warning and failure tiles retain their semantic colored left borders so
 problems are easy to notice. Folder-table cells retain the shared spacing, including
 8px left padding. Keep this geometry consistent in both themes and at desktop reflow.
 
+### Message boxes
+
+A message about the app's state takes one of three forms. Choose by what the reader
+must do, not by how important the screen feels; never style a message locally.
+
+| Form | Use it for | Classes |
+| :--- | :--- | :--- |
+| **Plain note** | One line about the control or value beside it: a source line, a hint, a field error | `section-note`, `.warning`, `.error`; no box |
+| **Neutral box** | Information about this photo, job or screen that needs no action | `.notice`: `--surface-2`, 10px corners, 8/12px padding |
+| **Highlighted box** | Something to notice or act on, or a relationship to another photo | `.notice` plus one tone: `.notice-accent`, `.notice-good`, `.notice-warn`, `.notice-bad`, `.notice-neutral` |
+
+The highlighted box's 4px left edge carries its role: accent for something waiting
+on the user, a reminder, a running job or a link to a related photo (the lineage
+**Version split:** note); green for a finished success; amber for a warning or a
+partial result; red for a failure; muted for a finished job that changed nothing.
+The heading or first words always say the same thing in text (**Failed**, **Warning**,
+**Version split:**), so the colour is never the only signal; forced-colours mode keeps
+the edge as a border. A screen may add layout to a box (margins, a grid of actions),
+never its own background, corners or edge. Lists stay quiet: in a list of many items,
+such as job groups in Logs and Stats tiles, only warnings (amber) and failures (red)
+get an edge, so problems stand out; successful and unchanged items have none. A single
+finished-job message (the banner, a notification card) shows its tone in full.
+Live regions (`role="status"`, `role="alert"`) and labelled regions stay on the
+element that carries them; the box classes change appearance only.
+
 Index summary figures are real links to an exact source scope, including zero results.
 Links clear unrelated filters without selecting files. The additional-copies link opens
 representative photos, not duplicate cards. **By file type** uses a native disclosure,

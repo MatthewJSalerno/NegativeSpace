@@ -1091,7 +1091,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             </p>
           )}
           {focus && review && focus.mode && (
-            <div className="focus-head review-bar" role="region" aria-label={`Review before ${REVIEW_WORDS[focus.mode].doing}`}>
+            <div className="focus-head notice notice-accent review-bar" role="region" aria-label={`Review before ${REVIEW_WORDS[focus.mode].doing}`}>
               <div className="review-text">
                 <strong>{focus.keep != null ? `Keeping ${focus.keepName}` : `Review before ${REVIEW_WORDS[focus.mode].doing}`}</strong>
                 <span className="muted"> · {count(reviewIds.length)} of {plural(focus.ids.length, focus.keep != null ? "look-alike" : "selected photo")} will
@@ -1108,7 +1108,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             </div>
           )}
           {focus && !review && (
-            <div className="focus-head">
+            <div className="focus-head notice notice-accent">
               <strong>
                 {focus.kind === "set" ? `Photos in this reference set at ${focus.threshold}% or higher`
                   : focus.kind === "photo" ? "Showing the inspected photo"
@@ -1129,7 +1129,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             </div>
           )}
           {!focus && jobRun != null && (
-            <div className="focus-head" role="region" aria-label="A job's photos">
+            <div className="focus-head notice notice-accent" role="region" aria-label="A job's photos">
               <strong>{jobInfo ? `The ${data ? plural((data.counts as Record<string, number>).job ?? 0, "photo") : "photos"} in ${jobLabel(jobInfo.id, jobInfo.mode)}` : "A job's photos"}</strong>
               <span className="muted">
                 {jobInfo && (["Preparing", "Running", "Cancelling"].includes(jobInfo.status) ? " · their status updates when the job ends."

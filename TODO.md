@@ -57,7 +57,7 @@ development until the maintainer decides.
 
 **Before the first release**
 - Decide on catalog migration
-- Review every message the user sees
+- Review every message the user sees — message boxes standardised (plain note, neutral box, highlighted box), MB1 passed (`docs/ui-design.md`, Message boxes)
 - Version 1.0.0 and the changelog
 - Test power-loss behaviour on real hardware
 

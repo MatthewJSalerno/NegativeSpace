@@ -214,7 +214,7 @@ with sync_playwright() as p:
     workspace.locator(".review-alone").get_by_role("button", name="Reject…").click()
     page.get_by_role("alertdialog").get_by_role("button", name="Reject it too").click()
     expect(workspace).to_have_count(0, timeout=60_000)
-    note = page.locator(".notice")
+    note = page.locator(".notice", has_text="Rejected ")
     expect(note).to_contain_text(f"Rejected {name}.")
     expect(note.get_by_role("button", name="Return it to the library")).to_be_visible()
     page.get_by_role("button", name="Close", exact=True).click()

@@ -9,6 +9,9 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Message boxes:** [MB1](#message-boxes) passed, including all lettered steps, on
+2026-10-27. No manual checks remain for this batch.
+
 **Earlier versions:** [EV1–EV3](#earlier-versions) passed, including all lettered steps, on
 2026-10-26, and [EV4](#test-ev4--job-links-and-filing-dates), the recheck after the audit
 045 fixes, passed on 2026-10-27. [EV5](#test-ev5--long-change-lists) (folded tags, long change
@@ -59,6 +62,35 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Message boxes
+
+**Status:** MB1 passed, including all lettered steps, on 2026-10-27. The standard is in `docs/ui-design.md`, Message boxes. Only the
+boxes' appearance changed; their wording and actions did not.
+
+Use the audit-045 review instance after its web image is updated. Its catalog has four
+finished jobs, two waiting earlier versions (`ev4-dated.jpg`, `ev4-turned.jpg`) and the
+edited `ev4-dated.jpg` in Library. Check each step in dark mode, then again in light mode
+using the **Dark mode** switch.
+
+### Test MB1 — One look for highlighted messages
+
+- **MB1a:** Open the notifications bell. Each finished job's card is a shaded box with
+  rounded corners and a green left edge. Then open **Logs**: the same successful jobs
+  have no coloured edge (lists colour only warnings and failures).
+- **MB1b:** In **Library**, tick both `ev4-dated.jpg` and `ev4-turned.jpg`; the top bar
+  becomes the selection bar. Choose **Show only selected**. The **Showing only the 2
+  selected photos** header is a shaded box with an accent (blue) left edge. Choose
+  **Back to results**, then clear the selection with **✕**.
+- **MB1c:** Open the Library `ev4-dated.jpg` and choose **View lineage tree**. The summary
+  near the top is a plain shaded box with no edge. The first **Date saved** event's
+  **Version split:** note is a shaded box with rounded corners and an accent left edge.
+  Close the dialog.
+- **MB1d:** In **Not organized**, open `ev4-dated.jpg` and choose **View lineage tree**.
+  The "Earlier version of…" line under the title is the same highlighted box. Close it.
+- **MB1e:** Choose **Jobs › Index source**. While it runs, the progress area under the
+  toolbar is a shaded box with an accent left edge; when it finishes, the bell gains a
+  card with a green or muted edge.
 
 ## Earlier versions
 
