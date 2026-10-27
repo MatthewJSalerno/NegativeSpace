@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import catalog, operation_actions
+from engine import earlier_versions
 from engine.ns_db import REJECTED_STATUSES
 
 
@@ -79,6 +80,11 @@ def photo_lineage(db_path: Path, photo_id: int) -> Optional[dict]:
         selected_by = [dict(r) for r in conn.execute(
             "SELECT r.id AS run_id, r.mode, r.status, r.started_at FROM run_selections s "
             "JOIN runs r ON r.id = s.run_id WHERE s.photo_id = ? ORDER BY r.id", (photo_id,))]
+        # Version links name the other photo; each keeps its own history (engine-spec 10).
+        linked = earlier_versions.details(conn, photo_id)
+        earlier = linked["earlier_version"]
+        versions = {"version_of": earlier and dict(earlier["version_of"], found_at=earlier["found_at"], state=earlier["state"]),
+                    "earlier_versions": linked["earlier_versions"]}
     by_op = {}
     for r in links:
         by_op.setdefault(r["operation_id"], []).append({"file_id": r["file_id"], "role": r["role"]})
@@ -92,4 +98,4 @@ def photo_lineage(db_path: Path, photo_id: int) -> Optional[dict]:
         op["recovery"] = bool(op["recovery"])
         op["files"] = by_op.get(op["id"], [])
     return {"photo_id": photo_id, "sha1": photo["sha1_hash"], "photos": photos, "files": files, "operations": operations,
-            "selected_by": selected_by}
+            "selected_by": selected_by, "versions": versions}

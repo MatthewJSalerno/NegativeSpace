@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from engine import ns_db
+from engine import earlier_versions, ns_db
 from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
 
 
@@ -151,6 +151,17 @@ def source_metadata_hold_sql():
         WHERE pf.photo_id=p.id ORDER BY m.capture_id DESC LIMIT 1),0)"""
 
 
+def source_attention_sql():
+    """Needs attention, for photo alias p: a metadata hold or an unanswered earlier version."""
+    return f"(({source_metadata_hold_sql()}) OR COALESCE({earlier_versions.state_sql()}='waiting',0))"
+
+
+def source_hold_sql():
+    """Every recorded reason Copy/Move will skip a source photo: Needs attention, and an
+    earlier version the user chose not to keep (out of Needs attention, still held)."""
+    return f"(({source_attention_sql()}) OR COALESCE({earlier_versions.state_sql()}='not_kept',0))"
+
+
 def transfer_eligible_sql(mode):
     """Recorded transfer candidates, excluding known holds on unorganized photos.
 
@@ -158,7 +169,7 @@ def transfer_eligible_sql(mode):
     a newer source observation must not hide an already delivered copy from Move.
     """
     return (f"p.status IN ({ns_db.sql_values(ns_db.TRANSFER_ELIGIBLE[mode])}) "
-            f"AND NOT (p.status='Pending' AND ({source_metadata_hold_sql()}))")
+            f"AND NOT (p.status='Pending' AND {source_hold_sql()})")
 
 
 def status(db_path: Path) -> dict:
@@ -171,11 +182,14 @@ def status(db_path: Path) -> dict:
             indexed = conn.execute("SELECT COUNT(*) FROM runs WHERE mode = 'INDEX'").fetchone()[0]
             rows = conn.execute(f"""SELECT p.status, COUNT(*), SUM(CASE
                 WHEN p.status IN ({ns_db.sql_values(NOT_ORGANIZED)})
-                  AND (p.status='Failed' OR ({source_metadata_hold_sql()})) THEN 1 ELSE 0 END)
+                  AND (p.status='Failed' OR {source_attention_sql()}) THEN 1 ELSE 0 END),
+                SUM(CASE WHEN p.status IN ({ns_db.sql_values(NOT_ORGANIZED)})
+                  AND (p.status='Failed' OR {source_hold_sql()}) THEN 1 ELSE 0 END)
                 FROM photos p GROUP BY p.status""").fetchall()
             by_status = {row[0]: row[1] for row in rows}
             held_by_status = {row[0]: row[2] for row in rows}
-            eligible = {mode: sum(by_status.get(status, 0) - held_by_status.get(status, 0)
+            skipped_by_status = {row[0]: row[3] for row in rows}
+            eligible = {mode: sum(by_status.get(status, 0) - skipped_by_status.get(status, 0)
                                   for status in statuses)
                         for mode, statuses in ns_db.TRANSFER_ELIGIBLE.items()}
             held = sum(held_by_status.values())

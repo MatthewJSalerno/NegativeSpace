@@ -203,6 +203,8 @@ def main():
     mode_group.add_argument('--review-batch', action='store_true', help='Record one bounded catalog-only batch of review answers from JSON stdin.')
     mode_group.add_argument('--review-decision', action='store_true',
                             help='Record a catalog-only review decision supplied as JSON on standard input; changes no photo files.')
+    mode_group.add_argument('--version-answer', action='store_true',
+                            help='Record a catalog-only answer about an earlier version, supplied as JSON on standard input; changes no photo files.')
     mode_group.add_argument('--metadata', choices=('preview','apply','retry','discard','source-cleanup-preview'),
                             help='Metadata engine request as bounded JSON on stdin: edit/source-cleanup previews, verified XMP/JPEG save, explicit retry or discard of an unchanged edit.')
     parser.add_argument('--confirm-edited-sources', action='store_true',
@@ -271,7 +273,7 @@ def main():
 
     # 2. Configure Logging
     # --preview answers on stdout in JSON for the API, so its log goes to the file only.
-    answers_in_json = (args.import_choice or args.metadata or args.review_decision or args.review_batch or args.preview is not None or args.clear_previews or args.rename_candidates is not None
+    answers_in_json = (args.import_choice or args.metadata or args.review_decision or args.review_batch or args.version_answer or args.preview is not None or args.clear_previews or args.rename_candidates is not None
                        or (args.rename is not None and args.dry_run))
     runtime.configure_logging(log_dir, console=not answers_in_json)
     metadata_request = None
@@ -359,6 +361,24 @@ def main():
             code = 0
         except ns_db.RevisionConflict as exc:
             print(json.dumps({'error': 'review_changed', 'message': str(exc)}))
+            code = 3
+        except (ValueError, ns_db.SchemaError) as exc:
+            print(json.dumps({'error': 'invalid_request', 'message': str(exc)}))
+            code = 2
+        finally:
+            runtime.release_single_instance_lock(lock_fd)
+        sys.exit(code)
+
+    if args.version_answer:
+        from engine import earlier_versions
+        try:
+            raw = sys.stdin.read(8193)
+            if len(raw.encode()) > 8192:
+                raise ValueError('Answer request is too large.')
+            print(json.dumps(earlier_versions.answer(db_path, json.loads(raw))))
+            code = 0
+        except ns_db.RevisionConflict as exc:
+            print(json.dumps({'error': 'version_changed', 'message': str(exc)}))
             code = 3
         except (ValueError, ns_db.SchemaError) as exc:
             print(json.dumps({'error': 'invalid_request', 'message': str(exc)}))

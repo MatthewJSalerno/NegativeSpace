@@ -11,7 +11,7 @@ from unittest import mock
 from PIL import Image, ImageDraw
 
 import metadata_index_test
-from engine import review
+from engine import earlier_versions, review
 from engine import (constants, durable, fileinfo, metadata_command, metadata_decisions, metadata_edits, metadata_photo_save,
                     metadata_save, ns_db, ns_similarity, ns_similarity_cache, relocate, runtime, thumbnails)
 
@@ -321,7 +321,7 @@ class PhotoSaves(unittest.TestCase):
         self.execute(op)
         self.assertIn('/2015/06/07/',self.current()[1])
 
-    def test_duplicate_source_is_detached_and_can_organize_separately(self):
+    def test_duplicate_source_is_detached_held_and_can_organize_separately(self):
         self.setup_catalog()
         duplicate=self.photo.with_name('duplicate.jpg');duplicate.write_bytes(self.original)
         self.run_engine('--copy')
@@ -331,6 +331,10 @@ class PhotoSaves(unittest.TestCase):
         self.execute(self.prepare({'title':'Edited original'}))
         edited=self.current()
         self.assertEqual(self.c.execute('SELECT status,dest_path FROM photos WHERE id=?',(alias,)).fetchone(),('Pending',None))
+        # The released copy is an earlier version: held until answered, then its own photo.
+        self.run_engine('--copy')
+        self.assertEqual(self.c.execute('SELECT status FROM photos WHERE id=?',(alias,)).fetchone()[0],'Pending')
+        earlier_versions.answer(self.db,{'photo_id':alias,'answer':'keep_separate','revision':0,'request_id':'keep'})
         self.run_engine('--copy')
         self.assertEqual(self.current(),edited)
         other=self.c.execute('SELECT status,dest_path,sha1_hash FROM photos WHERE id=?',(alias,)).fetchone()

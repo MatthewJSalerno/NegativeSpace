@@ -54,6 +54,7 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | `backup_browser_drive.py` | PR / main / manual | `BACKUP_FIXTURE=1` |
 | `attention_browser_drive.py` | PR / main / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
 | `copied_source_browser_drive.py` | PR / main / manual | — |
+| `earlier_versions_browser_drive.py` | PR / main / manual | — |
 | `sidebar_refinements_browser_drive.py` | PR / main / manual | — |
 | `fresh_start_browser_drive.py` | PR / main / manual | — |
 | `gallery_position_browser_drive.py` | PR / main / manual | — |
@@ -347,6 +348,12 @@ remain in scope. Existing phone-emulation checks guard implemented behavior rath
 establishing a mobile release requirement.
 
 ### What each driver checks
+
+`DRIVER=earlier_versions_browser_drive.py sh tests/browser/webui_browser_test.sh` edits the
+date of `photo-000.jpg` after Copy, which releases its identical generated copy as an earlier
+version. It checks the waiting card control and notice, that **Don't keep it** and **Keep it
+after all…** change **Copy all**'s count without a reload, and that both lineage dialogs mark
+the split. Removing the status refresh on catalog-only answers makes it fail.
 
 `DRIVER=similar_browser_drive.py sh tests/browser/webui_browser_test.sh` checks the empty review after Index, then Copies
 the isolated generated fixtures and checks cumulative Inspector counts, inline match

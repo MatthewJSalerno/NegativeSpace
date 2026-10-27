@@ -1,11 +1,12 @@
 """Generated orientation edits, rendering, stale confirmations and boundary refusals."""
+import hashlib
 import io
 import subprocess
 import time
 import unittest
 
 from PIL import Image
-from engine import ns_db, xmp
+from engine import fileinfo, ns_db, xmp
 from webui import photo_orientation, operation_actions
 import metadata_dates_test
 
@@ -113,6 +114,16 @@ class RotationWrites(unittest.TestCase):
         self.assertNotEqual(self.dest.read_bytes(),before)
         self.assertEqual(self.photo.read_bytes(),before)
         with ns_db.connect(self.db) as conn:self.assertEqual(photo_orientation.state(conn,self.pid),(6,6))
+        # The rewritten file's identity is recorded: new checksum, recomputed visual hash
+        # (orientation changes the displayed picture) and the before/after content change.
+        after=hashlib.sha1(self.dest.read_bytes()).hexdigest()
+        with ns_db.connect(self.db) as conn:
+            sha1,phash=conn.execute('SELECT sha1_hash,phash FROM photos WHERE id=?',(self.pid,)).fetchone()
+            change=conn.execute('SELECT b.digest,a.digest,a.phash FROM file_changes fc JOIN contents b ON b.content_id=fc.before_content_id '
+                'JOIN contents a ON a.content_id=fc.after_content_id').fetchall()
+        self.assertEqual(sha1,after)
+        self.assertEqual(phash,fileinfo.compute_phash(str(self.dest)))
+        self.assertEqual(change,[(hashlib.sha1(before).hexdigest(),after,phash)])
 
     def test_rejects_and_source_are_not_editable_and_zero_turn_is_no_change(self):
         c=self.client();self.assertTrue(self.plan(c,0)['no_change'])

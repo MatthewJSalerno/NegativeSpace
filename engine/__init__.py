@@ -9,7 +9,7 @@ transfer (Copy and Move), transfer_preview (read-only destination folders and st
 the fsync steps), store (catalog writes), fileinfo (dates, metadata, hashes), thumbnails,
 destinations, targeting (which photos a run acts on), jobs, maintenance, backups,
 runtime (shared run state), workers (cancellable read-only pools), constants and deps; ns_db (the catalog schema and its rules,
-shared with the web API), review (catalog-only review decisions), review_batch (bounded shared review answers), review_history (date confirmations and automatic reason-clearing history), attention (explicit
+shared with the web API), review (catalog-only review decisions), review_batch (bounded shared review answers), review_history (date confirmations and automatic reason-clearing history), earlier_versions (source files an edit replaced: links, holds and answers), attention (explicit
 read-only checks of uncertain file outcomes), metadata (source-aware resolution for the
 XMP pipeline), metadata_adapter (qualified EXIF/comparison views),
 xmp (bounded sidecar reads), xmp_association (pure ownership
@@ -81,6 +81,9 @@ deletion and are not reliably detected by the engine.
   under the engine lock; return saved IDs and stale-photo results without changing files.
 - --review-decision (Optional) Record one catalog-only review decision from JSON stdin,
   under the engine lock. Returns JSON; never changes photo bytes or transfer status.
+- --version-answer (Optional) Record an answer about an earlier version of an edited Library
+  photo from JSON stdin, under the engine lock, for every identical copy still in the
+  source. Returns JSON; never changes photo files.
 
 - -h / --help: show all arguments and exit without starting a job.
 - --source <path> (Optional) Path to unorganized source directory (default: "/data/source").

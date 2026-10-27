@@ -96,6 +96,12 @@ stdin (16 MiB, up to 50,000 photos). It holds the engine lock, records eligible 
 in one transaction and reports saved IDs and stale photos separately. Exact request
 replay does not add events. See the batch endpoints in [api-spec.md](api-spec.md).
 
+`--version-answer` records **Don't keep it** or **Keep it as its own photo** for an
+earlier version of an edited Library photo (`engine-spec.md` §10), from a bounded JSON
+object on stdin, under the engine lock. It appends the answer for every identical copy
+still in the source and changes no photo files. Fields and refusals are documented under
+`POST /api/v1/photos/{photo_id}/versions/answer` in [api-spec.md](api-spec.md).
+
 ### Destination folder confirmation
 
 `--transfer-preview-token TOKEN` accompanies Copy/Move with `--file-ids-from` and

@@ -45,6 +45,12 @@ export function App() {
     window.addEventListener("focus", loadStatus);
     return () => window.removeEventListener("focus", loadStatus);
   }, [loadStatus]);
+  // A catalog-only answer (an earlier version kept, an import choice) can change what
+  // Copy and Move would take, with no job to report it.
+  useEffect(() => {
+    window.addEventListener("ns-review-changed", loadStatus);
+    return () => window.removeEventListener("ns-review-changed", loadStatus);
+  }, [loadStatus]);
 
   if (statusError) return <div className="center-page"><p className="error">{statusError}</p></div>;
   if (!status) return <div className="center-page muted">Loading…</div>;

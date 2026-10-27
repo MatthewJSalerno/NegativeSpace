@@ -124,8 +124,8 @@ def inspect_connection(conn, photo_id):
 
 
 def source_attention_predicate():
-    """Latest recorded metadata hold for the gallery's internal photo alias p."""
-    return catalog.source_metadata_hold_sql()
+    """Needs attention for the gallery's internal photo alias p (catalog.source_attention_sql)."""
+    return catalog.source_attention_sql()
 
 
 def source_attention(conn, photo_ids):

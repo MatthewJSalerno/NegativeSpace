@@ -342,7 +342,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 32 and refuses incompatible catalogs before processing.
+initializes schema version 33 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -642,7 +642,9 @@ CREATE INDEX idx_lineage_file ON operation_files(file_id,operation_id);
 **Recovery, content, cache, discovery and backup records.** The first five are
 written by recovery (4.2), `contents` and `thumbnail_cache` by the scan,
 `run_discovery` by a full Index (4.3; schema 31 adds the selected-extension counts, calculated from the already-discovered candidate list with no extra filesystem reads), `run_progress` by every job (4.3), `destination_findings` by the destination check (9.1), and the backup records by catalog backups
-(4.1); `file_changes` is defined but not yet written. Index writes `content_similarity`.
+(4.1). A verified metadata edit that rewrites a Library file writes `file_changes`; Index
+and that edit write `photo_versions` when a source file holds content an edit replaced
+(section 10); the user's answers write `photo_version_answers`. Index writes `content_similarity`.
 Statement order matters here too:
 `contents` precedes everything referencing it, `operation_events` precedes
 `attention_issues`, and both `operation_evidence` and `attention_issues` precede
@@ -697,8 +699,8 @@ CREATE TABLE attention_evidence (
     PRIMARY KEY(issue_id, evidence_id)
 );
 
--- file_changes: defined, not yet written. Index writes content_similarity and
--- thumbnail_cache; catalog backups (4.1) write the backup records.
+-- file_changes: one row per verified edit that rewrote a Library file. Index writes
+-- content_similarity and thumbnail_cache; catalog backups (4.1) write the backup records.
 CREATE TABLE file_changes (
     change_id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id INTEGER NOT NULL REFERENCES operation_events(event_id),
@@ -708,6 +710,28 @@ CREATE TABLE file_changes (
     before_path TEXT, after_path TEXT,
     before_values_json TEXT, after_values_json TEXT
 );
+
+-- A source photo whose content a recorded edit replaced (section 10, earlier versions),
+-- and the user's answers about it: the latest is current, none means waiting. Both are
+-- append-only. Whether a link still holds is recomputed from facts (the file still has
+-- the replaced content and no organized or rejected photo has it), never stored.
+CREATE TABLE photo_versions (
+    photo_id INTEGER PRIMARY KEY REFERENCES photos(id),
+    version_of INTEGER NOT NULL REFERENCES photos(id),
+    change_id INTEGER NOT NULL REFERENCES file_changes(change_id),
+    found_run_id INTEGER REFERENCES runs(id), found_at TEXT NOT NULL,
+    CHECK(photo_id <> version_of)
+);
+CREATE INDEX idx_photo_versions_of ON photo_versions(version_of);
+
+CREATE TABLE photo_version_answers (
+    answer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    photo_id INTEGER NOT NULL REFERENCES photo_versions(photo_id),
+    answer TEXT NOT NULL CHECK(answer IN ('not_kept','keep_separate')),
+    request_id TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL,
+    UNIQUE(request_id, photo_id)
+);
+CREATE INDEX idx_photo_version_answers ON photo_version_answers(photo_id, answer_id);
 
 -- Distinct visual hashes only; equal hashes share an implicit zero-distance bucket.
 CREATE TABLE content_similarity (
@@ -833,7 +857,7 @@ CREATE INDEX idx_open_attention ON attention_issues(file_id) WHERE resolved_at I
 ```
 
 **Immutability is enforced by triggers, not convention.** `operation_events`,
-`operation_evidence`, `file_changes` and `attention_evidence` reject `UPDATE` and
+`operation_evidence`, `file_changes`, `photo_versions`, `photo_version_answers` and `attention_evidence` reject `UPDATE` and
 `DELETE` alongside the version 2 tables. `attention_issues` is deliberately
 excluded — resolving an issue must update it — as are `thumbnail_cache`,
 `content_similarity`, `similarity_count_cache`, `similarity_count_state` and
@@ -1021,7 +1045,7 @@ outside the app, because that workflow restarts every photo's history.
 | Found | Repair |
 | :--- | :--- |
 | **Moved or renamed** (its content found elsewhere under `library/`) | Move it back to where it belongs |
-| **Missing** | Copy it back from the source or Rejects if a verified copy remains; otherwise record it gone, keeping its history |
+| **Missing** | Copy it back from the source or Rejects if a verified copy remains. If only an *earlier version* remains in the source, offer **Rebuild from the earlier version**: copy it and re-apply, as a new verified edit, every recorded change since that version (listed in the preview), refiling it where the lost file was. The result is the same picture with the same recorded details, labelled *rebuilt*, not restored: its checksum may differ from the lost file, and changes NegativeSpace did not make (external editors) cannot be re-applied. Qualified formats only; RAW sidecar edits are re-created from the retained exact XMP version. Otherwise record it gone, keeping its history |
 | **Changed** (saved over by another application) | Keep the new version in place, record its checksum as a later version (§10), and refile it if its date changed |
 | **Unknown file** (not in the catalog) | Never touched; listed so the user knows it is there |
 
@@ -1757,6 +1781,39 @@ record what NegativeSpace did, not whether the source file is still there. To ve
 building: saving a rotation into EXIF records the new checksum and recomputes the
 perceptual hash.
 
+**Earlier versions: the agreed behaviour** (decided 2026-10-25; built for exact copies, look-alike versions not yet).
+
+* **Two ways an earlier version appears.** A file Index finds whose checksum matches no
+  photo's current checksum but matches the *before* side of a recorded content change
+  (`file_changes.before_content_id`). And a source copy already catalogued that an edit
+  released: when a Library photo's file is rewritten, its identical source copies stop
+  being duplicates (`metadata_photo_save`). Both are treated the same way.
+* **Held, never organized silently.** An earlier version waits in Not organized → Needs
+  attention with the reason **Earlier version of a Library photo**, and Copy/Move skip it
+  until answered.
+* **The full list of changes is shown**, built only from recorded facts: every recorded
+  change from the one whose *before* content matches this file through to the Library
+  photo's current content, each with its job, time and before → after values. Recorded
+  tags are translated into plain words (Date taken, Rotated); a tag without a translation
+  is shown by its name, never guessed. "Only the photo's details changed; the picture is
+  the same" appears only when the recorded image chain proves it.
+* **Don't keep it** leaves the file untouched in the source, takes it out of the waiting
+  count and Needs attention, and records the answer; Move never deletes it, since it is
+  not identical to anything delivered. **Keep it after all** changes the answer to Keep it
+  as its own photo. An answer covers every identical copy of that content in the source.
+* **Keep it as its own photo** releases it to be organized normally, filed by its own
+  metadata (so a version from before a date fix files under the old date; the
+  confirmation says so). Move then removes its original as usual. It is a 100%
+  look-alike of the edited photo, and Similar photos shows it so.
+* **A version link, never a merge.** Each file keeps its own history. The catalog records
+  "version of" between the two whatever the answer; both photos' histories and lineage
+  timelines name and link the other, and cards carry a badge: **Earlier version** (or
+  **Earlier version · waiting for your answer**) and **Has an earlier version**. This is a
+  relationship the app records, not a keyword written into either file.
+* **Look-alike earlier versions** (a resized or re-saved copy, recognised by the previous
+  perceptual hash) come later, with the strict level and low-detail rule of
+  `webui-spec.md` §7.8.
+
 **Identity across content changes:** each logical file retains a stable lineage
 identity independent of its current path and content hash. For every tool action
 that changes content, record the before/after hashes linked to that same lineage
@@ -1769,8 +1826,9 @@ attached to that photo's history.
 **The identity schema is implemented.** `files` holds the stable identity,
 `file_origins` its immutable creation provenance, `file_states` its current path and
 presence, and `source_snapshots` the original Index evidence that later scans never
-overwrite (§6.5). Content-version transitions — the before/after hashes of an edit —
-remain unimplemented, because nothing yet modifies a photo's content.
+overwrite (§6.5). Content-version transitions are recorded: each verified edit that
+rewrites a photo's file writes a `file_changes` row with its before and after content and
+the tag values it changed, linked to the same file identity.
 
 **Deletion retains lineage.** Preserve the original source snapshot, last recorded
 file state and complete recorded action history, including per-field before/after
@@ -1946,7 +2004,7 @@ The history records the cause; explicit saved-date answers also link to their jo
 Neither reads nor repeated unchanged writes add history. Bookmarks are never cleared by
 these triggers. At the next job after a calendar-year advance, a once-per-year check records dates
 that have fallen within range, with that job ID; ordinary jobs only read the year marker.
-Automatic clearing for future unbuilt reasons remains with those workstreams. Development catalogs require schema 32; no migration.
+Automatic clearing for future unbuilt reasons remains with those workstreams. Development catalogs require schema 33; no migration.
 
 
 Bulk review uses the same single-photo decision guards and history under one engine

@@ -1,6 +1,6 @@
 import { MenuButton, type MenuEntry } from "./ui/MenuButton";
 import type { ActionMode } from "../api";
-import { count } from "../format";
+import { count, plural } from "../format";
 
 type Mode = "copy" | "move";
 
@@ -10,6 +10,8 @@ export interface JobsState {
   noPhotos: boolean;
   eligible: Record<Mode, number>;
   copied: number;
+  // Not organized photos that need attention first (GET /status `held`).
+  held?: number;
   // The Folders tree's one folder shown, with what a Copy or Move of it would take;
   // `folders` is how many are ticked, to say why "this folder" waits for exactly one.
   // Absent on pages without the tree.
@@ -31,7 +33,8 @@ export function JobsMenu({ state, onIndex, onTransfer }: {
   const indexWhy = busy;
   const allWhy = (mode: Mode) => busy ?? empty
     ?? (state.eligible[mode] === 0
-      ? (mode === "copy" ? "Nothing to copy - every photo is copied or organized." : "Nothing to move - every photo is organized.")
+      ? (state.held ? `Nothing ready to ${mode} - ${plural(state.held, "photo")} in Not organized ${state.held === 1 ? "needs" : "need"} attention first.`
+        : mode === "copy" ? "Nothing to copy - every photo is copied or organized." : "Nothing to move - every photo is organized.")
       : null);
 
   const nothingThere: Record<Mode, string> = {

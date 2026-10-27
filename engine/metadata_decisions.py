@@ -258,6 +258,10 @@ def transfer_hold(conn, photo_id):
     Applies to primary delivery AND duplicate cleanup. Never turn a metadata question
     into a failed photo or delete the image half of a source pair.
     """
+    from engine import earlier_versions
+    earlier = earlier_versions.hold(conn, photo_id)
+    if earlier:
+        return earlier
     edited = metadata_save.active(conn, photo_id)
     if edited and edited.get('content_changed'):
         from engine import metadata_source_cleanup
