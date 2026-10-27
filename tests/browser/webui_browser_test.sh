@@ -126,6 +126,12 @@ if [ "${MOVE_CONFIRMATION_FIXTURE:-0}" = 1 ]; then
     docker run --rm --user "$ME" --entrypoint exiftool -v "$WORK/src":/src "$IMAGE" \
         -overwrite_original '-EXIF:Artist=Generated Move confirmation fixture' /src/photo-000.jpg >/dev/null
 fi
+if [ "$DRIVER" = earlier_versions_browser_drive.py ]; then
+    # A photo pair with no EXIF block: rotating it makes the writer add standard IFD0
+    # tags that have no plain name, which the earlier-version notice folds.
+    docker run --rm --user "$ME" --entrypoint exiftool -v "$WORK/src":/src "$IMAGE" \
+        -overwrite_original -all= /src/photo-001.jpg /src/copy-of-001.jpg >/dev/null
+fi
 docker run -d --init --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" -e NS_ALLOWED_HOSTS="localhost,127.0.0.1,$WEB,app" \
     -v "$WORK/src":/data/source:"$SOURCE_MODE" -v "$DEST":/data/dest -v "$WORK/appdata":/appdata \
     -v "$WORK/cache":/cache -v "$WORK/backups":/backups "$@" "$IMAGE" >/dev/null

@@ -11,7 +11,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 **Earlier versions:** [EV1–EV3](#earlier-versions) passed, including all lettered steps, on
 2026-10-26, and [EV4](#test-ev4--job-links-and-filing-dates), the recheck after the audit
-045 fixes, passed on 2026-10-27. No manual checks remain for this batch.
+045 fixes, passed on 2026-10-27. [EV5](#test-ev5--long-change-lists) checks folded tags,
+long change lists, floating answers and the lineage split, and is pending.
 
 **Destination folder preview:** [TP1–TP3](#destination-folder-preview) passed, including
 all lettered steps. No manual checks remain for this batch. The large-preview usability
@@ -148,6 +149,30 @@ confirmation: these steps answer nothing.
   say **Undated** (2026, the file's modification year). Keep it open.
 - **EV4d:** Set browser zoom to 200%. The confirmation text wraps without overlapping and
   both buttons stay reachable. Restore normal zoom and choose **Cancel**.
+
+### Test EV5 — Long change lists
+
+**Status:** pending.
+
+Same instance as EV4. Since EV4, `ev4-dated.jpg` in Library had three more Date taken
+saves (Jobs #5, #6 and #7), the last back to 2022-11-16 01:47:44, so its earlier version
+lists four changes. Nothing has been answered; these steps answer nothing.
+
+- **EV5a:** In **Not organized**, search `ev4-turned.jpg` and choose **Earlier version ·
+  waiting for your answer**. Under **Rotation saved**, the table shows only Orientation
+  (Not recorded → Turned 90° clockwise), followed by a closed **4 other recorded tags
+  changed**. Open it: four `IFD0:` rows appear, each Not recorded → a value.
+- **EV5b:** Search `ev4-dated.jpg` and open its earlier version. **Changes since this
+  version** lists three **Date saved** entries (Jobs #3, #5 and #6), then **Show all 4
+  changes**. Choose it: the fourth (Job #7) appears and the control reads **Show fewer**.
+- **EV5c:** With all four showing, set browser zoom to 200% and scroll Photo information
+  from the top of the notice down. While the changes scroll, **Don't keep it** and **Keep
+  it as its own photo…** stay at the bottom edge of the panel over the list; past the last
+  change they settle in place below it. Restore normal zoom.
+- **EV5d:** In **Library**, search `ev4-dated.jpg`, open it and choose **View lineage
+  tree**. The first **Date saved** event carries the highlighted **Version split:** note
+  linking the earlier `ev4-dated.jpg`; the three later Date saved events are folded after
+  it ("3 date saved…", **Show events**). Close the dialog.
 
 ## Destination folder preview
 

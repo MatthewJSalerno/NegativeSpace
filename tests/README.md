@@ -352,8 +352,11 @@ establishing a mobile release requirement.
 
 `DRIVER=earlier_versions_browser_drive.py sh tests/browser/webui_browser_test.sh` edits the
 date of `photo-000.jpg` after Copy, which releases its identical generated copy as an earlier
-version. It checks the waiting card control and notice, that each change links its job's log,
-that the confirmation names both photos' filing dates, that **Don't keep it** and **Keep it
+version; a rotation of photo-001 and its copy, stripped of EXIF for this driver, records tags
+with no plain name. It checks the waiting card control and notice, that each change links its
+job's log, that unnamed tags fold, that only three of four changes show until **Show all**,
+that the answers float over the list in a short window, that the confirmation names both
+photos' filing dates, that the split stays visible when the later edits fold, that **Don't keep it** and **Keep it
 after all…** change **Copy all**'s count without a reload, and that both lineage dialogs mark
 the split. Removing the status refresh on catalog-only answers makes it fail. With `SHOTS`
 set it saves dark-mode screenshots of the notice and the confirmation, also at 200% text.

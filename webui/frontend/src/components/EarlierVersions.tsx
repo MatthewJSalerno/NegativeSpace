@@ -38,23 +38,42 @@ function changeLabel(change: VersionChange) {
   return "Metadata saved";
 }
 
+const HEAD = <thead><tr><th>Detail</th><th>Before</th><th>After</th></tr></thead>;
+// The first few changes, then Show all N, as long lists do elsewhere (ui-design.md).
+const FIRST_CHANGES = 3;
+
+function tagRows(change: VersionChange) {
+  return change.tags.map(t => <tr key={t.tag}><th><code>{t.tag}</code></th>
+    <td>{t.before == null ? "Not recorded" : String(t.before)}</td><td>{t.after == null ? "Not recorded" : String(t.after)}</td></tr>);
+}
+
 function Changes({ changes, photoId }: { changes: VersionChange[]; photoId: number }) {
-  return <ol className="version-changes">
-    {changes.map(change => {
-      const sources = [...new Set(change.fields.map(f => SOURCE[f.source] ?? f.source))];
-      return <li key={change.change_id}>
-        <strong>{changeLabel(change)}</strong> · {instant(change.at)} ·{" "}
-        <a href={logUrl({ run: change.run_id, photo: photoId })} onClick={follow}>{jobLabel(change.run_id, change.mode)}</a>
-        <table className="review-metadata-table"><thead><tr><th>Detail</th><th>Before</th><th>After</th></tr></thead><tbody>
-          {change.fields.map(f => <tr key={`${f.source}:${f.field}`}><th>{LABELS[f.field] ?? f.field.replaceAll("_", " ")}</th>
-            <td>{value(f.field, f.before)}</td><td>{value(f.field, f.after)}</td></tr>)}
-          {change.tags.map(t => <tr key={t.tag}><th><code>{t.tag}</code></th>
-            <td>{t.before == null ? "Not recorded" : String(t.before)}</td><td>{t.after == null ? "Not recorded" : String(t.after)}</td></tr>)}
-        </tbody></table>
-        {sources.length > 0 && <p className="section-note">Details from: {sources.join(" · ")}</p>}
-      </li>;
-    })}
-  </ol>;
+  const [all, setAll] = useState(false);
+  return <>
+    <ol className="version-changes">
+      {(all ? changes : changes.slice(0, FIRST_CHANGES)).map(change => {
+        const sources = [...new Set(change.fields.map(f => SOURCE[f.source] ?? f.source))];
+        // Tags with no plain name are folded under the named details, never dropped.
+        const folded = change.fields.length > 0 && change.tags.length > 0;
+        return <li key={change.change_id}>
+          <strong>{changeLabel(change)}</strong> · {instant(change.at)} ·{" "}
+          <a href={logUrl({ run: change.run_id, photo: photoId })} onClick={follow}>{jobLabel(change.run_id, change.mode)}</a>
+          <table className="review-metadata-table">{HEAD}<tbody>
+            {change.fields.map(f => <tr key={`${f.source}:${f.field}`}><th>{LABELS[f.field] ?? f.field.replaceAll("_", " ")}</th>
+              <td>{value(f.field, f.before)}</td><td>{value(f.field, f.after)}</td></tr>)}
+            {!folded && tagRows(change)}
+          </tbody></table>
+          {folded && <details className="version-tags">
+            <summary>{change.tags.length} other recorded {change.tags.length === 1 ? "tag" : "tags"} changed</summary>
+            <table className="review-metadata-table">{HEAD}<tbody>{tagRows(change)}</tbody></table>
+          </details>}
+          {sources.length > 0 && <p className="section-note">Details from: {sources.join(" · ")}</p>}
+        </li>;
+      })}
+    </ol>
+    {changes.length > FIRST_CHANGES && <button className="link" aria-expanded={all} onClick={() => setAll(!all)}>
+      {all ? "Show fewer" : `Show all ${changes.length} changes`}</button>}
+  </>;
 }
 
 // Where a photo files, from its recorded filing date, worded as the Inspector words the
@@ -115,7 +134,7 @@ export function EarlierVersions({ photoId, version, jobRunning, refreshKey }: {
       {earlier.state === "not_kept" && <p>It stays in the source untouched. NegativeSpace never removes it.</p>}
       {earlier.state === "keep_separate" && earlier.answerable && <p>Your next Copy or Move organizes it as its own photo, filed by its own details.</p>}
       {error && <p className="error" role="alert">{error}</p>}
-      {earlier.answerable && <div className="settings-actions">
+      {earlier.answerable && <div className="settings-actions version-answers">
         {earlier.state !== "not_kept" && <button className="photo-action" disabled={busy || jobRunning} title={waitTitle}
           onClick={() => void answer("not_kept")}>Don't keep it</button>}
         {earlier.state !== "keep_separate" && <button className="photo-action" disabled={busy || jobRunning} title={waitTitle}
