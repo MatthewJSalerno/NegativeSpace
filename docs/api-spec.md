@@ -1381,15 +1381,20 @@ reload before retrying. Success is shown only after acknowledgement.
 ### `GET /api/v1/photos/{photo_id}/versions`
 
 The photo's earlier-version links (`engine-spec.md` §10, "Earlier versions: the agreed
-behaviour"). Returns `photo_id`, `revision` (the latest answer's ID, 0 when unanswered),
-`earlier_version` and `earlier_versions`. `earlier_version` is null unless this file is an
-earlier version of a Library photo; otherwise it has `version_of` (`id`, `filename`,
-`location`, and `split_operation_id`/`split_at`: the edit that replaced this file's content
-and when), `state` as in photo listings, `found_at`, `answerable` (still in the source and
+behaviour"). Returns `photo_id`, `revision` (the current link's latest answer ID, 0 when
+unanswered), `earlier_version` and `earlier_versions`. A photo has one link per recorded
+change found for it; the current link is the newest one whose replaced content is the
+file's current content, else its newest. `earlier_version` is null unless this file has a
+link; otherwise it describes the current link: `version_of` (`id`, `filename`,
+`location`, `filing`, and `split_operation_id`/`split_at`: the edit that replaced this
+file's content and when), `filing` (this file's `date_taken` and `date_source` as its
+catalog row records them: what Copy/Move files it by; `version_of.filing` is the Library
+photo's), `state` as in photo listings, `found_at`, `answerable` (still in the source and
 still held), `same_picture` (true only when verified embedded edits connect the two
-contents, so the picture itself is unchanged), `answers` (every answer with its time, in
-order) and `changes`: every recorded content change from the one that replaced this file's
-content to the Library photo's current content, each with `change_id`, `operation_id`, `at`,
+contents, so the picture itself is unchanged), `answers` (every answer on this link with
+its time, in order) and `changes`: every recorded content change from the one that
+replaced this file's content to the Library photo's current content, each with
+`change_id`, `operation_id`, `run_id` and `mode` (the job that made it), `at`,
 `fields` (`source`, `field`, `before`, `after` for named metadata fields) and `tags`
 (`tag`, `before`, `after` for changed recorded tags with no named field). `earlier_versions`
 lists, for a Library photo, the source photos linked as its earlier versions (`id`,
@@ -1401,7 +1406,8 @@ one per content. A missing photo returns 404
 
 Body: `photo_id`, `answer` (`not_kept` or `keep_separate`), `revision` (from the GET), and
 `request_id` (1–128 alphanumeric, underscore or hyphen characters). The engine appends the
-answer under its lock for every identical copy of this content still in the source; no
+answer under its lock to the current link of every identical copy of this content still
+in the source and still held or answered, whichever Library photo each is linked to; no
 photo files change. `not_kept` keeps the file in the source untouched and out of Needs
 attention; `keep_separate` lets the next Copy/Move organize it as its own photo, filed by
 its own metadata. Sending `keep_separate` after `not_kept` is **Keep it after all**.

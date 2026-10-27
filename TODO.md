@@ -18,7 +18,7 @@ this list in the same change that adds or finishes an item. 💬 marks discussio
 development until the maintainer decides.
 
 **Organizing**
-- Earlier versions arriving again — exact copies built, EV1–EV3 passed; look-alike versions later (`docs/engine-spec.md` §10)
+- Earlier versions arriving again — exact copies built, EV1–EV3 passed; audit 045 fixes await EV4 (`docs/manual-validation.md`, Earlier versions); look-alike versions later (`docs/engine-spec.md` §10)
 - Copy/Move preview grouped by destination folder — implemented; TP1–TP3 passed (`docs/manual-validation.md`, Destination folder preview; `docs/webui-spec.md` §2)
 - 💬 Source-folder handling behind the scenes
 - 💬 A content-history link from a photo to its earlier versions
@@ -141,7 +141,6 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Undecodable source photos remain flagged in Not organized and are excluded from
   Copy/Move and Library matching. Missing EXIF/hash-only/cache-write failures do not
   block readable images. External repair plus Index reassesses failed sources.
-- [ ] Earlier versions arriving again: decided, not built (`docs/engine-spec.md` §10).
 
 - [x] Stable filter guidance and navigation: shared guidance sizing for Logs/gallery/
   review reasons; fixed Logs position when Jobs is absent; stable status shortcuts,

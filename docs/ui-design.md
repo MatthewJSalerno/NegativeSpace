@@ -1541,12 +1541,16 @@ carries **Has an earlier version**. These are relationship badges, never keyword
 Photo information opens with the shared notice: a link to the edited photo, "Only the
 photo's details changed; the picture is the same" only when the recorded edit chain proves
 it, and **Changes since this version**, one entry per recorded change labelled like History
-(**Date saved**, **Rotation saved**, **Metadata saved**) with a Before/After table using the
+(**Date saved**, **Rotation saved**, **Metadata saved**), its time, and its job as a link to
+that job's log (**Job #N · Metadata**, the lineage dialog's job label), with a Before/After table using the
 Metadata viewer's field names and a "Details from:" source line. Orientation values read
 as words ("Turned 90° clockwise"); a changed tag with no named field shows its tag name.
 **Don't keep it** answers immediately, since nothing changes on disk; **Keep it as its own
-photo…** and **Keep it after all…** confirm first and say which Date taken the photo
-files under. Earlier answers stay listed under **Your answers**. The edited photo's
+photo…** and **Keep it after all…** confirm first and name both photos' recorded filing
+dates with their source (the Inspector's "filing date from EXIF/XMP"), or **Undated** with
+the modification year when a file has no usable Date taken: the earlier version's, which
+it files under, and the edited photo's. These come from each photo's catalog record, never
+from the changed fields, so a rotation-only edit names the same date twice. Earlier answers stay listed under **Your answers**. The edited photo's
 Photo information links each earlier version with its location and answer.
 In the lineage dialog the split is marked with an accent rule: on the edited photo, the
 edit that replaced the content carries **Version split:** naming and linking the earlier

@@ -117,6 +117,7 @@ its duplicate. **Not organized** is empty. Clear search and refinements before e
   2005-12-21 one, the highlighted line under the title says it split off when that photo
   was edited, with the time of that Date saved.
 
+## Destination folder preview
 
 **Status:** TP1–TP3 passed, including all lettered steps.
 
