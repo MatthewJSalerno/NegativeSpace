@@ -18,7 +18,7 @@ this list in the same change that adds or finishes an item. 💬 marks discussio
 development until the maintainer decides.
 
 **Organizing**
-- Audit 043 preview/review corrections, including the Copy/Move preview naming the Index it is based on, with Index source — built; A1 acceptance pending (`docs/manual-validation.md`, Audit 043 preview Index; `docs/webui-spec.md` §2)
+- Audit 043 preview/review corrections, including the Copy/Move preview naming the Index it is based on, with Index source — built, A1 passed (`docs/manual-validation.md`, Audit 043 preview Index; `docs/webui-spec.md` §2)
 - Earlier versions arriving again — exact copies built, EV1–EV3 passed; audit 045 fixes and long-list folding passed EV4–EV5; look-alike versions later (`docs/engine-spec.md` §10)
 - Copy/Move preview grouped by destination folder — implemented; TP1–TP3 passed (`docs/manual-validation.md`, Destination folder preview; `docs/webui-spec.md` §2)
 - 💬 Source-folder handling behind the scenes

@@ -9,8 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Audit 043:** [A1a–A1d](#audit-043-preview-index) checks the Index notice/action in
-Copy/Move confirmation. Maintainer acceptance is pending. EV1–EV3 need not be repeated.
+**Audit 043:** [A1a–A1d](#audit-043-preview-index), the Index notice and action in the
+Copy/Move confirmation, passed, including all lettered steps, on 2026-11-03.
 
 **Message boxes:** [MB1](#message-boxes) passed, including all lettered steps, on
 2026-10-27.
@@ -68,7 +68,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Audit 043 preview Index
 
-**Status:** A1a–A1d pending maintainer acceptance. Read — the implemented notice and
+**Accepted:** the maintainer passed A1a–A1d on 2026-11-03. Read — the implemented notice and
 explicit Index action are in `webui/frontend/src/components/Confirm.tsx:97`.
 
 Verified — the generated metadata review catalog contains one searchable
