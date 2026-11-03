@@ -109,6 +109,31 @@ Stats warning and failure tiles retain their semantic colored left borders so
 problems are easy to notice. Folder-table cells retain the shared spacing, including
 8px left padding. Keep this geometry consistent in both themes and at desktop reflow.
 
+### Message boxes
+
+A message about the app's state takes one of three forms. Choose by what the reader
+must do, not by how important the screen feels; never style a message locally.
+
+| Form | Use it for | Classes |
+| :--- | :--- | :--- |
+| **Plain note** | One line about the control or value beside it: a source line, a hint, a field error | `section-note`, `.warning`, `.error`; no box |
+| **Neutral box** | Information about this photo, job or screen that needs no action | `.notice`: `--surface-2`, 10px corners, 8/12px padding |
+| **Highlighted box** | Something to notice or act on, or a relationship to another photo | `.notice` plus one tone: `.notice-accent`, `.notice-good`, `.notice-warn`, `.notice-bad`, `.notice-neutral` |
+
+The highlighted box's 4px left edge carries its role: accent for something waiting
+on the user, a reminder, a running job or a link to a related photo (the lineage
+**Version split:** note); green for a finished success; amber for a warning or a
+partial result; red for a failure; muted for a finished job that changed nothing.
+The heading or first words always say the same thing in text (**Failed**, **Warning**,
+**Version split:**), so the colour is never the only signal; forced-colours mode keeps
+the edge as a border. A screen may add layout to a box (margins, a grid of actions),
+never its own background, corners or edge. Lists stay quiet: in a list of many items,
+such as job groups in Logs and Stats tiles, only warnings (amber) and failures (red)
+get an edge, so problems stand out; successful and unchanged items have none. A single
+finished-job message (the banner, a notification card) shows its tone in full.
+Live regions (`role="status"`, `role="alert"`) and labelled regions stay on the
+element that carries them; the box classes change appearance only.
+
 Index summary figures are real links to an exact source scope, including zero results.
 Links clear unrelated filters without selecting files. The additional-copies link opens
 representative photos, not duplicate cards. **By file type** uses a native disclosure,
@@ -382,7 +407,7 @@ focused. Loading/failure blocks submission, and a stale preview offers an explic
 refresh before another confirmation. Move retains its Include/Leave decision for
 edited originals. The CSV idea is deferred in TODO, not part of this confirmation.
 
-**Read — `webui/frontend/src/components/Confirm.tsx:104`:** every Copy/Move preview
+**Read — `webui/frontend/src/components/Confirm.tsx:97`:** every Copy/Move preview
 names its Index at the top, in normal text: "Based on the Index from **14 Oct, 9:02 AM**
 (3 days ago). Photos added to the source since then aren't included." A folder preview
 names the folder and uses its completed coverage time, shared with Source folders.
@@ -1546,19 +1571,32 @@ information, the same treatment as **Needs attention · Metadata**. Answered one
 plain badge, **Earlier version · not kept** or **Earlier version**; the edited photo's card
 carries **Has an earlier version**. These are relationship badges, never keywords.
 
-Photo information opens with the shared notice: a link to the edited photo, "Only the
+Photo information opens with the shared notice: a link to the edited photo; that the edit
+changed that file, so this one is no longer an identical copy of it (why it is not an
+ordinary duplicate); while waiting, that Copy and Move leave it in the source until you
+choose, never implying the difference is the reason it stays; "Only the
 photo's details changed; the picture is the same" only when the recorded edit chain proves
 it, and **Changes since this version**, one entry per recorded change labelled like History
-(**Date saved**, **Rotation saved**, **Metadata saved**) with a Before/After table using the
+(**Date saved**, **Rotation saved**, **Metadata saved**), its time, and its job as a link to
+that job's log (**Job #N · Metadata**, the lineage dialog's job label), with a Before/After table using the
 Metadata viewer's field names and a "Details from:" source line. Orientation values read
 as words ("Turned 90° clockwise"); a changed tag with no named field shows its tag name.
+When a change has named rows, its unnamed tags fold under a native disclosure, **N other
+recorded tags changed**, never dropped. The first three changes show, then **Show all N
+changes** / **Show fewer** (`aria-expanded`), as long lists do elsewhere. The answer
+buttons stay at the end of the notice and float at the bottom of Photo information while a
+long list scrolls past (sticky, like the lineage dialog's Now row).
 **Don't keep it** answers immediately, since nothing changes on disk; **Keep it as its own
-photo…** and **Keep it after all…** confirm first and say which Date taken the photo
-files under. Earlier answers stay listed under **Your answers**. The edited photo's
+photo…** and **Keep it after all…** confirm first and name both photos' recorded filing
+dates with their source (the Inspector's "filing date from EXIF/XMP"), or **Undated** with
+the modification year when a file has no usable Date taken: the earlier version's, which
+it files under, and the edited photo's. These come from each photo's catalog record, never
+from the changed fields, so a rotation-only edit names the same date twice. Earlier answers stay listed under **Your answers**. The edited photo's
 Photo information links each earlier version with its location and answer.
 In the lineage dialog the split is marked with an accent rule: on the edited photo, the
 edit that replaced the content carries **Version split:** naming and linking the earlier
-version; on the earlier version, the line under the title says which edit it split off at,
+version, and that event never folds into a group of similar events (like failures and
+recovery); on the earlier version, the line under the title says which edit it split off at,
 and when. Each photo's timeline otherwise stays its own.
 
 ### First-import XMP choices

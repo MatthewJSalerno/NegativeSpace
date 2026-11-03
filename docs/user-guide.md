@@ -125,7 +125,7 @@ filenames and counts; this helps you spot unexpected dates or Undated folders be
 starting. Photos without a proposed delivery have their own explanations. The job
 checks files and available names, and its log records the actual results.
 
-<!-- Read — webui/frontend/src/components/Confirm.tsx:104. -->
+<!-- Read — webui/frontend/src/components/Confirm.tsx:97. -->
 The top of the Copy/Move preview shows when its source or folder was last indexed.
 Photos added since then aren't included. **Index source** or **Index this folder**
 closes the preview and checks that source again when you click it.

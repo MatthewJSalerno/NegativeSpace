@@ -50,7 +50,7 @@ export function RejectsReminder({ status, inRejectsView = false }: { status: Sta
     : r.reminder.over_size ? `Rejects holds ${bytes(r.bytes)} in ${plural(r.photos, "photo")}`
     : `Rejects holds ${old} (${plural(r.photos, "photo")} · ${bytes(r.bytes)})`;
   return (
-    <div className="rejects-reminder" role="region" aria-label="Rejects reminder">
+    <div className="notice notice-accent rejects-reminder" role="region" aria-label="Rejects reminder">
       <p>
         {text} · {toggle}
         {!inRejectsView && <> · <a href="/?view=rejects" onClick={follow}>Open Rejects</a></>}

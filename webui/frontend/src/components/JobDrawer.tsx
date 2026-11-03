@@ -32,7 +32,7 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
   const active = jobs.active;
   if (connection === "lost") {
     return (
-      <aside className="drawer drawer-lost" role="status">
+      <aside className="drawer notice notice-warn" role="status">
         Connection lost. The job may still be running. Reconnecting…
       </aside>
     );
@@ -44,7 +44,7 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
     finally { setBackupBusy(false); }
   };
   if (!active) return <BackupNotice status={jobs.backup} error={backupError} busy={backupBusy} onRetry={retryBackup} />;
-  if (active.backup_stage) return <aside className="drawer drawer-backup" role="status" aria-live="polite">
+  if (active.backup_stage) return <aside className="drawer notice notice-accent drawer-backup" role="status" aria-live="polite">
     <div className="drawer-row"><strong>{active.backup_stage === "post_job" && active.outcome
       ? `${summary(active).headline} · Backing up catalog…` : "Backing up catalog…"}</strong></div>
     <div className="bar bar-indeterminate"><div /></div>
@@ -72,7 +72,7 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
     };
     return (
       <>
-      <aside className="drawer" role="status" aria-live="polite">
+      <aside className="drawer notice notice-accent" role="status" aria-live="polite">
         <div className="drawer-row">
           <strong>
             {activeTitle(active)}
@@ -137,7 +137,7 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss, dismissal, onShow
   const ended = run.ended_at ? Date.parse(run.ended_at) : null;
   const started = run.started_at ? Date.parse(run.started_at) : null;
   return (
-    <div className={`finished-banner finished-${s.tone}`} role="status">
+    <div className={`finished-banner notice notice-${s.tone}`} role="status">
       <SafetyQuestions key={run.id} run={run} onLeave={() => onDismiss(run.id!)} />
       <div className="drawer-text">
         <strong>{s.headline}</strong>
@@ -182,7 +182,7 @@ function BackupNotice({ status, error, busy, onRetry }: {
   const failed = latest && latest.outcome !== "succeeded";
   if (!error && !failed && !status?.unbacked_count) return null;
   const interrupted = failed && (latest.outcome == null || latest.outcome === "interrupted");
-  return <aside className="drawer drawer-lost backup-notice" role="status">
+  return <aside className="drawer notice notice-warn backup-notice" role="status">
     <div className="drawer-text">
       <strong>{interrupted ? "Catalog backup did not finish." : failed ? "Catalog backup failed." : "Catalog changes haven’t been backed up."}</strong>
       {failed && <span>{interrupted ? "Back up the current catalog when you’re ready." : BACKUP_REASON[latest.error_category ?? ""] ?? "Open the details, fix the reported problem, then retry."}</span>}

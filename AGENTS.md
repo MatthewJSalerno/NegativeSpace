@@ -62,6 +62,36 @@ Before creating folders, mounting volumes or starting containers, read
 clone has no copy): where to write, the sample photos to use, and what never to touch.
 Its paths never go into this repository.
 
+## Evidence, not assumptions
+
+Every claim in code comments, specs, docs, commits, PRs and messages to the maintainer
+rests on evidence of one of four kinds. Say which:
+
+- **Verified:** you ran it, measured it or reproduced it; say how (the test that
+  passes, the command, the screenshot you inspected).
+- **Read:** you read the code or document; give `file:line`.
+- **Sourced:** a fact about the outside world (another application's behaviour, a file
+  format, a tool's capabilities, a standard) from a primary source you opened in this
+  session: the vendor's documentation, the tool's README or code, or the standard.
+  Link it and quote the line you rely on. Carry its caveats (limits, maintenance status)
+  into anything users will read.
+- **Assumed:** anything else. An assumption may not drive a design or code change;
+  resolve it first or ask the maintainer.
+
+Rules that follow:
+
+- "Should work", "likely" and "probably" are not results. Before saying something works,
+  show it working; before saying a bug is fixed, show the test failing on the old code
+  and passing on the new.
+- Do not infer behaviour from names, comments or docs; follow the code path. Where code
+  and docs disagree, report it rather than picking one.
+- When a requirement is unclear, contradictory or undecided, stop and ask, with the
+  options and a recommendation. Do not choose silently, and do not resolve a conflict
+  between an approved decision and its tests by changing either on your own.
+- When no primary source exists, say so and propose how to check (for example a
+  generated fixture), rather than filling the gap from memory.
+- End each report with **Limits**: what you did not check, run or measure.
+
 ## Repository context and privacy
 
 Component specifications start at [docs/project-spec.md](docs/project-spec.md).

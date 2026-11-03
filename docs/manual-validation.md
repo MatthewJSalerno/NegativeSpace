@@ -12,8 +12,14 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 **Audit 043:** [A1a–A1d](#audit-043-preview-index) checks the Index notice/action in
 Copy/Move confirmation. Maintainer acceptance is pending. EV1–EV3 need not be repeated.
 
+**Message boxes:** [MB1](#message-boxes) passed, including all lettered steps, on
+2026-10-27.
+
 **Earlier versions:** [EV1–EV3](#earlier-versions) passed, including all lettered steps, on
-2026-10-26. No manual checks remain for this batch.
+2026-10-26, and [EV4](#test-ev4--job-links-and-filing-dates), the recheck after the audit
+045 fixes, passed on 2026-10-27. [EV5](#test-ev5--long-change-lists) (folded tags, long change
+lists, floating answers, the lineage split) passed on 2026-10-27. No manual checks remain
+for this batch.
 
 **Destination folder preview:** [TP1–TP3](#destination-folder-preview) passed, including
 all lettered steps. No manual checks remain for this batch. The large-preview usability
@@ -63,7 +69,7 @@ a retest. Do not infer manual acceptance from automated results.
 ## Audit 043 preview Index
 
 **Status:** A1a–A1d pending maintainer acceptance. Read — the implemented notice and
-explicit Index action are in `webui/frontend/src/components/Confirm.tsx:96`.
+explicit Index action are in `webui/frontend/src/components/Confirm.tsx:97`.
 
 Verified — the generated metadata review catalog contains one searchable
 `md-exif-only.jpg` in Library, with source folder `agree/exif_only`; Index and Copy
@@ -88,9 +94,38 @@ Move previews only, without moving source files.
   remain readable, with no overlap or sideways scrolling; Cancel remains reachable.
   Restore normal zoom and close the preview.
 
+## Message boxes
+
+**Status:** MB1 passed, including all lettered steps, on 2026-10-27. The standard is in `docs/ui-design.md`, Message boxes. Only the
+boxes' appearance changed; their wording and actions did not.
+
+Use the audit-045 review instance after its web image is updated. Its catalog has four
+finished jobs, two waiting earlier versions (`ev4-dated.jpg`, `ev4-turned.jpg`) and the
+edited `ev4-dated.jpg` in Library. Check each step in dark mode, then again in light mode
+using the **Dark mode** switch.
+
+### Test MB1 — One look for highlighted messages
+
+- **MB1a:** Open the notifications bell. Each finished job's card is a shaded box with
+  rounded corners and a green left edge. Then open **Logs**: the same successful jobs
+  have no coloured edge (lists colour only warnings and failures).
+- **MB1b:** In **Library**, tick both `ev4-dated.jpg` and `ev4-turned.jpg`; the top bar
+  becomes the selection bar. Choose **Show only selected**. The **Showing only the 2
+  selected photos** header is a shaded box with an accent (blue) left edge. Choose
+  **Back to results**, then clear the selection with **✕**.
+- **MB1c:** Open the Library `ev4-dated.jpg` and choose **View lineage tree**. The summary
+  near the top is a plain shaded box with no edge. The first **Date saved** event's
+  **Version split:** note is a shaded box with rounded corners and an accent left edge.
+  Close the dialog.
+- **MB1d:** In **Not organized**, open `ev4-dated.jpg` and choose **View lineage tree**.
+  The "Earlier version of…" line under the title is the same highlighted box. Close it.
+- **MB1e:** Choose **Jobs › Index source**. While it runs, the progress area under the
+  toolbar is a shaded box with an accent left edge; when it finishes, the bell gains a
+  card with a green or muted edge.
+
 ## Earlier versions
 
-**Status:** EV1–EV3 passed, including all lettered steps (EV2c after a Jobs-menu count fix, EV3c after adding the split marker), on 2026-10-26.
+**Status:** EV1–EV3 passed, including all lettered steps (EV2c after a Jobs-menu count fix, EV3c after adding the split marker), on 2026-10-26. EV4 and EV5 passed, including all lettered steps, on 2026-10-27.
 
 Automated Docker checks passed: the Python unit suite (952 tests; `ci_scope_test` in the
 CI image), all three `tools/check-*.py`, and the production build with typechecking.
@@ -148,6 +183,62 @@ its duplicate. **Not organized** is empty. Clear search and refinements before e
   2005-12-21 one, the highlighted line under the title says it split off when that photo
   was edited, with the time of that Date saved.
 
+### Test EV4 — Job links and filing dates
+
+**Status:** passed, including all lettered steps, on 2026-10-27. Only the notice's wording, change entries and the **Keep it as its own photo**
+confirmation changed; the holds, answers and counts EV1–EV3 accepted are covered by
+`tests/earlier_versions_test.py`.
+
+Use the audit-045 review instance. Index and Copy are complete. `ev4-dated.jpg` (Date
+taken 2011-05-22 14:28:31) had its Date taken changed to 2022-11-16 01:47:44, and
+`ev4-turned.jpg` (no capture date, so filed Undated) was turned 90° clockwise. Each one's
+byte-identical second copy now waits in **Not organized** as an earlier version; nothing
+has been answered. Clear search and refinements before each step, and cancel every
+confirmation: these steps answer nothing.
+
+- **EV4a:** In **Not organized**, search `ev4-dated.jpg` and choose **Earlier version ·
+  waiting for your answer**. The notice's first paragraph reads: "…looked before it was
+  edited in NegativeSpace. The edit changed that file, so this one is no longer an
+  identical copy of it. Copy and Move leave it in the source until you choose what to do
+  with it." The change **Date saved** shows its time followed by a
+  **Job #3 · Metadata** link. Follow it: **Logs** opens on Job #3 with one Completed
+  entry for `ev4-dated.jpg`. Go back.
+- **EV4b:** On the same notice choose **Keep it as its own photo…**. The confirmation says
+  it files under **2011-05-22 14:28:31** (filing date from EXIF), and that
+  `ev4-dated.jpg` in Library is filed under **2022-11-16 01:47:44** (filing date from
+  EXIF) and is not changed. Choose **Cancel**; the notice still waits for your answer.
+- **EV4c:** Search `ev4-turned.jpg` and open its earlier version the same way. The only
+  change is **Rotation saved** with a **Job #4 · Metadata** link, and Orientation reads
+  Not recorded → Turned 90° clockwise. Choose **Keep it as its own photo…**: both lines
+  say **Undated** (2026, the file's modification year). Keep it open.
+- **EV4d:** Set browser zoom to 200%. The confirmation text wraps without overlapping and
+  both buttons stay reachable. Restore normal zoom and choose **Cancel**.
+
+### Test EV5 — Long change lists
+
+**Status:** passed, including all lettered steps, on 2026-10-27.
+
+Same instance as EV4. Since EV4, `ev4-dated.jpg` in Library had three more Date taken
+saves (Jobs #5, #6 and #7), the last back to 2022-11-16 01:47:44, so its earlier version
+lists four changes. Nothing has been answered; these steps answer nothing.
+
+- **EV5a:** In **Not organized**, search `ev4-turned.jpg` and choose **Earlier version ·
+  waiting for your answer**. Under **Rotation saved**, the table shows only Orientation
+  (Not recorded → Turned 90° clockwise), followed by a closed **4 other recorded tags
+  changed**. Open it: four `IFD0:` rows appear, each Not recorded → a value.
+- **EV5b:** Search `ev4-dated.jpg` and open its earlier version. **Changes since this
+  version** lists three **Date saved** entries (Jobs #3, #5 and #6), then **Show all 4
+  changes**. Choose it: the fourth (Job #7) appears and the control reads **Show fewer**.
+- **EV5c:** With all four showing, set browser zoom to 200% and scroll Photo information
+  from the top of the notice down. While the changes scroll, **Don't keep it** and **Keep
+  it as its own photo…** stay at the bottom edge of the panel over the list; past the last
+  change they settle in place below it. Restore normal zoom.
+- **EV5d:** In **Library**, search `ev4-dated.jpg`, open it and choose **View lineage
+  tree**. The first **Date saved** event carries the highlighted **Version split:** note
+  linking the earlier `ev4-dated.jpg`; the three later Date saved events are folded after
+  it ("3 date saved…", **Show events**). Close the dialog.
+
+## Destination folder preview
 
 **Status:** TP1–TP3 passed, including all lettered steps.
 

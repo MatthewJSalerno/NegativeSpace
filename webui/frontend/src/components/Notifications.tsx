@@ -64,7 +64,7 @@ export function Notifications({ onShowPhotos }: { onShowPhotos?: (id: number) =>
       {data?.items.map(({ run, read }) => {
         const result = summary(run);
         const reasons = reasonsText(run.outcome);
-        return <article key={run.id} className={`notification-item finished-${result.tone}`} aria-label={result.headline}>
+        return <article key={run.id} className={`notification-item notice notice-${result.tone}`} aria-label={result.headline}>
           <div className="notification-heading"><h3>{result.headline}</h3>{!read && <span className="muted">Unread</span>}</div>
           <p>{result.detail}</p>
           <p className="muted">{instant(run.ended_at)}{run.started_at && run.ended_at ? ` · Took ${duration(Date.parse(run.ended_at) - Date.parse(run.started_at))}` : ""}</p>

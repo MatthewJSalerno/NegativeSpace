@@ -242,7 +242,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
                                    setExts(settings.exts.value), showReminder(settings), showMetadata(settings), setAddresses(access?.hosts.join(", ") ?? ""), setMessage(null), setFieldErrors({}));
 
   const smallImageSettings = (
-    <section className={firstRun ? "notice notice-first-run" : undefined}>
+    <section className={firstRun ? "notice notice-accent notice-first-run" : undefined}>
         <h3>Small-image review</h3>
         {firstRun && <p id="small-required"><strong>Choose On or Off to continue.</strong> Either choice is valid; you can change it later in Settings.</p>}
         <p>Suggest small photos for review after Copy or Move. This does not stop them being imported. Use Mark reviewed to dismiss a reminder, or Reject for photos you don’t want.</p>
@@ -417,7 +417,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
       : firstRun ? (
         <>
           {step === 0 && (
-            <div className="notice notice-first-run">
+            <div className="notice notice-accent notice-first-run">
               <p><strong>These are starting values, not a one-time choice.</strong></p>
               <p>
                 You can change any of them at any time in the app's Settings: the <span aria-hidden="true">⚙</span> gear

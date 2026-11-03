@@ -280,7 +280,7 @@ with sync_playwright() as p:
     # A date outside the filter says so and offers the fixes as buttons that apply them.
     filters(page)
     dates.get_by_role("button", name="2023", exact=True).click()
-    notice = page.locator(".notice")
+    notice = page.locator(".notice", has_text="is outside the dates shown")
     expect(notice).to_contain_text("2023 is outside the dates shown.")
     notice.get_by_role("button", name="Show 2023 too").click()
     expect(page.locator(".gallery-filters .tip")).to_have_attribute("data-tip", "Only 2019, 2023")

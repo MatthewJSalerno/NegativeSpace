@@ -111,8 +111,10 @@ export interface VersionBadge {
   version_of: number | null; state: VersionState | null;
   earlier_versions: number; waiting: number;
 }
+// The date a photo is (or will be) filed by, as its catalog row records it.
+export interface VersionFiling { date_taken: string | null; date_source: string | null }
 export interface VersionChange {
-  change_id: number; operation_id: number; at: string;
+  change_id: number; operation_id: number; at: string; run_id: number; mode: string;
   fields: { source: string; field: string; before: unknown; after: unknown }[];
   tags: { tag: string; before: unknown; after: unknown }[];
 }
@@ -124,7 +126,8 @@ export interface VersionPhoto {
 export interface PhotoVersions {
   photo_id: number; revision: number;
   earlier_version: null | {
-    version_of: VersionPhoto; state: VersionState | null; found_at: string; answerable: boolean;
+    version_of: VersionPhoto & { filing: VersionFiling }; filing: VersionFiling;
+    state: VersionState | null; found_at: string; answerable: boolean;
     same_picture: boolean; changes: VersionChange[]; answers: { answer: VersionState; at: string }[];
   };
   earlier_versions: VersionPhoto[];

@@ -18,8 +18,8 @@ this list in the same change that adds or finishes an item. 💬 marks discussio
 development until the maintainer decides.
 
 **Organizing**
-- Audit 043 preview/review corrections — built and automated checks run; A1 Index-notice acceptance pending (`docs/manual-validation.md`, Audit 043 preview Index).
-- Earlier versions arriving again — exact copies built, EV1–EV3 passed; look-alike versions later (`docs/engine-spec.md` §10)
+- Audit 043 preview/review corrections, including the Copy/Move preview naming the Index it is based on, with Index source — built; A1 acceptance pending (`docs/manual-validation.md`, Audit 043 preview Index; `docs/webui-spec.md` §2)
+- Earlier versions arriving again — exact copies built, EV1–EV3 passed; audit 045 fixes and long-list folding passed EV4–EV5; look-alike versions later (`docs/engine-spec.md` §10)
 - Copy/Move preview grouped by destination folder — implemented; TP1–TP3 passed (`docs/manual-validation.md`, Destination folder preview; `docs/webui-spec.md` §2)
 - 💬 Source-folder handling behind the scenes
 - 💬 A content-history link from a photo to its earlier versions
@@ -57,7 +57,7 @@ development until the maintainer decides.
 
 **Before the first release**
 - Decide on catalog migration
-- Review every message the user sees
+- Review every message the user sees — message boxes standardised (plain note, neutral box, highlighted box), MB1 passed (`docs/ui-design.md`, Message boxes)
 - Version 1.0.0 and the changelog
 - Test power-loss behaviour on real hardware
 
@@ -142,7 +142,6 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Undecodable source photos remain flagged in Not organized and are excluded from
   Copy/Move and Library matching. Missing EXIF/hash-only/cache-write failures do not
   block readable images. External repair plus Index reassesses failed sources.
-- [ ] Earlier versions arriving again: decided, not built (`docs/engine-spec.md` §10).
 
 - [x] Stable filter guidance and navigation: shared guidance sizing for Logs/gallery/
   review reasons; fixed Logs position when Jobs is absent; stable status shortcuts,

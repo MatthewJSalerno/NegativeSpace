@@ -59,12 +59,14 @@ export function timelineEvents(tree: Lineage): TimelineEvent[] {
   return events;
 }
 
-export function eventGroups(events: TimelineEvent[]): TimelineEvent[][] {
+export function eventGroups(events: TimelineEvent[], splits: ReadonlySet<number> = new Set()): TimelineEvent[][] {
   const groups: TimelineEvent[][] = [];
+  // Failures, recovery and a version split must not disappear behind a generic
+  // successful-action group.
+  const alone = (event: TimelineEvent) => event.operations.some(op => op.status === "Failed" || op.recovery || splits.has(op.id));
   for (const event of events) {
     const last = groups.at(-1);
-    // Failures and recovery must not disappear behind a generic successful-action group.
-    if (last && last[0].kind === event.kind && !event.operations.some(op => op.status === "Failed" || op.recovery) && !last.at(-1)!.operations.some(op => op.status === "Failed" || op.recovery)) last.push(event);
+    if (last && last[0].kind === event.kind && !alone(event) && !alone(last.at(-1)!)) last.push(event);
     else groups.push([event]);
   }
   return groups.flatMap(group => group.length >= 3 ? [group] : group.map(event => [event]));

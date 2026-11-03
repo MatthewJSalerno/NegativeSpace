@@ -250,17 +250,17 @@ keep its warnings and confirmation buttons. These are proposed destinations, not
 completed operations; actual outcomes belong in the job log. Apply the same
 selection counts and stale-preview safeguards used by other confirmed actions.
 
-**The preview names the Index it is based on** (decided 2026-10-25).
-**Read — `webui/frontend/src/components/Confirm.tsx:104`, `engine/cli.py:618`:**
-a confirmed Copy/Move acts on the previewed catalogued IDs; it does not walk the
-source to discover added photos or mark vanished originals. Transfer verification
-still checks the files it acts on. At the top of every Copy/Move preview, in normal
-text, show: "Based on the Index from **14 Oct, 9:02 AM** (3 days ago). Photos added to
-the source since then aren't included." Always show it, not only when the Index is
-old. A folder's Copy/Move uses that folder's own last-indexed time (§2) and names the
-folder. Beside it, **Index source** (or **Index this folder**) starts that Index on
-request, closing the preview after acceptance; it never starts by itself. If there
-is no recorded complete Index for this scope, say so instead of inventing a time.
+**The preview names the Index it is based on** (decided 2026-10-25; built). A
+confirmed Copy/Move acts on the previewed photos and does not read the source again
+(`api-spec.md`, the freeze rule), so photos added or originals removed since the last
+Index are not seen; transfer verification still checks the files it acts on. At the top
+of every Copy/Move preview, in normal text, show: "Based on the Index from **14 Oct,
+9:02 AM** (3 days ago). Photos added to the source since then aren't included." —
+always, not only when the Index is old. A folder's Copy/Move uses that folder's own
+last-indexed time (§2) and names the folder. Beside it, **Index source** (or **Index this
+folder**) starts that Index on request, closing the preview after acceptance; it never
+starts by itself. With no recorded complete Index for this scope, it says so instead of
+inventing a time (Read: `webui/frontend/src/components/Confirm.tsx:97`).
 
 **Downloadable operation plan — deferred for discussion (2026-10-24):** do not build
 or offer a CSV download with the folder preview. Revisit only after every other
@@ -2009,7 +2009,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 33 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 34 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
