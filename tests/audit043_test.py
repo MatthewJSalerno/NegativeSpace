@@ -175,3 +175,41 @@ class VersionAnswerPreviewTests(unittest.TestCase):
     def test_keep_separate_invalidates_uncached_confirmation(self):self.check_answer('keep_separate',False)
     def test_not_kept_invalidates_cached_page_and_confirmation(self):self.check_answer('not_kept',True)
     def test_keep_separate_invalidates_cached_page_and_confirmation(self):self.check_answer('keep_separate',True)
+
+
+class EditAfterPreviewTests(ApiCase):
+    """A Library edit that splits off an earlier version after a preview changes what Copy
+    would take, so the preview's token must no longer confirm, cached or not."""
+    photo_id=earlier_versions_test.EarlierVersions.photo_id
+    version=earlier_versions_test.EarlierVersions.version
+    edit_date=earlier_versions_test.EarlierVersions.edit_date
+
+    def setUp(self):
+        super().setUp()
+        self.create_catalog()
+        earlier_versions_test.webui_api_test.make_photo(self.cfg.source/'edited.jpg','edited',exif={36867:'2000:01:02 03:04:05'})
+        (self.cfg.source/'backup').mkdir()
+        earlier_versions_test.shutil.copyfile(self.cfg.source/'edited.jpg',self.cfg.source/'backup'/'edited.jpg')
+        self.wait_for(self.start(mode='index')); self.wait_for(self.start(mode='copy'))
+        self.pid=self.photo_id('edited.jpg'); self.alias=self.photo_id('backup/edited.jpg')
+
+    def check_split(self, cached):
+        if cached:
+            response=self.client.post('/api/v1/jobs/transfer-preview',json={'mode':'copy'})
+            self.assertEqual(response.status_code,200,response.text); plan=response.json()
+        else:
+            with ns_db.connect(self.cfg.db_path) as c:
+                plan=transfer_preview.preview(c,source=self.cfg.source,destination=self.cfg.dest,mode='copy')
+        self.edit_date(self.pid,'2001-02-03T04:05:06')
+        self.assertEqual(self.version(self.alias)[0],self.pid,'the edit split off the source copy')
+        if cached:
+            page=self.client.post('/api/v1/jobs/transfer-preview',json={'mode':'copy','token':plan['token'],'page':1})
+            self.assertEqual(page.status_code,409,page.text)
+        confirmed=self.client.post('/api/v1/jobs/start',json={'mode':'copy','file_ids':plan['file_ids'],
+            'transfer_preview_token':plan['token'],'request_id':f'confirm-after-split-{cached}'})
+        if confirmed.status_code == 202: self.wait_for(confirmed.json()['id'])
+        self.assertEqual(confirmed.status_code,409,confirmed.text)
+        self.assertEqual(confirmed.json()['error'],'transfer_preview_changed')
+
+    def test_split_invalidates_uncached_confirmation(self):self.check_split(False)
+    def test_split_invalidates_cached_page_and_confirmation(self):self.check_split(True)

@@ -2261,10 +2261,12 @@ answers; stale confirmations return 409. The unchanged main reproduction accepte
 both stale confirmations with 202. After the watermark fix, the focused
 `audit043_test`, `transfer_preview_test`, `earlier_versions_test` and
 `move_confirmation_test` run passed 44 tests. The earlier-versions, transfer-preview
-and Move browser checks passed again against that fix.
+and Move browser checks passed again against that fix. Its two split tests cover the
+other way the hold changes after a preview: a Library edit that splits off an earlier
+version invalidates cached paging and uncached confirmation alike.
 
 Manual acceptance of the Index notice/action is tracked as
-[A1](../docs/manual-validation.md#audit-043-preview-index); EV1–EV3 remain accepted.
+[A1](../docs/manual-validation.md#audit-043-preview-index); EV1–EV5 remain accepted.
 
 
 `transfer_preview_test.py` covers actual date/Undated paths, source scoping, duplicate
