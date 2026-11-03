@@ -78,21 +78,29 @@ Move previews only, without moving source files.
 
 ### Test A1 — See which Index a transfer uses
 
-- **A1a:** Open **Library**, search `md-exif-only.jpg`, then choose **Jobs › Move ›
-  Move all**. At the top of the confirmation, check that **Based on the Index from**
-  gives a date/time and relative age, followed by the notice that photos added since
-  then are not included. **Index source** is visibly actionable. Cancel; do not start Move.
-- **A1b:** Reopen the same preview and choose **Index source**. The preview closes and
-  an Index starts. Once finished, reopen the preview and check that its Index time
-  reflects that run. Cancel again.
-- **A1c:** Clear search. Open **Not organized › Source folders**, choose **Still in
-  source**, expand **agree**, and select only **exif_only**. Open **Move this folder**.
-  Check that the notice names **agree/exif_only** and offers **Index this folder**.
-  Choose it; the preview closes and the Index job targets that folder. Reopen the
-  folder preview after it finishes and check the updated folder Index time, then Cancel.
-- **A1d:** Reopen either preview at 200% text/zoom. The Index explanation and link
-  remain readable, with no overlap or sideways scrolling; Cancel remains reachable.
-  Restore normal zoom and close the preview.
+The steps start the Index from the link inside the confirmation, never from
+**Jobs › Index**. An Index run beforehand needs no reset: each step compares the
+time before and after its own run.
+
+- **A1a:** Open **Library** and search `md-exif-only.jpg`; one photo shows. Choose
+  **Jobs › Move › Move all (47)**. At the top of the confirmation, check the notice:
+  **Based on the Index from** a date and time with "(today)", then "Photos added to the
+  source since then aren't included.", then an **Index source** link. Note the time.
+  Choose **Cancel**; do not start the Move.
+- **A1b:** Choose **Jobs › Move › Move all (47)** again. In the notice, choose the
+  **Index source** link. The confirmation closes and an Index starts. When it
+  finishes, choose **Jobs › Move › Move all (47)** again and check that **Based on
+  the Index from** now shows a later time than in A1a. Choose **Cancel**.
+- **A1c:** Clear the search. Open **Not organized › Source folders**, choose **Still
+  in source**, unfold **agree** with its ▸ and tick only the **exif_only** box. Choose
+  **Move this folder (1)…** below the folder list. Check that the notice reads **for
+  folder agree/exif_only** and ends with an **Index this folder** link; note the time.
+  Choose the link: the confirmation closes and an Index runs for that folder. When it
+  finishes, choose **Move this folder (1)…** again, check the later time, then choose
+  **Cancel**.
+- **A1d:** Open either confirmation again (A1a or A1c) and zoom the browser to 200%.
+  The notice and its link stay readable, nothing overlaps, there is no sideways
+  scrolling and **Cancel** is reachable. Choose **Cancel** and reset the zoom.
 
 ## Message boxes
 
