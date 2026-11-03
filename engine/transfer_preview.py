@@ -8,6 +8,7 @@ from engine import constants, destinations, metadata_import, move_confirmation, 
 PAGE_SIZE = 20
 
 
+
 def snapshot(conn, *, source, destination, photo_ids=None, source_subdir=None):
     scope = move_confirmation.snapshot(conn, source=source, destination=destination,
                                       photo_ids=photo_ids, source_subdir=source_subdir)
@@ -17,6 +18,7 @@ def snapshot(conn, *, source, destination, photo_ids=None, source_subdir=None):
         "FROM photos p WHERE p.id IN (SELECT value FROM json_each(?)) ORDER BY p.id", (ids,)).fetchall()
     config = {**ns_db.METADATA_DEFAULTS, **{k:json.loads(v) for k,v in conn.execute('SELECT key,value_json FROM settings')}}
     config['metadata_decision_highwater'] = conn.execute('SELECT COALESCE(MAX(decision_id),0) FROM metadata_decisions').fetchone()[0]
+    config['version_answer_highwater'] = conn.execute('SELECT COALESCE(MAX(answer_id),0) FROM photo_version_answers').fetchone()[0]
     # Matching rows outside this source can affect duplicate delivery. Include their
     # recorded paths/statuses without walking another source or the destination.
     anchors = conn.execute("SELECT id,source_path,dest_path,status,sha1_hash FROM photos WHERE sha1_hash IN "
@@ -34,7 +36,7 @@ def check(conn, token, **scope):
 
 
 def preview(conn, *, source, destination, mode, photo_ids=None, source_subdir=None,
-            token=None, page=1, folder=None, file_page=1):
+            token=None, page=1, folder=None, file_page=1, materialize=False):
     if mode not in ('copy','move'):
         raise ValueError('Choose Copy or Move.')
     if any(type(x) is not int or x < 1 for x in (page,file_page)) or (folder is not None and not isinstance(folder,str)):
@@ -89,13 +91,22 @@ def preview(conn, *, source, destination, mode, photo_ids=None, source_subdir=No
         if reason:
             item['note'] = reason
             unplanned.append(item)
+    plan = dict(file_ids=base['file_ids'], token=current, mode=mode, total=len(rows),
+        groups=groups, unplanned=unplanned)
+    return plan if materialize else page_result(plan, page=page, folder=folder, file_page=file_page)
+
+
+def page_result(plan, *, page=1, folder=None, file_page=1):
+    if any(type(x) is not int or x < 1 for x in (page,file_page)) or (folder is not None and not isinstance(folder,str)):
+        raise ValueError('Choose a valid preview page or folder.')
+    groups, unplanned, current = plan['groups'], plan['unplanned'], plan['token']
     names = sorted(groups)
     if folder is not None:
         if folder not in groups: raise ValueError('This destination folder is not in the preview.')
         items = groups[folder]
         return dict(token=current,folder=folder,total=len(items),page=file_page,
                     items=items[(file_page-1)*PAGE_SIZE:file_page*PAGE_SIZE])
-    return dict(file_ids=base['file_ids'],token=current,mode=mode,total=len(rows),
+    return dict(file_ids=plan['file_ids'],token=current,mode=plan['mode'],total=plan['total'],
         planned=sum(len(v) for v in groups.values()),group_total=len(names),page=page,page_size=PAGE_SIZE,
         groups=[dict(path=n,total=len(groups[n]),items=groups[n][:PAGE_SIZE])
                 for n in names[(page-1)*PAGE_SIZE:page*PAGE_SIZE]],

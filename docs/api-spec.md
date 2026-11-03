@@ -383,6 +383,13 @@ the engine's own rule (`ns_db.TRANSFER_ELIGIBLE`, as `eligible` in `GET /status`
 `pair_retries` separately counts selected incomplete photo/XMP imports eligible for
 confirmed same-mode retry at the configured roots. Failed pairs do not enter the
 ordinary Copy/Move action counts.
+
+**READ — `webui/gallery.py:photos_by_ids`, `webui/app.py:get_selection`:**
+`include_review_actions: true` adds the whole-selection `review_actions` counts for
+bulk review controls. Omitted or false skips that work and omits the field. The
+browser requests it only where a bulk review answer can be offered, independently
+of selection-page loading; jobs and review changes refresh those counts.
+
 `sort=matches` with optional integer `match_min` (default 75) orders an explicit
 selection by library-wide counts without filtering out selected files. This also
 works for `/photos/position` when `ids` is supplied. Items without an available
@@ -664,12 +671,27 @@ Returns frozen `file_ids`, a SHA-256 `token`, `mode`, scope `total`, `planned` c
 source-relative `source`, and an explanatory `note`. `unplanned_total` and paged
 `unplanned` items retain photos without a proposed delivery and their reasons.
 
-A follow-up with `folder` (one exact returned path), `token`, and the frozen scope
-returns that folder's `items`, `total` and `page` from `file_page`. Folder-page requests
-also carry the token. Changed state returns `409 transfer_preview_changed`; invalid
+**READ — `webui/transfer_plans.py:PlanCache.preview`:** follow-up pages send
+`mode`, `token` and paging fields, without resending `file_ids`. A `folder` (one exact
+returned path) returns its `items`, `total` and `page` from `file_page`. The server
+reuses the materialized plan and validates its catalog snapshot before answering;
+paging does not repeat per-photo metadata planning. The per-server cache holds four
+plans for up to five minutes. Expiration, eviction or server restart requires a fresh
+preview (`409 transfer_preview_changed`), never an unguarded submission.
+
+**Read — `engine/index_history.py:coverage`, `webui/transfer_plans.py:49`:** an
+initial preview includes `index_basis`: `indexed_at` (nullable completed coverage
+time) and `source_subdir` (nullable folder scope). Coverage uses the same rules as the
+folder tree: completed whole-source or ancestor-folder Indexes, excluding selected,
+unfinished and traversal-failed runs. A whole-source preview uses whole-source
+coverage. Paging responses omit this unchanged context. This is catalog history,
+not a fresh source scan.
+ Changed state returns `409 transfer_preview_changed`; invalid
 input returns `400 invalid_request`; a running engine returns `409 busy`. No files
 are read or changed, no filenames reserved, no job created. Catalog settings, metadata
-captures/decisions and matching destination records participate in the guard.
+captures/decisions, earlier-version answers and matching destination records participate in the guard.
+Read — `engine/transfer_preview.py:21`: the token includes the latest earlier-version
+answer ID; a changed answer invalidates both cached pages and confirmation.
 Filing reuses the import metadata planner. Source filenames identify originals, not
 reserved destination names; live file checks and collision handling remain job work.
 
@@ -721,7 +743,9 @@ and frozen scope while dropping deletion consent.
 The browser freezes Copy/Move all/folder to the previewed catalogued IDs; newly indexed
 photos are not silently added. A confirmed Copy/Move is therefore a targeted run: it does
 not walk the source, so it records no discovery and marks no vanished originals; only
-Index does (`engine/cli.py`, the full-walk branch). Preview-confirmed Move (and its Copy-instead alternative) may span Library and Rejects
+Index does (Read: `engine/cli.py:638–683` targets the IDs, `:684` onward is the full
+walk). Transfer-time file reads and verification still apply. The confirmation shows the
+last finished Index's time, outcome and scope, without an age-based warning. Preview-confirmed Move (and its Copy-instead alternative) may span Library and Rejects
 (the existing whole-source Move behavior), with an explicit Rejects warning. Ordinary
 selection submissions still refuse mixed places. Source-empty/network answers carry
 consent and token only along the same Move request chain; choosing Copy drops deletion consent but retains the frozen scope/token.

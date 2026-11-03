@@ -42,6 +42,9 @@ with sync_playwright() as p:
     assert request.get('/api/v1/status').json()['library_photos']==0
     page.goto(sys.argv[1])
     dialog=copy_all();section=dialog.get_by_role('region',name='Destination folders',exact=True)
+    expect(dialog.get_by_label('Index used for preview')).to_contain_text('Based on the Index from')
+    expect(dialog.get_by_label('Index used for preview')).to_contain_text("Photos added to the source since then aren't included.")
+    expect(dialog.get_by_role('button',name='Index source',exact=True)).to_be_visible()
     expect(section).to_contain_text('library/2023/01/15')
     expect(section).to_contain_text('library/Undated/2019')
     expect(section).to_contain_text('library/Undated/2023')
@@ -50,7 +53,10 @@ with sync_playwright() as p:
     folder.locator('summary').click()
     expect(folder.locator('li')).to_have_count(20)
     first=folder.locator('li').first.inner_text()
-    folder.get_by_role('button',name='Next page',exact=True).click()
+    with page.expect_request(lambda req: req.url.endswith('/api/v1/jobs/transfer-preview') and req.method=='POST') as paging:
+        folder.get_by_role('button',name='Next page',exact=True).click()
+    assert 'token' in paging.value.post_data_json
+    assert 'file_ids' not in paging.value.post_data_json
     expect(folder.locator('li').first).not_to_have_text(first)
     dialog.get_by_role('button',name='Cancel',exact=True).click()
     assert request.get('/api/v1/status').json()['library_photos']==0
@@ -58,6 +64,9 @@ with sync_playwright() as p:
     for width,size in ((1440,'100%'),(720,'200%')):
         page.set_viewport_size({'width':width,'height':900})
         page.locator('html').evaluate('(e,s)=>e.style.fontSize=s',size)
+        dialog.get_by_label('Index used for preview').scroll_into_view_if_needed()
+        expect(dialog.get_by_role('button',name='Index source',exact=True)).to_be_visible()
+        if os.environ.get('SHOTS'):page.screenshot(path=f"{os.environ['SHOTS']}/index-preview-{width}.png")
         dialog.get_by_role('button',name='Copy',exact=True).scroll_into_view_if_needed()
         assert dialog.evaluate('(e)=>e.scrollWidth<=e.clientWidth+1')
         expect(dialog.get_by_role('button',name='Copy',exact=True)).to_be_visible()
@@ -65,6 +74,15 @@ with sync_playwright() as p:
     page.keyboard.press('Escape');expect(dialog).to_have_count(0)
     page.set_viewport_size({'width':1440,'height':900});page.locator('html').evaluate('(e)=>e.style.fontSize="100%"')
     dialog=copy_all()
+    # Read: no Index starts from opening or paging a preview; only this action submits it.
+    with page.expect_response(lambda response: response.url.endswith('/api/v1/jobs/start') and response.request.method=='POST') as reindex:
+        dialog.get_by_role('button',name='Index source',exact=True).click()
+    result=reindex.value
+    assert result.ok,result.text()
+    assert result.request.post_data_json['mode']=='index'
+    assert 'file_ids' not in result.request.post_data_json and 'source_subdir' not in result.request.post_data_json
+    expect(dialog).to_have_count(0)
+    wait(result.json()['id']);page.reload();dialog=copy_all()
     # A settings change in another browser invalidates the existing confirmation.
     setting=request.get('/api/v1/settings').json()['small_image_min']
     result=request.put('/api/v1/settings',data={'values':{'small_image_min':640},'revisions':{'small_image_min':setting['revision']}})

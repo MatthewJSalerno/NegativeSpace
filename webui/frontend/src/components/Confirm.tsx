@@ -4,7 +4,7 @@ import { api, ApiError, type ActionMode, type Status, type MoveScope, type MoveP
 import { DestinationPreview } from "./DestinationPreview";
 import type { TransferPreview } from "../api";
 import { Pager } from "./Pager";
-import { plural } from "../format";
+import { ago, indexTime, plural } from "../format";
 import { SubmissionStatus } from "./SubmissionStatus";
 
 type RejectComparison = { last: boolean; rejectedHere: number; onDontAskAgain: () => void };
@@ -94,6 +94,23 @@ export function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose:
   return (
     <Modal role="alertdialog" labelledBy="confirm-title" onClose={cancel} busy={busy}>
         <h2 id="confirm-title">{confirm.title}</h2>
+        {confirm.transfer && <div aria-label="Index used for preview">
+          <p>{plan?.index_basis ? <>
+            {plan.index_basis.indexed_at ? <>Based on the Index from <strong>{indexTime(plan.index_basis.indexed_at)}</strong> ({ago(plan.index_basis.indexed_at)})</>
+              : <>No complete Index is recorded</>}
+            {confirm.transfer.scope.source_subdir ? <> for folder <strong>{confirm.transfer.scope.source_subdir}</strong></> : <> for this source</>}.
+            {" "}{plan.index_basis.indexed_at ? "Photos added to the source since then aren't included." : "This preview includes only photos already recorded in the catalog."}
+          </> : "Checking which Index this preview is based on…"} {" "}
+            <button className="link" disabled={busy || !plan} onClick={async () => {
+              setBusy(true); setError(null);
+              try {
+                await api.startJob({mode: "index", ...(confirm.transfer?.scope.source_subdir ? {source_subdir: confirm.transfer.scope.source_subdir} : {})});
+                onClose();
+              } catch (e) { setError(e instanceof Error ? e.message : "The Index could not be started. Check its status before trying again."); }
+              finally { setBusy(false); }
+            }}>{confirm.transfer.scope.source_subdir ? "Index this folder" : "Index source"}</button>
+          </p>
+        </div>}
         {confirm.body.map((line) => <p key={line}>{line}</p>)}
         {comparison?.last && <p className="reject-last">
           <strong>None of these photos would be left in the library.</strong>

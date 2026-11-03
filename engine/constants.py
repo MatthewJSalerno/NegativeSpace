@@ -103,8 +103,7 @@ UNDATED_FOLDER = "Undated"
 MAX_WORKER_PROCESSES = ns_db.available_cpus()["available"]
 
 # Statuses that mean "already delivered to the destination and verified".
-ANCHOR_DELIVERED_STATUSES = (PhotoStatus.COMPLETED, PhotoStatus.COPIED,
-                             PhotoStatus.FOUND_AT_DESTINATION)
+ANCHOR_DELIVERED_STATUSES = ns_db.DELIVERED_STATUSES
 
 # Statuses in which a row can stand as the original of its duplicate group:
 # its content is delivered, being delivered, or queued to be.

@@ -880,8 +880,8 @@ export const api = {
   folders: (params: BrowseFilters) => request<FolderTree>("GET", `/api/v1/photos/folders?${browseQuery(params)}`),
   photoIds: (params: BrowseFilters) =>
     request<{ ids: number[]; total: number; in_rejects: number[] }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
-  selection: (ids: number[], sort: Sort, page: number, page_size: number, match_min = 75, action?: ActionMode) =>
-    request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size, match_min, ...(action ? { action } : {}) }),
+  selection: (ids: number[], sort: Sort, page: number, page_size: number, match_min = 75, action?: ActionMode, includeReviewActions = false) =>
+    request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size, match_min, ...(action ? { action } : {}), ...(includeReviewActions ? {include_review_actions: true} : {}) }),
   metadataChoiceComparison: (photo:number, revision:number) =>
     request<MetadataChoiceComparison>("GET", `/api/v1/photos/${photo}/metadata-choices/${revision}/comparison`),
   metadataHistory: (f: LogFilters, page: number, pageSize: number) => {
@@ -962,7 +962,7 @@ export type MovePreview = { file_ids: number[]; token: string; rejected_original
 export type TransferSubmission = { mode: "copy" | "move"; file_ids: number[]; transfer_preview_token: string;
   move_preview_token?: string; confirm_edited_sources?: boolean };
 export type TransferPreviewItem = { photo_id: number; filename: string; source: string; note: string };
-export type TransferPreview = { file_ids: number[]; token: string; mode: "copy" | "move"; total: number;
+export type TransferPreview = { index_basis?: { indexed_at: string | null; source_subdir: string | null }; file_ids: number[]; token: string; mode: "copy" | "move"; total: number;
   planned: number; group_total: number; page: number; page_size: number;
   groups: { path: string; total: number; items: TransferPreviewItem[] }[];
   unplanned_total: number; unplanned: TransferPreviewItem[] };

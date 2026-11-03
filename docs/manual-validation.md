@@ -9,8 +9,11 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Audit 043:** [A1a–A1d](#audit-043-preview-index), the Index notice and action in the
+Copy/Move confirmation, passed, including all lettered steps, on 2026-11-03.
+
 **Message boxes:** [MB1](#message-boxes) passed, including all lettered steps, on
-2026-10-27. No manual checks remain for this batch.
+2026-10-27.
 
 **Earlier versions:** [EV1–EV3](#earlier-versions) passed, including all lettered steps, on
 2026-10-26, and [EV4](#test-ev4--job-links-and-filing-dates), the recheck after the audit
@@ -62,6 +65,42 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Audit 043 preview Index
+
+**Accepted:** the maintainer passed A1a–A1d on 2026-11-03. Read — the implemented notice and
+explicit Index action are in `webui/frontend/src/components/Confirm.tsx:97`.
+
+Verified — the generated metadata review catalog contains one searchable
+`md-exif-only.jpg` in Library, with source folder `agree/exif_only`; Index and Copy
+are complete. Automated coverage exercises both Copy and Move; the steps below use
+Move previews only, without moving source files.
+
+### Test A1 — See which Index a transfer uses
+
+The steps start the Index from the link inside the confirmation, never from
+**Jobs › Index**. An Index run beforehand needs no reset: each step compares the
+time before and after its own run.
+
+- **A1a:** Open **Library** and search `md-exif-only.jpg`; one photo shows. Choose
+  **Jobs › Move › Move all (47)**. At the top of the confirmation, check the notice:
+  **Based on the Index from** a date and time with "(today)", then "Photos added to the
+  source since then aren't included.", then an **Index source** link. Note the time.
+  Choose **Cancel**; do not start the Move.
+- **A1b:** Choose **Jobs › Move › Move all (47)** again. In the notice, choose the
+  **Index source** link. The confirmation closes and an Index starts. When it
+  finishes, choose **Jobs › Move › Move all (47)** again and check that **Based on
+  the Index from** now shows a later time than in A1a. Choose **Cancel**.
+- **A1c:** Clear the search. Open **Not organized › Source folders**, choose **Still
+  in source**, unfold **agree** with its ▸ and tick only the **exif_only** box. Choose
+  **Move this folder (1)…** below the folder list. Check that the notice reads **for
+  folder agree/exif_only** and ends with an **Index this folder** link; note the time.
+  Choose the link: the confirmation closes and an Index runs for that folder. When it
+  finishes, choose **Move this folder (1)…** again, check the later time, then choose
+  **Cancel**.
+- **A1d:** Open either confirmation again (A1a or A1c) and zoom the browser to 200%.
+  The notice and its link stay readable, nothing overlaps, there is no sideways
+  scrolling and **Cancel** is reachable. Choose **Cancel** and reset the zoom.
 
 ## Message boxes
 

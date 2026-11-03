@@ -80,7 +80,7 @@ def decide(db_path, body):
             for item in body['items']:
                 try:
                     review._decide(conn, item)
-                except ns_db.RevisionConflict as exc:
+                except (ns_db.RevisionConflict, ValueError) as exc:
                     skipped.append(dict(photo_id=item['photo_id'], message=str(exc)))
                 else:
                     saved.append(item['photo_id'])

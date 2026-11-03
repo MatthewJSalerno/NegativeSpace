@@ -2244,6 +2244,31 @@ Manual checks and acceptance live in [manual validation](../docs/manual-validati
 
 ## Destination folder previews
 
+**Verified — Docker integration checks, 2026-10-26:** all 54 application Python
+suites were exercised (968 distinct tests after the token regression additions),
+157 engine smoke checks, 45 standard browser drivers plus the standalone metadata
+scenario driver, and 11 supporting checks including every `tools/check-*.py`.
+The initial attention suite used a cross-filesystem hard-link fixture; its 16 tests
+passed when rerun on one filesystem. A focused Move-browser rerun omitted its
+required fixture flag; the correctly configured full run and final rerun with
+`MOVE_CONFIRMATION_FIXTURE=1` passed. These were test setup errors, not weakened tests.
+
+`audit043_test.py` runs in Python CI and covers preview/start lock separation,
+token-only cached paging, stale/expired plans, per-item batch skips, bookmark default
+ordering, opt-in review counts, shared size policy and complete Index coverage.
+Its four version-answer tests cover cached paging and uncached confirmation for both
+answers; stale confirmations return 409. The unchanged main reproduction accepted
+both stale confirmations with 202. After the watermark fix, the focused
+`audit043_test`, `transfer_preview_test`, `earlier_versions_test` and
+`move_confirmation_test` run passed 44 tests. The earlier-versions, transfer-preview
+and Move browser checks passed again against that fix. Its two split tests cover the
+other way the hold changes after a preview: a Library edit that splits off an earlier
+version invalidates cached paging and uncached confirmation alike.
+
+Manual acceptance of the Index notice/action is tracked as
+[A1](../docs/manual-validation.md#audit-043-preview-index); EV1–EV5 remain accepted.
+
+
 `transfer_preview_test.py` covers actual date/Undated paths, source scoping, duplicate
 and Rejects treatment, paged results, read-only previews, API/engine stale-state
 checks, idempotent submission and XMP-primary filing against verified delivery.

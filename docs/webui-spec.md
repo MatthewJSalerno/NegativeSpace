@@ -250,15 +250,17 @@ keep its warnings and confirmation buttons. These are proposed destinations, not
 completed operations; actual outcomes belong in the job log. Apply the same
 selection counts and stale-preview safeguards used by other confirmed actions.
 
-**The preview names the Index it is based on** (decided 2026-10-25; not built). A
+**The preview names the Index it is based on** (decided 2026-10-25; built). A
 confirmed Copy/Move acts on the previewed photos and does not read the source again
 (`api-spec.md`, the freeze rule), so photos added or originals removed since the last
-Index are not seen. At the top of every Copy/Move preview, in normal text, show:
-"Based on the Index from **14 Oct, 9:02 AM** (3 days ago). Photos added to the source
-since then aren't included." — always, not only when the Index is old. A folder's
-Copy/Move uses that folder's own last-indexed time (§2) and names the folder. Beside it,
-**Index source** (or **Index this folder**) starts that Index on request, closing the
-preview; it never starts by itself.
+Index are not seen; transfer verification still checks the files it acts on. At the top
+of every Copy/Move preview, in normal text, show: "Based on the Index from **14 Oct,
+9:02 AM** (3 days ago). Photos added to the source since then aren't included." —
+always, not only when the Index is old. A folder's Copy/Move uses that folder's own
+last-indexed time (§2) and names the folder. Beside it, **Index source** (or **Index this
+folder**) starts that Index on request, closing the preview after acceptance; it never
+starts by itself. With no recorded complete Index for this scope, it says so instead of
+inventing a time (Read: `webui/frontend/src/components/Confirm.tsx:97`).
 
 **Downloadable operation plan — deferred for discussion (2026-10-24):** do not build
 or offer a CSV download with the folder preview. Revisit only after every other
