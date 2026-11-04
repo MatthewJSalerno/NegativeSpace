@@ -27,6 +27,7 @@ import { TypesPanel, typeLabel } from "./TypesPanel";
 import { FoldersPanel, folderLabel, shownFolder } from "./FoldersPanel";
 import { SelectMenu } from "./SelectMenu";
 import { usePaged } from "../paged";
+import { CheckLibraryDialog } from "./CheckLibraryDialog";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./Confirm";
 import { Tip } from "./Tip";
 import { SetsDiagram } from "./SetsDiagram";
@@ -47,7 +48,7 @@ const SCRUBBER = 48;
 const SOURCE_TREE = 300;
 const VIEW_LABEL: Record<View, string> = { all: "Search results", unorganized: "Not organized", organized: "Library", similar: "Has similar photos", suspicious: "Suspicious dates", rejects: "Rejects", review: "Needs review", source: "Everything still in the source" };
 const PLACE_VIEWS: View[] = ["unorganized", "organized", "review", "rejects", "similar"];
-const REASON_KEYS = ["small", "later", "issues", "attention", "date"];
+const REASON_KEYS = ["small", "later", "issues", "library", "attention", "date"];
 const filterApplies = (key: string, view: string) => key === "attention" ? view === "unorganized" : view === "organized" || view === "review";
 // The review bar's words for each job a selection can be reviewed for.
 // Why a review left selected photos out: what each action takes (catalog.ACTION_STATUSES).
@@ -96,7 +97,7 @@ function readUrl(hasLibrary = true) {
   const p = new URLSearchParams(window.location.search);
   const legacy = (p.get("view") || savedPlace(hasLibrary)) as View;
   const target = legacy === "similar" ? "organized" : legacy === "suspicious" ? "organized" : legacy || savedPlace(hasLibrary);
-  const view = target === "organized" && ["small","later","issues","date"].includes(p.get("reason") ?? "") ? "review" : target;
+  const view = target === "organized" && ["small","later","issues","library","date"].includes(p.get("reason") ?? "") ? "review" : target;
   const matchPage = Number(p.get("match_page"));
   const reason = p.get("reason") ?? "all";
   const similar = (view === "organized" || view === "review" || view === "all") && (legacy === "similar" || p.get("similar") === "1");
@@ -264,6 +265,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [place, setPlace] = useState<Place | null>(null);
   useEffect(() => { if (selected.size === 0) setPlace(null); }, [selected]);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
+  const [checking, setChecking] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   useNavigation(() => {
     if (window.location.pathname !== "/") return;
@@ -991,7 +993,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                        folder: folderShown ? { name: folderLabel(folderShown.path), eligible: folderShown.eligible } : null,
                        folders: folders.length }}
               onIndex={start("index")}
-              onTransfer={(mode, scope) => (scope === "folder" ? askFolder(mode) : askTransfer(mode))} />}
+              onTransfer={(mode, scope) => (scope === "folder" ? askFolder(mode) : askTransfer(mode))}
+              onCheck={() => setChecking(true)} />}
       selection={selected.size > 0 ? (
         <SelectionBar reviewActions={<BulkReviewActions ids={[...selected]} counts={reviewCounts} disabled={jobRunning}
                       reason={bulkReason}
@@ -1024,7 +1027,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             {!focus && <h2>{sourceTree && folderShown ? folderLabel(folderShown.path) : sourceTree ? "Source folders" : similar ? "Similar photos" : view === "review" ? "Library" : VIEW_LABEL[view]}</h2>}
             {!focus && sourceTree && folderShown && <span className="folder-indexed" title={indexedExact(folderShown.last_indexed)}>{lastIndexed(folderShown.last_indexed)}</span>}
             {!focus && (otherNames || !!sourceSummary || undated || dates.length > 0 || types.length > 0 || (folders.length > 0 && !sourceTree) || !!q || similar || suspicious || reason !== "all" || sizeBelow != null) && <p className="section-note">
-              {[otherNames && "Has other names", sourceSummary && SOURCE_SUMMARY_LABELS[sourceSummary], sizeBelow != null && `Shorter side below ${sizeBelow} pixels`, similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No usable capture date", reason === "small" && "Small images", reason === "date" && "Suspicious-date review", reason === "later" && "Bookmarked", reason === "issues" && "Files needing verification", reason === "attention" && "Needs attention", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
+              {[otherNames && "Has other names", sourceSummary && SOURCE_SUMMARY_LABELS[sourceSummary], sizeBelow != null && `Shorter side below ${sizeBelow} pixels`, similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No usable capture date", reason === "small" && "Small images", reason === "date" && "Suspicious-date review", reason === "later" && "Bookmarked", reason === "issues" && "Files needing verification", reason === "library" && "Library check findings", reason === "attention" && "Needs attention", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
             </p>}
             <span className="gallery-tools">
               <FiltersButton active={filtersActive + (otherNames ? 1 : 0)} open={filtersOpen && !focus} onOpen={setFiltersOpen} disabled={!!focus}>
@@ -1065,6 +1068,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               <option value="date">Suspicious dates ({data?.reasons?.date ?? "—"})</option>
               <option value="later">Bookmarked ({data?.reasons?.later ?? "—"})</option>
               {((data?.reasons?.issues ?? 0) > 0 || reason === "issues") && <option value="issues">Needs verification ({data?.reasons?.issues ?? "—"})</option>}
+              {((data?.reasons?.library ?? 0) > 0 || reason === "library") && <option value="library">Library check ({data?.reasons?.library ?? "—"})</option>}
             </select></label>}
             <button className="link" style={{visibility: hasFilters ? "visible" : "hidden"}} onClick={clearFilters}>Clear all filters</button>
           </div>}
@@ -1257,7 +1261,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                     <button key={v} onClick={() => { setSimilar(false); setSuspicious(false); setUndated(false); setDates([]); setTypes([]); setFolders([]); setReason("all"); navigate(`/?view=${v}&q=${encodeURIComponent(q)}`); }}>{count(data.elsewhere?.[v] ?? 0)} matches in {VIEW_LABEL[v]}</button>
                   ))}
                 </>
-              ) : view === "organized" && data.counts.organized === 0 ? <><h2>No photos organized yet</h2><p>Copy or move your indexed photos into Library.</p><button onClick={() => chooseView("unorganized")}>Go to Not organized</button></> : view === "unorganized" && data.counts.unorganized === 0 ? <><h2>No photos waiting to be organized</h2>{data.counts.organized > 0 && <><p>Your organized photos are in Library.</p><button className="primary" onClick={() => chooseView("organized")}>Go to Library</button></>}</> : reason === "issues" ? <p>No photos need verification in this view. Clear the refinement to see other photos.</p> : reason === "attention" ? <p>No source files need attention in this view. Clear the refinement to see other files.</p> : <p>Nothing in this view.</p>}
+              ) : view === "organized" && data.counts.organized === 0 ? <><h2>No photos organized yet</h2><p>Copy or move your indexed photos into Library.</p><button onClick={() => chooseView("unorganized")}>Go to Not organized</button></> : view === "unorganized" && data.counts.unorganized === 0 ? <><h2>No photos waiting to be organized</h2>{data.counts.organized > 0 && <><p>Your organized photos are in Library.</p><button className="primary" onClick={() => chooseView("organized")}>Go to Library</button></>}</> : reason === "issues" ? <p>No photos need verification in this view. Clear the refinement to see other photos.</p> : reason === "library" ? <p>No Library check findings in this view. Clear the refinement to see other photos.</p> : reason === "attention" ? <p>No source files need attention in this view. Clear the refinement to see other files.</p> : <p>Nothing in this view.</p>}
             </div>
           )}
           {list.meta && list.meta.total > 0 && (
@@ -1325,6 +1329,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           setPage(1); setRefreshKey(n => n + 1); setNotice(message);
         }} />}
       {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
+      {checking && <CheckLibraryDialog onClose={() => setChecking(false)} />}
     </AppFrame>
   );
 }

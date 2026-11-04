@@ -4666,8 +4666,9 @@ def a_destination_check_reports_what_is_not_intact_and_changes_nothing():
     quick = _check_findings(case)
     check({("b.jpg", "missing"), (a_name, "changed")} <= quick and ("c.jpg", "changed") not in quick,
           f"quick findings for catalogued copies: {quick}")
-    check({("a_again.jpg", "unknown"), ("x1.jpg", "unknown"), ("x2.jpg", "unknown")} <= quick
-          and not any(n == "notes.txt" for n, _ in quick),
+    # A file of a type the run does not select is listed too, named by its content
+    # (webui-spec 7.6), but never read in full.
+    check({("a_again.jpg", "unknown"), ("x1.jpg", "unknown"), ("x2.jpg", "unknown"), ("notes.txt", "unknown")} <= quick,
           f"quick findings for files the catalog did not put there: {quick}")
 
     run_engine(case, "--check-destination", "full")
@@ -4675,8 +4676,8 @@ def a_destination_check_reports_what_is_not_intact_and_changes_nothing():
     check(full == quick | {("c.jpg", "changed")},
           f"full must add the same-size edit quick cannot see: {full - quick}")
     p = _progress(case)
-    check([r["phase"] for r in p] == ["discovering", "checking_destination"] and p[-1]["total"] == 6
-          and p[-1]["counts"] == {"missing": 1, "changed": 2, "unknown": 3},
+    check([r["phase"] for r in p] == ["discovering", "checking_destination"] and p[-1]["total"] == 7
+          and p[-1]["counts"] == {"missing": 1, "changed": 2, "unknown": 4},
           f"full check progress: {p}")
 
     from engine import ns_db as ns
@@ -4702,6 +4703,112 @@ def a_destination_check_reports_what_is_not_intact_and_changes_nothing():
     with open(case / "appdata" / "engine.lock", "a") as held:
         fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
         run_engine(case, "--check-destination", "quick", expect_rc=1)
+
+
+@test
+def check_library_names_files_by_content_and_finds_where_missing_photos_went():
+    """
+    engine-spec 9.2, webui-spec 7.6. With no library folder the check stops, recording
+    no findings. A missing photo's content is looked for elsewhere in the library, in
+    Rejects and in the source; one found nowhere is lost. A whole folder moved is one
+    finding naming where it went. A changed file is told apart as an edit or a different
+    picture. Unknown files are named by their content, not their extension; other
+    programs' housekeeping and sidecars are only counted. The Library check reason
+    covers exactly the photos with a finding. Nothing is changed.
+    """
+    from engine import library_check, review
+    from engine import ns_db as ns
+    case = new_case("check_library")
+    seeds = {"a": "01", "b": "01", "c": "01", "d": "01", "e": "02", "f": "02", "g": "03", "h": "03", "k": "04"}
+    for name, day in seeds.items():
+        make_photo(case / "src" / f"{name}.jpg", f"lib-{name}", date=f"2020:03:{day} 10:00:00")
+    run_engine(case)
+    run_engine(case, "--copy")
+    library = case / "dest" / "library"
+    placed = {Path(r["source_path"]).stem: (r["id"], Path(r["dest_path"]))
+              for r in rows(case, "SELECT id, source_path, dest_path FROM photos")}
+    before = rows(case, "SELECT id, status, dest_path, sha1_hash FROM photos ORDER BY id")
+
+    gone = library.rename(case / "dest" / "unplugged")
+    run_engine(case, "--check-destination", "quick", expect_rc=1)
+    run = rows(case, "SELECT r.id, r.status, c.stopped FROM runs r JOIN library_checks c ON c.run_id=r.id "
+                     "ORDER BY r.id DESC LIMIT 1")[0]
+    check((run["status"], run["stopped"]) == ("Failed", "library_missing") and _check_findings(case) == set(),
+          f"a missing library folder was checked: {run}, {_check_findings(case)}")
+    gone.rename(library)
+
+    a, b, c, d = (placed[n][1] for n in "abcd")
+    elsewhere = library / "sorted by hand"
+    elsewhere.mkdir()
+    a.rename(elsewhere / "a.jpg")                                           # moved within the library
+    (case / "dest" / "rejects").mkdir(exist_ok=True)
+    b.rename(case / "dest" / "rejects" / "b.jpg")                           # put in Rejects by hand
+    c.unlink()                                                              # the source still has it
+    d.unlink(); (case / "src" / "d.jpg").unlink()                           # no copy anywhere
+    day = placed["e"][1].parent
+    day.rename(day.with_name(day.name + " trip"))                           # a whole folder renamed
+    make_photo(placed["g"][1], "a different picture", noise=True)           # replaced under its name
+    with open(placed["h"][1], "ab") as f:                                   # edited, same picture
+        f.write(b"edited")
+    extra = library / "extra"
+    extra.mkdir()
+    shutil.copyfile(placed["k"][1], extra / "k copy.jpg")
+    make_photo(extra / "new.jpg", "never catalogued")
+    (extra / "new.xmp").write_text("<x:xmpmeta/>")
+    shutil.copyfile(placed["k"][1], extra / "photo.dat")
+    (extra / "empty.jpg").write_bytes(b"")
+    (extra / "broken.jpg").write_text("not a picture")
+    (extra / "notes.txt").write_text("text")
+    (extra / "README").write_text("text")
+    (extra / "@eaDir" / "new.jpg").mkdir(parents=True)
+    make_photo(extra / "@eaDir" / "new.jpg" / "SYNOPHOTO_THUMB_M.jpg", "nas thumbnail")
+    (extra / ".DS_Store").write_bytes(b"\0")
+    shutil.copyfile(placed["k"][1], extra / "._new.jpg")
+    (extra / "Thumbs.db").write_bytes(b"\0")
+
+    run_engine(case, "--check-destination", "quick")
+    run_id = rows(case, "SELECT MAX(run_id) m FROM library_checks")[0]["m"]
+    found = {Path(r["path"]).name: dict(r) for r in rows(case, "SELECT * FROM destination_findings WHERE run_id=?", (run_id,))}
+    where = {n: (found[n]["found_in"], found[n]["found_path"] and Path(found[n]["found_path"]).relative_to(case).as_posix())
+             for n in ("a.jpg", "b.jpg", "c.jpg", "d.jpg")}
+    check(where == {"a.jpg": ("library", "dest/library/sorted by hand/a.jpg"), "b.jpg": ("rejects", "dest/rejects/b.jpg"),
+                    "c.jpg": ("source", "src/c.jpg"), "d.jpg": (None, None)},
+          f"where missing photos' content was found: {where}")
+    check((found["g.jpg"]["kind"], found["g.jpg"]["look"], found["h.jpg"]["kind"], found["h.jpg"]["look"])
+          == ("changed", "different", "changed", "alike"), f"edits and replacements: {found['g.jpg']}, {found['h.jpg']}")
+    kinds = {n: found[n]["file_kind"] for n in ("k copy.jpg", "new.jpg", "photo.dat", "empty.jpg", "broken.jpg",
+                                               "notes.txt", "README")}
+    check(kinds == {"k copy.jpg": "photo", "new.jpg": "photo", "photo.dat": "wrong_extension", "empty.jpg": "empty",
+                    "broken.jpg": "damaged", "notes.txt": "other_type", "README": "unrecognised"}
+          and found["photo.dat"]["signature"] == "jpeg" and found["photo.dat"]["observed_sha1"] == found["k copy.jpg"]["observed_sha1"]
+          and found["notes.txt"]["observed_sha1"] is None,
+          f"unknown files by content: {kinds}")
+    check(not {"new.xmp", "SYNOPHOTO_THUMB_M.jpg", ".DS_Store", "._new.jpg", "Thumbs.db"} & set(found),
+          f"housekeeping or a sidecar was reported: {set(found)}")
+
+    conn = db(case)
+    try:
+        report = library_check.report(conn, run_id)
+        flagged = {r[0] for r in conn.execute(f"SELECT p.id FROM photos p WHERE {review.predicate('library')}")}
+    finally:
+        conn.close()
+    check((report["housekeeping"], report["sidecars"]) == ({"synology": 1, "macos": 2, "windows": 1}, 1),
+          f"other programs' files: {report['housekeeping']}, sidecars {report['sidecars']}")
+    folder = Path(day).relative_to(library).as_posix()
+    check(report["folders"] == [{"folder": folder, "photos": 2, "moved_to": folder + " trip", "tone": "warn", "lost": 0}],
+          f"the renamed folder was not one finding: {report['folders']}")
+    by_path = {Path(f["path"]).relative_to(library).as_posix(): f for f in report["findings"]}
+    moved_a = by_path["sorted by hand/a.jpg"]
+    check((by_path[d.relative_to(library).as_posix()]["tone"], by_path[a.relative_to(library).as_posix()]["finding"],
+           moved_a["finding"], moved_a["photo_id"], by_path["extra/k copy.jpg"]["finding"],
+           by_path["extra/k copy.jpg"]["photo_id"], by_path["extra/notes.txt"]["tone"])
+          == ("bad", "moved", "moved_here", placed["a"][0], "extra_copy", placed["k"][0], "quiet"),
+          f"how findings read: {[(n, f['finding'], f['tone']) for n, f in by_path.items()]}")
+    check((report["tone"], report["lost"], report["damaged"]) == ("bad", 1, 0) and report["other_types"] == {".txt": 1, "(none)": 1},
+          f"the check's summary: {({k: report[k] for k in ('tone', 'lost', 'damaged', 'attention', 'other_types')})}")
+    check(flagged == {placed[n][0] for n in "abcdefgh"}, f"the Library check reason covers {flagged}")
+    check(rows(case, "SELECT id, status, dest_path, sha1_hash FROM photos ORDER BY id") == before,
+          "a library check changed the catalog's photos")
 
 
 def _engine_json(case, *args, expect_rc=0):

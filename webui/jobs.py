@@ -52,6 +52,10 @@ BACKUP_TIMEOUT_SECONDS = 600
 CLEAR_PREVIEWS_TIMEOUT_SECONDS = 600
 
 
+# Check library's depths as the screen names them, and as the engine does.
+CHECK_DEPTHS = {'quick': 'quick', 'thorough': 'full'}
+
+
 class JobRefused(Exception):
     """A job that was not started, with an HTTP status and a body for the client."""
 
@@ -478,6 +482,18 @@ class JobRunner:
         with self._start_lock:
             return self._launch(flags,request_id)
 
+    def check_library(self, depth, request_id=None):
+        """Check library (webui-spec 7.6) as a job: 'quick' or 'thorough', which the engine
+        calls full. Read only; it takes the engine lock like any job."""
+        validate_request_id(request_id)
+        if depth not in CHECK_DEPTHS:
+            raise JobRefused(400, {'error': 'invalid_request', 'message': 'Choose a quick or a thorough check.'})
+        status = catalog.status(self.cfg.db_path)
+        if status['state'] != 'ok':
+            raise JobRefused(409, {'error': f"catalog_{status['state']}", 'message': status['detail']})
+        with self._start_lock:
+            return self._launch(['--check-destination', CHECK_DEPTHS[depth]], request_id)
+
     def rebuild_thumbnails(self, scope, request_id=None):
         """--rebuild-thumbnails as a job (webui-spec 4.2.1): 'missing' repairs, 'all'
         regenerates every grid thumbnail. It takes the engine lock like any job."""
@@ -609,6 +625,9 @@ class JobRunner:
         if '--rebuild-thumbnails' in flags:
             expected = {'mode': 'REBUILD', 'source': None, 'destination': None, 'targeting': None, 'overrides': {},
                         'submitted': {'scope': argument('--rebuild-thumbnails'), 'cache': str(self.cfg.cache.resolve())}}
+        if '--check-destination' in flags:
+            expected = {'mode': 'CHECK', 'source': None, 'destination': None, 'targeting': None, 'overrides': {},
+                        'submitted': {'depth': argument('--check-destination'), 'dest': str(self.cfg.dest.resolve())}}
         if '--check-issue' in flags:
             expected = {'mode':'CHECK','source':None,'destination':None,'targeting':None,'overrides':{},
                         'submitted':{'issue_id':int(argument('--check-issue')),

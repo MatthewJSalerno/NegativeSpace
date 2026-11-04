@@ -6,7 +6,7 @@ import posixpath
 from pathlib import Path
 from typing import Optional
 
-from engine import earlier_versions, index_history, ns_db, review, review_batch, review_history, attention, metadata_choices
+from engine import earlier_versions, index_history, library_check, ns_db, review, review_batch, review_history, attention, metadata_choices
 from engine import ns_similarity_cache
 from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
 from . import photo_orientation, catalog, metadata_view, card_names, discovery
@@ -234,6 +234,7 @@ def _review_cards(conn, rows):
         ({review.predicate('date')}) AS date_review,
         ({review.predicate('later')}) AS later,
         ({review.predicate('issues')}) AS issues,
+        ({review.predicate('library')}) AS library,
         (SELECT e.note FROM review_events e WHERE e.photo_id=p.id AND e.reason='later'
          ORDER BY e.id DESC LIMIT 1) AS note,
         (SELECT json_extract(e.payload,'$.bookmark_reason') FROM review_events e WHERE e.photo_id=p.id AND e.reason='later' AND e.action='later' ORDER BY e.id DESC LIMIT 1) AS bookmark_reason
@@ -253,6 +254,10 @@ def _review_cards(conn, rows):
                 'message': row['note'] or '', 'bookmark_reason': row['bookmark_reason'] or 'date'})
         if row['issues']:
             reasons.append({'reason':'issues','label':'File needs checking','message':'An operation could not be verified.'})
+        if row['library']:
+            found = library_check.photo_reason(conn, row['id'])
+            reasons.append({'reason': 'library', 'label': 'Library check', 'tone': found['tone'],
+                            'message': found['what'], 'todo': found['todo'], 'run_id': found['run_id']})
         cards[row['id']] = {'reasons': reasons, 'location':
             'Library' if row['status'] in catalog.DELIVERED else
             'Rejects' if row['status'] in IN_REJECTS_STATUSES else 'Not organized'}
@@ -356,7 +361,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
     run_sql, run_params = _run_clause(run)
     def count_filters(key):
         # Refinements combine. Reason choices replace only the exclusive reason.
-        target = key if key in ('small', 'later', 'issues', 'attention') else reason
+        target = key if key in ('small', 'later', 'issues', 'library', 'attention') else reason
         sql, values = _filters(q, key == 'undated' or undated, dates, types, folders, root,
                         match_min=match_min, similar=key == 'similar' or similar,
                         suspicious=key == 'suspicious' or suspicious, reason=target,
@@ -390,12 +395,12 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
         # Evaluate each reason once per eligible photo. A reason implies review
         # membership, so evaluating the whole review predicate again is redundant.
         reasons = {}
-        reason_keys = ('all', 'issues', *review.REASONS) if view in ('review', 'organized', 'similar') else ('later',) if view == 'job' else ()
+        reason_keys = ('all', *review.FINDING_REASONS, *review.REASONS) if view in ('review', 'organized', 'similar') else ('later',) if view == 'job' else ()
         if reason_keys:
             extra, values = _filters(q, undated, dates, types, folders, root, match_min=match_min,
                 similar=similar, suspicious=suspicious, run=run, size_below=size_below, source_summary=source_summary, other_names=other_names, set_reference=set_reference)
             scope = _view_clause('organized' if view == 'review' else view, match_min)
-            flags = ('issues', *review.REASONS) if 'all' in reason_keys else reason_keys
+            flags = (*review.FINDING_REASONS, *review.REASONS) if 'all' in reason_keys else reason_keys
             columns = ', '.join(f"COALESCE(({review.predicate(key)}),0) AS {key}" for key in flags)
             sums = ', '.join(f"COALESCE(SUM({(' OR '.join(flags)) if key == 'all' else key}),0) AS \"{key}\"" for key in reason_keys)
             reasons = dict(conn.execute(f"WITH reason_flags AS MATERIALIZED (SELECT {columns} "

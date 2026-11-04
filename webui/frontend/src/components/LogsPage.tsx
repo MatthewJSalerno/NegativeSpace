@@ -1,4 +1,5 @@
 import { DiscoverySummary } from "./DiscoverySummary";
+import { LibraryCheckFindings } from "./LibraryCheckFindings";
 import { MetadataHistory } from "./MetadataHistory";
 import { FileLocations } from "./ui/FileLocations";
 import { FileIssues } from "./FileIssues";
@@ -345,7 +346,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
                     <span className="muted">{instant(run.started_at)}</span>
                   </span>
                   <span className="job-detail" title={reasonsText(run.outcome) ?? undefined}>{s?.detail}</span>
-                  <span className="job-count">{plural(matches, "entry", "entries")}</span>
+                  <span className="job-count">{run.library_check ? plural(run.library_check.found, "finding") : plural(matches, "entry", "entries")}</span>
                 </button>
                 {open && (
                   <JobEntries run={run} filters={apiFilters} refreshKey={refreshKey} activePhoto={filters.photo} indexButton={indexButton}
@@ -390,6 +391,8 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
     return () => observer.disconnect();
   }, [list.last, list.load, hasMore]);
 
+  // A library check records findings, not operations (webui-spec 7.6).
+  if (run.library_check) return <div className="job-body"><LibraryCheckFindings runId={run.id} refreshKey={refreshKey} /></div>;
   if (error) return <p className="error job-body">{error}</p>;
   if (!data) return <p className="muted job-body">Loading…</p>;
   const failed = data.status_counts.Failed ?? 0;

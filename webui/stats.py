@@ -175,8 +175,9 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
             (PhotoStatus.COPIED, PhotoStatus.COMPLETED)).fetchall())
         conn.row_factory = None
         cache = [{"size": s, "photos": n, "bytes": b} for s, n, b in ns_db.thumbnail_cache_totals(conn)]
-        check = conn.execute("SELECT id, started_at FROM runs WHERE mode = 'CHECK' AND status = ? ORDER BY id DESC LIMIT 1",
-                             (RunStatus.COMPLETED,)).fetchone()
+        # A library check, never a file issue check, which shares the CHECK mode.
+        check = conn.execute("SELECT r.id, r.started_at FROM runs r JOIN library_checks c ON c.run_id = r.id "
+                             "WHERE r.status = ? ORDER BY r.id DESC LIMIT 1", (RunStatus.COMPLETED,)).fetchone()
         rejects = catalog.rejects_summary(conn)
         findings = dict(conn.execute("SELECT kind, COUNT(*) FROM destination_findings WHERE run_id = ? GROUP BY kind",
                                      (check[0],)).fetchall()) if check else {}

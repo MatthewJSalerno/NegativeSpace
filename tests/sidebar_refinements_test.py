@@ -93,15 +93,15 @@ class SidebarRefinements(webui_api_test.ApiCase):
             for reason in ('all', 'small', 'later', 'issues', 'date'):
                 with self.subTest(view=view, reason=reason):
                     listing = self.photos(view=view, reason=reason)
-                    self.assertEqual(listing['reasons'], {'all':2, 'small':2, 'later':1, 'issues':1, 'date':1})
+                    self.assertEqual(listing['reasons'], {'all':2, 'small':2, 'later':1, 'issues':1, 'library':0, 'date':1})
                     self.assertEqual(listing['chips']['small'], 2)
                     if reason in ('later', 'issues'):
                         self.assertEqual([p['id'] for p in listing['items']], [pid])
                     filtered = self.photos(view=view, reason=reason, suspicious=True, types='jpg')
-                    self.assertEqual(filtered['reasons'], {'all':1, 'small':1, 'later':0, 'issues':0, 'date':1})
+                    self.assertEqual(filtered['reasons'], {'all':1, 'small':1, 'later':0, 'issues':0, 'library':0, 'date':1})
                     self.assertEqual(filtered['total'], 0 if reason in ('later', 'issues') else 1)
                     self.assertEqual(self.photos(view=view, reason=reason, q='absent')['reasons'],
-                                     {'all':0, 'small':0, 'later':0, 'issues':0, 'date':0})
+                                     {'all':0, 'small':0, 'later':0, 'issues':0, 'library':0, 'date':0})
         self.assertEqual(self.photos(view='job', run=self.copied)['reasons'], {'later':1})
 
     def test_bad_filters_are_refused_and_place_totals_do_not_follow_filters(self):

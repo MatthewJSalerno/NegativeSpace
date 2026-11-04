@@ -3,6 +3,7 @@ import { api, savedMatchMinimum, type PlaceView, type Places, type Status } from
 import { count } from "../format";
 import { follow } from "../nav";
 import { VersionTag } from "./VersionTag";
+import { LibraryStatus } from "./LibraryStatus";
 
 export interface SidebarCurrent { place?: PlaceView | null; sourceFolders?: boolean; page?: "logs" | "stats" }
 const PLACES: { view: PlaceView; label: string; href: string }[] = [
@@ -45,6 +46,7 @@ export function Sidebar({ current, version, matchMin, refresh, onNavigate }: {
       <h2 className="sidebar-heading">Activity</h2>
       <a href="/logs" aria-current={current.page === "logs" ? "page" : undefined} onClick={go}>Logs</a>
       <a href="/stats" aria-current={current.page === "stats" ? "page" : undefined} onClick={go}>Stats</a>
+      <LibraryStatus refresh={refresh} onNavigate={onNavigate} />
       <div className="sidebar-foot"><VersionTag version={version} /></div>
     </div>
   </nav>;

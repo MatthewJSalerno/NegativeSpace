@@ -170,7 +170,8 @@ export interface BulkReviewPlan {
 export interface BulkReviewResult { saved: number[]; skipped: { photo_id: number; message: string }[] }
 
 export interface ReviewDetail {
-  reasons: { reason: string; label: string; message: string; bookmark_reason?: string }[];
+  reasons: { reason: string; label: string; message: string; bookmark_reason?: string;
+             tone?: "warn" | "bad"; todo?: string | null; run_id?: number }[];
   history: { id: number; reason: string; action: string; note: string; created_at: string; bookmark_reason?: string; cause?: string; date_taken?: string; run_id?: number }[];
   date_taken: string | null; date_confirmed: boolean; date_warning: string | null; date_message: string;
   revision: number; sha1: string | null; location: string;
@@ -398,6 +399,27 @@ export interface Run {
   cancellable?: boolean;
   unrecorded?: boolean;
   backup_stage?: "post_job" | "manual";
+  library_check?: LibraryCheck;
+}
+
+// One Check library (webui-spec 7.6), as GET /library-check and a run's library_check give it.
+export interface LibraryCheck {
+  run_id: number; depth: "quick" | "full"; stopped: "library_missing" | null; status: string;
+  started_at: string; ended_at: string | null; intact: number;
+  progress: { done: number; total: number | null } | null;
+  lost: number; damaged: number; attention: number; found: number; tone: "plain" | "warn" | "bad";
+  folders: { folder: string; photos: number; moved_to: string | null; tone: "warn" | "bad"; lost: number }[];
+  housekeeping: Record<string, number>; sidecars: number; other_types: Record<string, number>;
+}
+export interface LibraryFinding {
+  path: string; relative: string; kind: string; finding: string; tone: "bad" | "warn" | "quiet";
+  what: string; todo: string | null; photo_id: number | null; folder: string | null;
+  size: number | null; checksum: string | null; found_in: string | null; found_path: string | null;
+}
+export interface LibraryStatus {
+  source: { run_id: number; at: string } | null;
+  latest: LibraryCheck | null;
+  result: LibraryCheck | null;
 }
 
 export interface BackupStatus {
@@ -907,6 +929,12 @@ export const api = {
   backupDownloadUrl: (id: number) => `/api/v1/backups/${id}/download`,
   thumbnails: () => request<ThumbnailCache>("GET", "/api/v1/thumbnails"),
   rebuildThumbnails: (scope: "missing" | "all") => submitJob("/api/v1/thumbnails/rebuild", { scope }),
+  checkLibrary: (depth: "quick" | "thorough") => submitJob("/api/v1/jobs/check-library", { depth }),
+  libraryStatus: () => request<LibraryStatus>("GET", "/api/v1/library-check"),
+  libraryFindings: (run: number, page: number, pageSize: number) =>
+    request<LibraryCheck & { total: number; page: number; findings: LibraryFinding[] }>(
+      "GET", `/api/v1/library-check/${run}?page=${page}&page_size=${pageSize}`),
+  libraryExportUrl: (run: number, format: "csv" | "json") => `/api/v1/library-check/${run}/export?format=${format}`,
   clearPreviews: () => request<PreviewsFreed>("POST", "/api/v1/thumbnails/clear-previews"),
   stats: () => request<Stats>("GET", "/api/v1/stats"),
   uiState: () => request<{ dismissed_run: number | null }>("GET", "/api/v1/ui-state"),

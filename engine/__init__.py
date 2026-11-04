@@ -7,7 +7,8 @@ Package layout, by area: cli (arguments and the job each mode runs), scan (Index
 transfer (Copy and Move), transfer_preview (read-only destination folders and stale-state guards), relocate (Rename, Reject, Return to library), reconcile
 (settling interrupted work at the start of every job), durable (copy-verify-delete and
 the fsync steps), store (catalog writes), fileinfo (dates, metadata, hashes), thumbnails,
-destinations, targeting (which photos a run acts on), jobs, maintenance, backups,
+destinations, targeting (which photos a run acts on), jobs, maintenance, library_check (Check library:
+the library walk, unknown files named by content, missing content located, the report), backups,
 runtime (shared run state), workers (cancellable read-only pools), constants and deps; ns_db (the catalog schema and its rules,
 shared with the web API), review (catalog-only review decisions), review_batch (bounded shared review answers), review_history (date confirmations and automatic reason-clearing history), earlier_versions (source files an edit replaced: links, holds and answers), attention (explicit
 read-only checks of uncertain file outcomes), metadata (source-aware resolution for the
@@ -153,8 +154,8 @@ default Index):
 - --backup-now: one manual catalog backup, under the engine lock.
 - --rebuild-thumbnails missing|all: a job that makes grid thumbnails from any
   catalogued copy, under the engine lock.
-- --check-destination quick|full: a read-only job that reports what under --dest
-  is missing, changed, unreadable or not put there by NegativeSpace.
+- --check-destination quick|full: Check library, a read-only job that reports what
+  under dest/library is missing, changed, unreadable or not put there by NegativeSpace.
 - --rename PHOTO_ID --name NAME [--dry-run] / --rename-candidates PHOTO_ID: give a
   delivered file a new name, or list the names its duplicate group carried.
   --rename-preview-token TOKEN binds confirmation to the unchanged dry-run result.

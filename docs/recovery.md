@@ -23,7 +23,7 @@ NegativeSpace keeps three things, and only one of them is protected by its own b
 | The power went out, or the container was killed, during a job | Everything. | Nothing: start it again. The next job records the interrupted one as Interrupted and settles each photo it left half done, keeping the original whenever it cannot prove the copy is good. |
 | The destination disk failed | After **Copy**: everything, because your originals were never touched. After **Move**: only what your own backups hold, because the originals were deleted once their copies were verified. | Restore the destination from your backups, or Copy again from the source. Then run an Index so the catalog sees what is there. |
 | Rejects was emptied by mistake | Nothing from NegativeSpace: it never deletes photos, and so never keeps them either. The photos' history is still in the catalog. | Restore the files from your own backups into the `rejects` folder, then run an Index. |
-| A photo was deleted or changed outside NegativeSpace | Only what your own backups hold. | Restore it from your backups; the next Index records what it finds. |
+| A photo was deleted or changed outside NegativeSpace | Only what your own backups hold. | **Jobs › Check library…** lists each photo missing, moved or changed in your library and where a copy remains. Restore it from your backups, then check the library again. |
 | The whole computer failed | Whatever your own backups hold. | Install NegativeSpace again, restore your destination and backup folders, then [restore the newest catalog backup](#restore-a-catalog-backup). |
 
 ## Restore a catalog backup

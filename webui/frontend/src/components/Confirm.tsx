@@ -94,7 +94,7 @@ export function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose:
   return (
     <Modal role="alertdialog" labelledBy="confirm-title" onClose={cancel} busy={busy}>
         <h2 id="confirm-title">{confirm.title}</h2>
-        {confirm.transfer && <div aria-label="Index used for preview">
+        {confirm.transfer && <section aria-label="Index used for preview">
           <p>{plan?.index_basis ? <>
             {plan.index_basis.indexed_at ? <>Based on the Index from <strong>{indexTime(plan.index_basis.indexed_at)}</strong> ({ago(plan.index_basis.indexed_at)})</>
               : <>No complete Index is recorded</>}
@@ -110,7 +110,7 @@ export function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose:
               finally { setBusy(false); }
             }}>{confirm.transfer.scope.source_subdir ? "Index this folder" : "Index source"}</button>
           </p>
-        </div>}
+        </section>}
         {confirm.body.map((line) => <p key={line}>{line}</p>)}
         {comparison?.last && <p className="reject-last">
           <strong>None of these photos would be left in the library.</strong>

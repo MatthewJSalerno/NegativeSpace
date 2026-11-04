@@ -2286,3 +2286,29 @@ whole-place, filtered, grouped-set and cross-place search count coverage. The un
 retention-preview and XMP primary-candidate helpers and helper-only assertions were
 removed with maintainer approval. Production retention and metadata-index/multiple-sidecar
 integration tests remain. `read_destination_check` stays for its specified workflow.
+
+## Check library
+
+`library_check_test.py` (Python CI) drives Check library through the web API on
+generated photos: a clean check reads as all as recorded and finished; a photo lost from
+the library and the source is a bad finding, a **Library check** review reason and an
+exported CSV and JSON row until a later check finds it again; a library folder that is not
+there stops the check with no findings and leaves the last result standing; and depths,
+fields, unknown checks, export formats and request-ID replay are validated. The engine
+smoke test `check_library_names_files_by_content_and_finds_where_missing_photos_went`
+covers the walk itself: the missing-library guard, missing content found in the library,
+Rejects or the source, a renamed folder as one finding, an edit told from a different
+picture, unknown files named by content, and housekeeping and sidecars only counted.
+
+`library_check_browser_drive.py` (browser CI) checks the dialog from the sidebar and from
+**Jobs**, the sidebar status in its plain and red states, the check's Logs entry with its
+findings, export links and finding count, the Reason switch and Inspector reason, the
+Copy/Move Index notice as a named region whose link keeps its sentence's line height, and
+200% text at 720 px. It writes to its generated destination, which the harness mounts for
+this driver only:
+
+```bash
+DRIVER=library_check_browser_drive.py sh tests/browser/webui_browser_test.sh
+```
+
+Manual acceptance: [CL1–CL2](../docs/manual-validation.md#check-library) passed.

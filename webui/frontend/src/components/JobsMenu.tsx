@@ -21,12 +21,13 @@ export interface JobsState {
 
 // The Jobs menu (webui-spec 4), on the Library page: the library-wide jobs. Index, and
 // Copy and Move each for the one folder the Folders tree shows or for every photo the
-// engine would take. Actions on ticked photos are the selection bar's. The counts are the
+// engine would take, then Check library (webui-spec 7.6), which opens its dialog. Actions on ticked photos are the selection bar's. The counts are the
 // whole catalog's (GET /status) or the folder's, never the gallery's current view or search.
-export function JobsMenu({ state, onIndex, onTransfer }: {
+export function JobsMenu({ state, onIndex, onTransfer, onCheck }: {
   state: JobsState;
   onIndex: () => void;
   onTransfer: (mode: ActionMode, scope: "folder" | "all") => void;
+  onCheck: () => void;
 }) {
   const busy = state.jobRunning ? "An operation is running. Wait for it and its catalog backup to finish." : null;
   const empty = state.noPhotos ? "Index your library first - NegativeSpace acts on indexed photos." : null;
@@ -66,6 +67,8 @@ export function JobsMenu({ state, onIndex, onTransfer }: {
           onClick: () => onTransfer(mode, "all") },
       ],
     })),
+    { label: "Check library…", hint: "Look for photos missing, moved, changed or damaged in the library. Nothing is changed.",
+      why: busy, onClick: onCheck },
   ];
   return <MenuButton label="Jobs" items={items} />;
 }
