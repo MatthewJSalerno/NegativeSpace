@@ -50,7 +50,8 @@ development until the maintainer decides.
 
 **Checking and maintenance**
 - Check library — built, CL1–CL2 passed (`docs/manual-validation.md`, Check library; `docs/webui-spec.md` §7.6)
-- 💬 Copied photos whose originals are still in the source are easy to miss: Not organized counts 0 and only Source folders › Still in source lists them (`docs/manual-validation.md`, Check library, CL1j observation)
+- Copied photos whose originals are still in the source: a note under Library, "N originals in source", opening Source folders › Still in source — decided 2026-11-04, not built (`docs/ui-design.md`, Page frame)
+- 💬 The user's own groupings of Library photos (a trip, an album) without breaking the date folders (`docs/webui-spec.md` §7.6)
 - Repair in place, its catalog-only answers (Stop warning about this among them), Add to catalog and Rebuild from the earlier version — decided, not built (`docs/engine-spec.md` §9.2, `docs/webui-spec.md` §7.6)
 - Import summary, and a filter for files that could not be previewed
 - Skip unreadable files at Index, counted by kind — decided, not built (`docs/engine-spec.md` §4.1)

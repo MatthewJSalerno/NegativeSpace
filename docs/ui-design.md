@@ -231,6 +231,12 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   all as recorded stays plain. *Why not a highlighted box:* at 12px in a 17rem column the
   box crowded its sentence and wrapped it mid-phrase (maintainer, 2026-11-04). It never
   starts a job: never checked, the Library row opens the **Check library** dialog.
+- **Originals in source** (decided 2026-11-04; not built): under **Library**, beside **to
+  review**, a note "N originals in source" while copied photos still have their originals
+  in the source, opening **Source folders › Still in source**, where **Move this folder…**
+  removes them. It sits under Library, not Not organized, because those photos are
+  organized already; Not organized counts only what waits for a copy. *Why not under
+  Source folders:* "Source folders" then "still in source" read as the same thing twice.
   On short windows or enlarged text the sidebar scrolls; the Activity links remain reachable.
   Places use real links, full visible labels and whole-place counts. Do not repeat an
   unfiltered place total above the gallery. Filtered results show Showing N of M;

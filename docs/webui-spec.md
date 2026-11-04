@@ -3005,18 +3005,80 @@ programs', which its operation records hold; that waits with the open sidecar TO
 
 **Answers for changes made on purpose**, beside Repair wherever it is offered; each
 changes only the catalog and is recorded in the photo's history (`engine-spec.md` §9.2):
-**Keep it here** (moved or renamed, a file or a whole folder), **I removed it** (missing),
+**I removed it** (missing),
 **Record as rejected** (found under `rejects/`), **Record as returned** (taken out of
 Rejects), **It's an edit of this photo** (a change too heavy to match as a look-alike), and
-**Stop warning about this** (an unknown file or folder, until it changes). Without them a
-library arranged the user's own way would warn forever.
+**Stop warning about this** (an unknown file or folder, until it changes).
+
+**A photo in the wrong folder has no "keep it here"** (decided 2026-11-04). The Library's
+folders are NegativeSpace's date layout, so the only ways out are **Move it back**, into
+the folder for its date, and **Edit date…**, when the folder is right and the date in the
+file is wrong; the date editor suggests the folder's date when its name is one. Doing
+neither leaves it a finding at every check. *Why not keep it:* a photo parked in a folder
+of its own breaks the layout that filing, Rename and the date tree rely on. Folders for
+the user's own groupings (a trip, an album) are a separate idea (`TODO.md`).
+
+**A file that is not a photo may stay** (confirmed 2026-11-04, under the stricter folder
+rule): it does not break the date layout, NegativeSpace never moves or deletes what it did
+not create, and **Stop warning about this** quiets it until it changes.
+
+**Whatever Repair keeps is filed by its date** (decided 2026-11-04), so no fix leaves the
+Library outside its layout. Each keeping fix names its destination in the preview:
+"Keep the new version: it moves to 2024/03/06" (the edit changed its date), "…to
+Undated/2024" (the edit left no date; **Edit date…** beside it), or "…it stays in
+2024/03/05". **Add to catalog** (step 3) follows the same rule. *Why still ask about an edit
+that looks alike:* unlike a rename, a change of content can be decay on disk, and
+recording it silently would make the damaged file the photo's record.
+
+**A missing photo with no copy found** offers **Index source** before anything else
+(decided 2026-11-04): "If the original is still somewhere in your source, Index source
+finds it; then check the library again." The check reads only the source paths the
+catalog records, so an original the user moved or renamed within the source is found by
+an Index. A thorough check would not help here: unknown Library files are read in full by
+either depth. **I removed it** comes last; it keeps every record of the photo, and the same
+content arriving later is joined to its history (`engine-spec.md` §9.2).
+
+**A rename the user made is kept, and recorded by the check itself** (decided 2026-11-04):
+the same content, by checksum, under a new name in the photo's own folder, with the old
+name gone. The check adds the new name to the photo's lineage and its photo information
+("Renamed outside NegativeSpace: found by Job #5, matched by checksum"), counts it in its
+results ("2 renames recorded"), and never offers to name it back. This is the one thing a
+check writes beyond its findings, and it touches no file. A file that is renamed and in
+the wrong folder keeps its new name when **Move it back** files it.
 
 **Repair…** is offered on the Library check reason (every photo it holds, or the ticked
-ones) and on one photo's Inspector. Its preview is the Copy/Move confirmation pattern:
-every planned change, grouped by kind with counts, each group offering its repair or its
-answer ("12 photos moved: ○ Move them back ○ Keep them where they are"), any of them can be
-unticked, and unknown files are named as untouched. It then runs as an ordinary job, which
-skips and reports any file that changed since the check.
+ones) and on one photo's Inspector (confirmed 2026-11-04). **Stop warning about this**, for
+a file that is not a photo, is on its row in the check's Logs entry. Repair's preview is
+the Copy/Move confirmation pattern: every planned change, grouped by kind with counts, each
+group offering its repair or its answer ("4 in the wrong folder → move back to
+2024/07/14"), any of them can be unticked, and unknown files are named as untouched. It
+then runs as an ordinary job, which skips and reports any file that changed since the
+check.
+
+**What Repair cannot fix is shown, never dropped** (decided 2026-11-04). A second group,
+"Can't be fixed here (nothing will be done)", lists each such photo with what the user can
+do: a missing photo with no copy (**Index source**, then check again) and an unreadable
+file (fix its permissions, then check again; a copy found elsewhere is named). The button
+counts only what it will fix ("Repair 6", not 9). **Show these files** lists the unreadable
+files with their reasons (permission denied, input/output error), as paths from the
+destination folder (`library/2024/03/02/cat-01.jpg`): the app's own path inside its
+container is not one the user can open. **Copy list** copies them one per line. The same
+files and reasons are in the check's Logs entry and its export. One photo's Inspector shows
+the advice and no **Repair…** when there is nothing it can fix.
+
+```
+Repair 9 photos?
+  Will be fixed
+    4 in the wrong folder → move back to 2024/07/14    [✓]
+    1 changed, looks the same → keep the new version   [✓]
+         (stays in 2023/12/31)
+    1 missing, copy in source → copy it back           [✓]
+  Can't be fixed here (nothing will be done)
+    1 missing, no copy found → Index source, then check again
+    2 can't be read → fix their permissions, then check again
+      ▸ Show these files
+                                       [Cancel] [Repair 6]
+```
 
 **A different picture under a photo's name** is told apart from an edit by look-alike
 matching (§7.4): *"A different picture is saved under this name. The photo NegativeSpace
@@ -3028,21 +3090,21 @@ that left the picture alone grouped with the fields they touched, and format con
 linked to their original (`engine-spec.md` §9.2).
 
 **Add to catalog…** is offered on an unknown file that is a photo. It records the file as a
-Library photo where it lies, without moving or rewriting it (`engine-spec.md` §9.2). If its
-date files it elsewhere, it becomes a moved finding: Repair offers to move it, and **Keep
-it here** leaves it where the user put it.
+Library photo, reading it as Index reads a source file, and files it by its date like Copy
+(`engine-spec.md` §9.2): into its date folder, or it stays when it is already there. The
+preview names where it goes. It never stays outside its date folder (2026-11-04 rule above).
 
-**A photo with no capture date** (no EXIF or XMP date) added this way is a **warn**
-finding: counted in the sidebar status, a **No date** badge on its card under Library
-check, and in the Inspector a warning box whose fix is a button:
+**A photo with no capture date** (no EXIF or XMP date) is asked for one before it is filed,
+when the folder the user put it in names a date:
 
-> ⚠ **No date recorded in this file.** You added it to 2019/06/14. NegativeSpace can't
-> confirm when it was taken, so it can't tell whether that folder is right.
+> ⚠ **No date recorded in this file.** You put it in 2019/06/14. Give it a date and
+> NegativeSpace files it there; without one it goes to Undated/2019, by the file's time.
 > Suggested date: 14 June 2019 (from the folder name) **[Edit date…]**
 
 **Edit date…**, the button suspicious dates already use, opens the existing date editor
-(§7.5) with the suggestion filled in; the verified save writes it into the file and
-clears the warning. The folder is a dating clue (§3.1, Candidate clues).
+(§7.5) with the suggestion filled in; the verified save writes it into the file and files
+it. Without a date it is filed under `Undated/<year>` and keeps the **No date** reason. The
+folder is a dating clue (§3.1, Candidate clues).
 
 #### The fresh-destination workflow (until Repair is built)
 
