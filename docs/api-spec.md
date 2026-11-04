@@ -269,11 +269,13 @@ navigation agree. Invalid query/position percentages return 422.
 
 The navigation sidebar's counts (`webui-spec.md` §2, the page frame): each place whole,
 before any gallery filter, including Similar photos and the Needs review subset.
-`warnings.attention` counts source files needing attention;
-the gallery's contextual `chips` and `reasons` counts are separate.
+`warnings.attention` counts source files needing attention; `originals` counts organized
+photos whose originals are still in the source (copied, or rejected after a Copy): what
+`view=source` lists beyond `view=unorganized`. The gallery's contextual `chips` and
+`reasons` counts are separate.
 
     {"places": {"unorganized": 0, "organized": 4499, "similar": 167, "review": 31, "rejects": 4},
-     "warnings": {"attention": 0}}
+     "warnings": {"attention": 0}, "originals": 120}
 
 ### `GET /api/v1/photos/timeline`
 

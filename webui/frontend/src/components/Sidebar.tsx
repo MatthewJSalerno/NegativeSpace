@@ -41,6 +41,8 @@ export function Sidebar({ current, version, matchMin, refresh, onNavigate }: {
         {!!counts?.warnings.attention && <a href="/?view=unorganized&reason=attention" className="sidebar-note warning-text" onClick={go}><span className="sidebar-count">{count(counts.warnings.attention)}</span> need attention</a>}
       </>}
       {p.view === "organized" && !!counts?.places.review && <a href="/?view=review" className="sidebar-note" onClick={go}><span className="sidebar-count">{count(counts.places.review)}</span> to review</a>}
+      {p.view === "organized" && !!counts?.originals && <a href="/?view=source&tree=1" className="sidebar-note" onClick={go}
+        title="Their originals are still in the source. Source folders › Still in source lists them; Move this folder… removes them."><span className="sidebar-count">{count(counts.originals)}</span> originals in source</a>}
     </Fragment>)}
     <div className="sidebar-activity">
       <h2 className="sidebar-heading">Activity</h2>

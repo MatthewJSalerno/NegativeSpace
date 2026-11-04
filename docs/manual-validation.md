@@ -9,6 +9,9 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Originals in source:** [OS1a–OS1c](#originals-in-source), the note under Library.
+Maintainer acceptance is pending.
+
 **Check library:** [CL1a–CL1k](#check-library) passed, including all lettered steps, on
 2026-11-04, and so did [CL2a–CL2d](#test-cl2--the-status-rows), the sidebar status
 redrawn after CL1.
@@ -69,6 +72,27 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Originals in source
+
+**Status:** OS1a–OS1c pending maintainer acceptance. Read: `webui/frontend/src/components/Sidebar.tsx`
+and `originals` in `webui/gallery.py` (`places`).
+
+Verified: the review instance holds six generated photos (`rose-01.jpg`, `rose-02.jpg`,
+`tulip-01.jpg`, `river-01.jpg`, `river-02.jpg`, `bridge-01.jpg`), indexed and copied, not
+moved, so all six originals are still in the source. Each step was checked on it except
+OS1c's Move, which changes the source.
+
+### Test OS1 — Find the originals still in the source
+
+- **OS1a — The note.** Look under **Library** in the sidebar. Expected: a line **6
+  originals in source**, while **Not organized** reads 0. Hover the line. Expected: "Their
+  originals are still in the source. Source folders › Still in source lists them; Move
+  this folder… removes them."
+- **OS1b — Where it goes.** Choose **6 originals in source**. Expected: **Source folders**
+  opens with **Still in source** selected and **6 photos**, each marked **Copied**.
+- **OS1c — It goes away.** Choose **Jobs › Move › Move all (6)**, then **Move**. Expected:
+  when the Move finishes, the line is gone from the sidebar.
 
 ## Check library
 
