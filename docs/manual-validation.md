@@ -10,8 +10,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 ## Pending checks
 
 **Originals in source:** [OS1a–OS1c](#originals-in-source), the note under Library,
-passed on 2026-11-04. [OS2a–OS2b](#test-os2--note-counts-on-the-right), every sidebar
-note's count moved to the right after OS1, is pending.
+passed on 2026-11-04, and so did [OS2a–OS2b](#test-os2--note-counts-on-the-right), every
+sidebar note's count moved to the right after OS1.
 
 **Check library:** [CL1a–CL1k](#check-library) passed, including all lettered steps, on
 2026-11-04, and so did [CL2a–CL2d](#test-cl2--the-status-rows), the sidebar status
@@ -78,7 +78,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 **Status:** the maintainer passed OS1a–OS1c on 2026-11-04, observing that the note put its
 count on the left while the sidebar's counts sit on the right. Every note now does the same
-as the places (`docs/ui-design.md`, Sidebar); OS2 retests it, pending. Read: `webui/frontend/src/components/Sidebar.tsx`
+as the places (`docs/ui-design.md`, Sidebar); the maintainer passed OS2a–OS2b on 2026-11-04. Read: `webui/frontend/src/components/Sidebar.tsx`
 and `originals` in `webui/gallery.py` (`places`).
 
 Verified: the review instance holds six generated photos (`rose-01.jpg`, `rose-02.jpg`,
