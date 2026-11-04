@@ -221,13 +221,16 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   them. Active progress, safety questions and Rejects reminders sit under the top bar.
 - **Sidebar** (`Sidebar.tsx`, 17rem): Not organized, Source folders beneath it,
   Library, Similar photos and Rejects. Activity (Logs and Stats) sits at the bottom,
-  then the **library status** (`LibraryStatus.tsx`: when the source was last indexed and
-  the library last checked, `webui-spec.md` §7.6), then the version label, with
-  flexible space separating them from photo places. Its lines are supporting text (12px),
-  each a link inside its sentence to that job's log. The library line is a highlighted
-  box only when a check is running (accent), could not run, or found something (amber to
-  fix or decide, red for a photo lost or damaged); otherwise it is plain text. It never
-  starts a job: never checked, it offers **Check library…**, which opens the dialog.
+  then **Status** (`LibraryStatus.tsx`, `webui-spec.md` §7.6) under its own heading like
+  Activity, then the version label, with flexible space separating them from photo
+  places. Its rows match the Activity links (14px, 40px targets, whole row the link to
+  that job's log): **Source** or **Library** on the first line, the detail in supporting
+  text below ("indexed Nov 4, 2026", "checked Nov 4, 2026"), and a check's result on a
+  third line. A result to fix or decide colours its words amber and gives the row an
+  amber left edge, a photo lost or damaged red; a running check has an accent edge;
+  all as recorded stays plain. *Why not a highlighted box:* at 12px in a 17rem column the
+  box crowded its sentence and wrapped it mid-phrase (maintainer, 2026-11-04). It never
+  starts a job: never checked, the Library row opens the **Check library** dialog.
   On short windows or enlarged text the sidebar scrolls; the Activity links remain reachable.
   Places use real links, full visible labels and whole-place counts. Do not repeat an
   unfiltered place total above the gallery. Filtered results show Showing N of M;

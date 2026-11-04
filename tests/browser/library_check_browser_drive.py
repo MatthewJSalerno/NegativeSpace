@@ -37,12 +37,12 @@ with sync_playwright() as p:
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.goto(BASE)
-    status = page.get_by_role('region', name='Library status', exact=True)
-    expect(status).to_contain_text('Source: indexed')
-    expect(status).to_contain_text('Library: not checked yet')
+    status = page.get_by_role('region', name='Status', exact=True)
+    expect(status.get_by_role('link', name=re.compile('^Source indexed'))).to_be_visible()
+    expect(status).to_contain_text('not checked yet')
 
     # The sidebar offers the dialog; opening it starts nothing.
-    status.get_by_role('button', name='Check library…', exact=True).click()
+    status.get_by_role('button', name=re.compile('Check library…$')).click()
     dialog = page.get_by_role('dialog', name='Check library')
     expect(dialog.get_by_role('button', name='Quick check', exact=True)).to_be_focused()
     expect(dialog).to_contain_text('Last checked: not checked yet')
@@ -57,8 +57,8 @@ with sync_playwright() as p:
     page.get_by_role('menu', name='Jobs', exact=True).get_by_role('menuitem', name=re.compile('^Check library…')).click()
     page.get_by_role('dialog', name='Check library').get_by_role('button', name='Quick check', exact=True).click()
     idle()
-    expect(status).to_contain_text(re.compile(r'Library: checked .* · all as recorded'), timeout=10000)
-    expect(status.locator('.notice')).to_have_count(0)
+    expect(status).to_contain_text(re.compile(r'checked .*all as recorded'), timeout=10000)
+    expect(status.locator('.status-bad, .status-warn')).to_have_count(0)
 
     # Change the library as other programs would: a photo lost, one moved, unknown files.
     lost = next(LIBRARY.rglob('photo-005.jpg'))
@@ -76,13 +76,13 @@ with sync_playwright() as p:
     expect(dialog).to_contain_text('Quick · all as recorded')
     dialog.get_by_role('button', name='Thorough check', exact=True).click()
     idle()
-    line = status.locator('.notice-bad')
+    line = status.locator('a.status-bad')
     expect(line).to_contain_text('1 missing', timeout=10000)
     expect(line).to_contain_text('1 needs attention')
     shot(page, 'sidebar')
 
     # The status opens the check's findings in Logs.
-    line.get_by_role('link').click()
+    line.click()
     findings = page.get_by_role('region', name='Library check findings', exact=True)
     expect(findings).to_contain_text('Thorough check')
     expect(findings.get_by_role('row').filter(has_text='photo-005.jpg')).to_contain_text('Missing')

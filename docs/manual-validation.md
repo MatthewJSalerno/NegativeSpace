@@ -9,8 +9,9 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Check library:** [CL1a–CL1k](#check-library), the check, its results and the sidebar
-status, with the Index notice's two corrections. Maintainer acceptance is pending.
+**Check library:** [CL1a–CL1k](#check-library) passed, including all lettered steps, on
+2026-11-04. [CL2a–CL2d](#test-cl2--the-status-rows), the sidebar status redrawn after
+CL1, is pending.
 
 **Audit 043:** [A1a–A1d](#audit-043-preview-index), the Index notice and action in the
 Copy/Move confirmation, passed, including all lettered steps, on 2026-11-03.
@@ -71,7 +72,12 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Check library
 
-**Status:** CL1a–CL1k pending maintainer acceptance. Read: the check is `engine/library_check.py`
+**Status:** the maintainer passed CL1a–CL1k on 2026-11-04, with two observations. The
+sidebar status in CL1a and CL1c was hard to read (small underlined text wrapping inside a
+box); it is redrawn as rows like Activity (`docs/ui-design.md`, Page frame) and retested
+in CL2. In CL1j, Not organized reads 0 while ten copied photos are still in the source,
+reachable only through Source folders › Still in source; finding them more easily is
+open (`TODO.md`). CL2a–CL2d pending. Read: the check is `engine/library_check.py`
 with `engine/maintenance.py` (`check_destination`); the screens are `CheckLibraryDialog.tsx`,
 `LibraryStatus.tsx` and `LibraryCheckFindings.tsx` (`docs/webui-spec.md` §7.6).
 
@@ -146,6 +152,22 @@ CL1a and keep the order.
   sidebar's two status lines, the **Check library** dialog (open it, then **Cancel**) and
   the Logs entry from CL1d all stay readable, with nothing overlapping and no sideways
   scrolling. Reset the zoom (Ctrl and 0).
+
+### Test CL2 — The status rows
+
+The same review instance, after CL1: its last check is Job #4, the thorough check.
+
+- **CL2a — The rows.** Reload the page and look under **Activity**. Expected: a
+  **Status** heading, then two rows whose text lines up with **Logs** and **Stats**:
+  **Source** with "indexed" and today's date under it, and **Library** with "checked"
+  and today's date, then **1 missing · 6 need attention** in red. Only the Library row has
+  a red edge at its left. Hovering either row shades the whole row, as **Logs** does.
+- **CL2b — Where they go.** Choose **Library**. Expected: Logs opens **Job #4 · Library
+  check finished**. Go back, choose **Source**. Expected: Logs opens **Job #1 · Index**.
+- **CL2c — Light mode.** Turn **Dark mode** off. Expected: the same rows, the red words
+  and edge still clearly red. Turn it back on.
+- **CL2d — Enlarged text.** Zoom to 200% (Ctrl and +). Expected: the rows wrap inside the
+  sidebar, nothing overlaps, no sideways scrolling. Reset the zoom (Ctrl and 0).
 
 ## Audit 043 preview Index
 

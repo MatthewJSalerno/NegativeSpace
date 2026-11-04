@@ -104,12 +104,25 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
 .sidebar-heading { margin: var(--space-4) var(--space-3) var(--space-1); font-size: var(--type-xs); color: var(--muted); }
 .sidebar-activity { margin-top: auto; flex-shrink: 0; padding-top: var(--space-4); }
 .sidebar-foot { padding: var(--space-4) var(--space-3) 0; }
-/* The library status (webui-spec 7.6): supporting text, its lines links inside sentences. */
-.library-status { display: grid; gap: var(--space-2); padding: var(--space-4) var(--space-3) 0; font-size: var(--type-xs); }
-.library-status p { margin: 0; }
-.sidebar .library-status a { display: inline; width: auto; min-height: 0; padding: 0; border-radius: 0;
-  color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
-.sidebar .library-status a:hover { background: none; }
+/* The library status (webui-spec 7.6): rows like the Activity links, the place on the
+   first line, the detail in supporting text below; a finding colours its words and
+   gives the row a left edge (ui-design, Page frame). */
+.library-status { display: flex; flex-direction: column; gap: 2px; }
+.sidebar .status-row { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0;
+  width: 100%; min-height: 40px; padding: var(--space-2) var(--space-3) var(--space-2) calc(var(--space-3) - 4px);
+  border: 0; border-left: 4px solid transparent;
+  border-radius: var(--control-radius); background: none; color: var(--text); font: inherit; text-align: left; }
+.sidebar button.status-row { cursor: pointer; }
+.sidebar button.status-row:hover, .sidebar a.status-row:hover { background: var(--surface-2); }
+.status-detail { font-size: var(--type-xs); color: var(--muted); }
+.status-result, .status-action { font-size: var(--type-xs); }
+.status-action { color: var(--accent); }
+.sidebar .status-accent { border-left-color: var(--accent); }
+.sidebar .status-warn { border-left-color: var(--warn); }
+.sidebar .status-warn .status-result { color: var(--warn); }
+.sidebar .status-bad { border-left-color: var(--bad); }
+.sidebar .status-bad .status-result { color: var(--bad); }
+@media (forced-colors: active) { .sidebar .status-row { border-left-color: CanvasText; } }
 /* A library check's findings in Logs: label, file and meaning share the width. */
 .library-findings { display: grid; gap: var(--space-3); }
 .library-findings-table { table-layout: fixed; }

@@ -2932,22 +2932,23 @@ renamed, not when a file is edited in place or a subfolder changes; copy and syn
 reset it; network shares cache it. It could suggest that something changed, never that
 nothing did.
 
-**Library status at the foot of the sidebar**, above the build label, on every page: when
-the source was last indexed, and the library's last check. The library line uses the
-message-box tones (`ui-design.md`, Message boxes) for its worst finding, and its words
-always state the count, so colour is never the only signal:
+**Status at the foot of the sidebar**, under its own heading below Activity and above the
+build label, on every page: when the source was last indexed, and the library's last
+check, as rows like the Activity links (`ui-design.md`, Page frame). The library row's
+edge and result words take the worst finding's tone, and its words always state the
+count, so colour is never the only signal:
 
 | State | Tone | Text |
 | :--- | :--- | :--- |
-| Never checked | plain | Library: not checked yet · **Check library…** |
-| Checking | accent | Library: checking… with progress |
-| All as recorded | plain | Library: checked 1 Nov · all as recorded |
-| Something to fix or decide | warn | Library: checked 1 Nov · 3 need attention |
-| Something lost or damaged | bad | Library: checked 1 Nov · 1 missing, 1 damaged |
-| Could not run | warn | Library: check on 2 Nov couldn't run; library folder not found (the previous result stays below it) |
+| Never checked | plain | Library / not checked yet / **Check library…** |
+| Checking | accent | Library / checking… with progress |
+| All as recorded | plain | Library / checked 1 Nov / all as recorded |
+| Something to fix or decide | warn | Library / checked 1 Nov / 3 need attention |
+| Something lost or damaged | bad | Library / checked 1 Nov / 1 missing, 1 damaged |
+| Could not run | warn | Library / check on 2 Nov couldn't run / library folder not found (the previous result stays below it as "Library, last result") |
 
 *Bad* is only a photo missing with no copy anywhere, or a file that cannot be read;
-everything Repair or a decision can settle is *warn*. The library line opens the latest
+everything Repair or a decision can settle is *warn*. The Library row opens the latest
 check's results; the source line opens its Index job's log. Neither starts a job. No
 "check is getting old" warning: any cutoff would be a guess tuned to one library, and the
 date is always shown.
