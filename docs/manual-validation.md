@@ -10,8 +10,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 ## Pending checks
 
 **Check library:** [CL1a–CL1k](#check-library) passed, including all lettered steps, on
-2026-11-04. [CL2a–CL2d](#test-cl2--the-status-rows), the sidebar status redrawn after
-CL1, is pending.
+2026-11-04, and so did [CL2a–CL2d](#test-cl2--the-status-rows), the sidebar status
+redrawn after CL1.
 
 **Audit 043:** [A1a–A1d](#audit-043-preview-index), the Index notice and action in the
 Copy/Move confirmation, passed, including all lettered steps, on 2026-11-03.
@@ -77,7 +77,7 @@ sidebar status in CL1a and CL1c was hard to read (small underlined text wrapping
 box); it is redrawn as rows like Activity (`docs/ui-design.md`, Page frame) and retested
 in CL2. In CL1j, Not organized reads 0 while ten copied photos are still in the source,
 reachable only through Source folders › Still in source; finding them more easily is
-open (`TODO.md`). CL2a–CL2d pending. Read: the check is `engine/library_check.py`
+open (`TODO.md`). The maintainer passed CL2a–CL2d on 2026-11-04. Read: the check is `engine/library_check.py`
 with `engine/maintenance.py` (`check_destination`); the screens are `CheckLibraryDialog.tsx`,
 `LibraryStatus.tsx` and `LibraryCheckFindings.tsx` (`docs/webui-spec.md` §7.6).
 

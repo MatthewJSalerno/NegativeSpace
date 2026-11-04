@@ -49,7 +49,7 @@ development until the maintainer decides.
 - 💬 Copying all metadata, or a wider choice of fields
 
 **Checking and maintenance**
-- Check library — built, CL1 passed; status rows CL2 pending (`docs/manual-validation.md`, Check library; `docs/webui-spec.md` §7.6)
+- Check library — built, CL1–CL2 passed (`docs/manual-validation.md`, Check library; `docs/webui-spec.md` §7.6)
 - 💬 Copied photos whose originals are still in the source are easy to miss: Not organized counts 0 and only Source folders › Still in source lists them (`docs/manual-validation.md`, Check library, CL1j observation)
 - Repair in place, its catalog-only answers (Stop warning about this among them), Add to catalog and Rebuild from the earlier version — decided, not built (`docs/engine-spec.md` §9.2, `docs/webui-spec.md` §7.6)
 - Import summary, and a filter for files that could not be previewed

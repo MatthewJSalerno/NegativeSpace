@@ -2311,4 +2311,4 @@ this driver only:
 DRIVER=library_check_browser_drive.py sh tests/browser/webui_browser_test.sh
 ```
 
-Manual acceptance is [CL1](../docs/manual-validation.md#check-library).
+Manual acceptance: [CL1–CL2](../docs/manual-validation.md#check-library) passed.
