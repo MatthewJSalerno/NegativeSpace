@@ -9,6 +9,9 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Renames recorded by the check:** [RN1a–RN1d](#renames-recorded-by-the-check). Maintainer
+acceptance is pending.
+
 **Originals in source:** [OS1a–OS1c](#originals-in-source), the note under Library,
 passed on 2026-11-04, and so did [OS2a–OS2b](#test-os2--note-counts-on-the-right), every
 sidebar note's count moved to the right after OS1.
@@ -73,6 +76,36 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Renames recorded by the check
+
+**Status:** RN1a–RN1d pending maintainer acceptance. Read: `renames` and `record_renames` in
+`engine/library_check.py`, `_record_renames` in `engine/maintenance.py`
+(`docs/webui-spec.md` §7.6).
+
+Verified: the review instance holds four generated photos, indexed and copied. Then, by
+hand, `rose-01.jpg` was renamed `Rose by the gate.jpg` in its own folder, and `tulip-01.jpg`
+was moved to a folder `sorted` and renamed `tulip.jpg`. Every step was walked on a copy of
+the instance; no check has run on the instance itself.
+
+### Test RN1 — A rename is kept, a move is not
+
+- **RN1a — Run a check.** Choose **Jobs › Check library…**, then **Quick check**. Expected:
+  the sidebar's **Library** row reads **checked** with today's date and **1 needs
+  attention** in amber, with an amber edge. No "Catalog changes haven't been backed up"
+  banner appears.
+- **RN1b — The results.** Choose that **Library** row. Expected: **Job #3 · Library check
+  finished**, **1 finding**; under **Export findings**, the line **1 rename you made
+  recorded, each matched by its checksum. The new names are kept.** with
+  `2024/05/01/rose-01.jpg → 2024/05/01/Rose by the gate.jpg` and **Photo #4**. The table
+  has one row: **Moved** `2024/05/02/tulip-01.jpg`, found at `sorted/tulip.jpg`.
+- **RN1c — The history.** In **Library**, search `gate` and open `Rose by the gate.jpg`.
+  Choose **View lineage tree**. Expected: after **Copy #2**, an event **Check #3 · Renamed
+  outside NegativeSpace**, from `…/rose-01.jpg` to `…/Rose by the gate.jpg`; hovering its ⓘ
+  says it was found by a library check and matched by its checksum. Close it.
+- **RN1d — Recorded for good.** Run **Jobs › Check library… › Quick check** again. Expected:
+  Job #4 lists no rename and no finding for `Rose by the gate.jpg`; `tulip.jpg` is still
+  **Moved**.
 
 ## Originals in source
 

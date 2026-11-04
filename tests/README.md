@@ -2312,3 +2312,10 @@ DRIVER=library_check_browser_drive.py sh tests/browser/webui_browser_test.sh
 ```
 
 Manual acceptance: [CL1–CL2](../docs/manual-validation.md#check-library) passed.
+
+`check_library_records_a_rename_in_its_own_folder_and_nothing_else` (smoke) covers renames
+the check records: the photo and its Library file identity follow, a Renamed operation of
+the check run carries its note, catalog backups come before and after, and a file moved to
+another folder or content found twice stays a finding. The Check library browser driver
+renames a photo in place and finds the rename in the Logs entry and the photo's lineage.
+Manual acceptance is [RN1](../docs/manual-validation.md#renames-recorded-by-the-check).

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from engine.ns_db import RAW_EXTENSIONS, RunStatus, SUPPORTED_EXTENSIONS
-from engine import constants, durable, fileinfo, ns_db, ns_similarity
+from engine import constants, durable, fileinfo, metadata_relocate, ns_db, ns_similarity, relocate
 
 # Bytes read from the start of a file to name its format.
 HEAD_BYTES = 16
@@ -238,12 +238,54 @@ def locate(conn, findings: list, rejects: Path, cancelled) -> None:
                 continue
 
 
+# What a check records for a rename the user made (webui-spec 7.6): shown in the
+# photo's history and the check's Logs entry.
+RENAME_NOTE = ("Renamed outside NegativeSpace: found by a library check, the same content, matched by its "
+               "checksum, under a new name in the same folder.")
+
+
+def renames(conn, findings: list) -> list:
+    """Missing photos whose exact content is the one unknown file in their own folder
+    under another name: renames the user made (engine-spec 9.2), as (missing finding,
+    the file now holding it). A photo with a recorded sidecar is left to Repair, which
+    moves the pair; content found more than once is ambiguous and left as findings."""
+    holders = collections.Counter(f.get("observed_sha1") for f in findings if f["kind"] == "unknown")
+    found = []
+    for f in findings:
+        if (f["kind"] == "missing" and f.get("found_in") == "library" and holders[f["expected_sha1"]] == 1
+                and os.path.dirname(f["found_path"]) == os.path.dirname(f["path"])
+                and metadata_relocate.current(conn, f["path"]) is None):
+            found.append(f)
+    return found
+
+
+def record_renames(conn, run_id: int, found: list) -> int:
+    """Records each rename as Rename would, in the caller's transaction: the photo and
+    its file identity now name the new path, a Renamed operation of this check run
+    holds both names, and the two findings it replaces are removed. No file is touched."""
+    for f in found:
+        old, new = f["path"], f["found_path"]
+        file_id = (conn.execute("SELECT file_id FROM file_states WHERE current_path = ? AND location_role = "
+                                "'destination' AND presence_state = 'present'", (old,)).fetchone() or [None])[0]
+        op = ns_db.begin_operation(conn, run_id=run_id, photo_id=f["photo_id"], source_path=old, dest_path=new,
+                                   kind="rename")
+        relocate._record_rename(conn, op, old, new, file_id, detail={"found_by": "library_check", "matched": "sha1"})
+        conn.execute("UPDATE operations SET error_message = ? WHERE id = ?", (RENAME_NOTE, op))
+        conn.execute("DELETE FROM destination_findings WHERE run_id = ? AND path IN (?, ?)", (run_id, old, new))
+    return len(found)
+
+
 def start(conn, run_id: int, depth: str, library: Path) -> None:
     conn.execute("INSERT INTO library_checks(run_id, depth, library) VALUES (?, ?, ?)", (run_id, depth, str(library)))
 
 
 def stop(conn, run_id: int, reason: str) -> None:
     conn.execute("UPDATE library_checks SET stopped=? WHERE run_id=?", (reason, run_id))
+
+
+def add_count(conn, run_id: int, key: str, n: int) -> None:
+    counts = json.loads(conn.execute("SELECT counts_json FROM library_checks WHERE run_id=?", (run_id,)).fetchone()[0])
+    record_counts(conn, run_id, {**counts, key: counts.get(key, 0) + n})
 
 
 def record_counts(conn, run_id: int, counts: dict) -> None:
@@ -387,8 +429,12 @@ def report(conn, run_id: int, *, findings=True) -> Optional[dict]:
               "lost": lost_photos, "damaged": damaged, "attention": attention, "found": len(loose) + len(groups),
               "tone": "bad" if lost_photos or damaged else "warn" if attention else "plain",
               "folders": [{k: v for k, v in g.items() if k != "paths"} for g in groups],
-              "housekeeping": {k: v for k, v in counts.items() if k != "sidecars"},
-              "sidecars": counts.get("sidecars", 0), "other_types": dict(sorted(other_types.items()))}
+              "housekeeping": {k: v for k, v in counts.items() if k not in ("sidecars", "renamed")},
+              "sidecars": counts.get("sidecars", 0), "other_types": dict(sorted(other_types.items())),
+              "renamed": [{"photo_id": pid, "old": os.path.relpath(old, library), "new": os.path.relpath(new, library)}
+                          for pid, old, new in conn.execute(
+                              "SELECT photo_id, source_path, dest_path FROM operations WHERE run_id = ? AND status = ? "
+                              "ORDER BY id", (run_id, ns_db.OPERATION_RENAMED))]}
     if findings:
         order = {"bad": 0, "warn": 1, "quiet": 2}
         result["findings"] = sorted(described, key=lambda d: (order[d["tone"]], d["relative"]))

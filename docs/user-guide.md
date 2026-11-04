@@ -284,7 +284,8 @@ changes nothing. The foot of the sidebar shows when your source was last indexed
 the library was last checked, with what it found. Choose it to see each finding in
 **Logs**, with what it means and what you can do, and **Export findings** as CSV or JSON.
 Library photos with a finding appear under **Needs review** with the reason **Library
-check** until a later check finds them as recorded. Files other programs keep beside
+check** until a later check finds them as recorded. If you renamed a photo in its own
+folder, the check keeps your name and records it in the photo's history. Files other programs keep beside
 your photos, such as NAS thumbnails and Mac system files, are only counted.
 
 ![The lineage timeline follows a photo from Index through Copy, Reject and Return](images/photo-history-timeline.png)

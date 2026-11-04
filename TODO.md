@@ -50,6 +50,7 @@ development until the maintainer decides.
 
 **Checking and maintenance**
 - Check library — built, CL1–CL2 passed (`docs/manual-validation.md`, Check library; `docs/webui-spec.md` §7.6)
+- Renames the user made, recorded by the check — built, RN1 acceptance pending (`docs/manual-validation.md`, Renames recorded by the check; `docs/webui-spec.md` §7.6)
 - Copied photos whose originals are still in the source: a note under Library, **Originals in source** with its count, opening Source folders › Still in source — built, OS1–OS2 passed (`docs/manual-validation.md`, Originals in source; `docs/ui-design.md`, Page frame)
 - 💬 The user's own groupings of Library photos (a trip, an album) without breaking the date folders (`docs/webui-spec.md` §7.6)
 - Repair in place, its catalog-only answers (Stop warning about this among them), Add to catalog and Rebuild from the earlier version — decided, not built (`docs/engine-spec.md` §9.2, `docs/webui-spec.md` §7.6)

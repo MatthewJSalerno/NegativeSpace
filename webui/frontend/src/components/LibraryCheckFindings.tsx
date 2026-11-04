@@ -33,6 +33,11 @@ export function LibraryCheckFindings({ runId, refreshKey }: { runId: number; ref
       <a href={api.libraryExportUrl(runId, "csv")} download>CSV</a>
       <a href={api.libraryExportUrl(runId, "json")} download>JSON</a>
     </div>}
+    {data.renamed.length > 0 && <div className="library-renames">
+      <p>{plural(data.renamed.length, "rename")} you made recorded, each matched by its checksum. The new names are kept.</p>
+      <ul>{data.renamed.map(r => <li key={r.photo_id}><span className="path">{r.old}</span> → <span className="path">{r.new}</span>{" "}
+        <a href={photoUrl(r.photo_id)} onClick={follow}>Photo #{r.photo_id}</a></li>)}</ul>
+    </div>}
     {data.folders.map(g => <p key={g.folder} className={noticeClass(g.tone)}>
       {g.moved_to
         ? <>The folder <strong>{g.folder}</strong> was moved or renamed to <strong>{g.moved_to}</strong>: {plural(g.photos, "photo")}. Move it back, then check the library again.</>
@@ -56,6 +61,6 @@ export function LibraryCheckFindings({ runId, refreshKey }: { runId: number; ref
       {housekeeping.length > 0 && <>{plural(housekeeping.reduce((n, [, k]) => n + k, 0), "file")} from other programs: {housekeeping.map(([k]) => HOUSEKEEPING_LABEL[k] ?? k).join(", ")}. </>}
       {data.sidecars > 0 && <>{plural(data.sidecars, "sidecar")} beside photos. </>}
       Left untouched and never warned about.</p>}
-    {data.total === 0 && data.folders.length === 0 && <p className="muted">Every photo is where NegativeSpace filed it, as recorded.</p>}
+    {data.total === 0 && data.folders.length === 0 && data.renamed.length === 0 && <p className="muted">Every photo is where NegativeSpace filed it, as recorded.</p>}
   </section>;
 }
