@@ -31,6 +31,20 @@ class SidebarRefinements(webui_api_test.ApiCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['chips']['suspicious'], 0)
 
+    def test_originals_in_source_count_copied_photos_and_match_still_in_source(self):
+        """ui-design, Page frame: the note under Library counts organized photos whose
+        originals remain, exactly what Still in source lists beyond what is waiting."""
+        places = self.client.get('/api/v1/photos/places').json()
+        still = self.client.get('/api/v1/photos', params={'view': 'source'}).json()['total']
+        waiting = self.client.get('/api/v1/photos', params={'view': 'unorganized'}).json()['total']
+        self.assertEqual((places['originals'], still - waiting), (2, 2))
+        make = webui_api_test.make_photo
+        make(self.cfg.source / 'later.jpg', 'later')
+        self.wait_for(self.start(mode='index'))
+        self.assertEqual(self.client.get('/api/v1/photos/places').json()['originals'], 2, 'a waiting photo is not an original')
+        self.wait_for(self.start(mode='move'))
+        self.assertEqual(self.client.get('/api/v1/photos/places').json()['originals'], 0, 'Move removed the originals')
+
     def test_library_reminder_counts_match_inbox_and_refresh_after_done(self):
         self.assertEqual(self.photos()['reasons']['later'], 0)
         photo = next(p for p in self.photos()['items'] if p['filename'] == 'undated.jpg')

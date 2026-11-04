@@ -1217,7 +1217,9 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .bookmark-form .bookmark-choice { margin: 0; }
 @media (max-width: 800px) { .bookmark-choice { min-height: 44px; } }
 
-.sidebar a.sidebar-note .sidebar-count { margin: 0; flex: initial; color: inherit; }
+/* A note's count lines up with, and looks like, the place counts; a warning note's
+   count keeps its warning colour. */
+.sidebar a.sidebar-note.warning-text .sidebar-count { color: inherit; }
 
 /* An opened source folder's last full Index, beside its name (webui-spec 2). */
 .folder-indexed { color: var(--muted); font-size: var(--type-xs); font-weight: var(--weight-normal); }

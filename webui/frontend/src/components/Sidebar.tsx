@@ -14,6 +14,7 @@ const PLACES: { view: PlaceView; label: string; href: string }[] = [
 ];
 
 // Places have whole-library counts. Warning links open their complete affected scope.
+// Notes under a place put their count on the right, aligned with the places' counts.
 export function Sidebar({ current, version, matchMin, refresh, onNavigate }: {
   current: SidebarCurrent; version: Status["version"]; matchMin?: number;
   refresh?: unknown; onNavigate?: () => void;
@@ -38,9 +39,14 @@ export function Sidebar({ current, version, matchMin, refresh, onNavigate }: {
       </a>
       {p.view === "unorganized" && <>
         <a href="/?view=unorganized&tree=1" className="sidebar-sub" aria-current={current.sourceFolders ? "page" : undefined} onClick={go}>Source folders</a>
-        {!!counts?.warnings.attention && <a href="/?view=unorganized&reason=attention" className="sidebar-note warning-text" onClick={go}><span className="sidebar-count">{count(counts.warnings.attention)}</span> need attention</a>}
+        {!!counts?.warnings.attention && <a href="/?view=unorganized&reason=attention" className="sidebar-note warning-text" onClick={go}
+          aria-label={`${count(counts.warnings.attention)} need attention`}><span className="sidebar-label">Need attention</span><span className="sidebar-count">{count(counts.warnings.attention)}</span></a>}
       </>}
-      {p.view === "organized" && !!counts?.places.review && <a href="/?view=review" className="sidebar-note" onClick={go}><span className="sidebar-count">{count(counts.places.review)}</span> to review</a>}
+      {p.view === "organized" && !!counts?.places.review && <a href="/?view=review" className="sidebar-note" onClick={go}
+        aria-label={`${count(counts.places.review)} to review`}><span className="sidebar-label">To review</span><span className="sidebar-count">{count(counts.places.review)}</span></a>}
+      {p.view === "organized" && !!counts?.originals && <a href="/?view=source&tree=1" className="sidebar-note" onClick={go}
+        aria-label={`${count(counts.originals)} originals in source`}
+        title="Their originals are still in the source. Source folders › Still in source lists them; Move this folder… removes them."><span className="sidebar-label">Originals in source</span><span className="sidebar-count">{count(counts.originals)}</span></a>}
     </Fragment>)}
     <div className="sidebar-activity">
       <h2 className="sidebar-heading">Activity</h2>

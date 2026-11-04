@@ -441,7 +441,12 @@ def places(db_path: Path, *, match_min=90) -> dict:
         extra, values = _filters(None, False, None, reason="attention")
         attention_count = conn.execute(
             f"SELECT COUNT(*) FROM photos p WHERE {_view_clause('unorganized', match_min)}" + extra, values).fetchone()[0]
-    return {"places": counts, "warnings": {"attention": attention_count}}
+        # Organized photos whose originals are still in the source (copied, or rejected
+        # after a Copy): Still in source less what is waiting (ui-design, Page frame).
+        originals = conn.execute(
+            f"SELECT COUNT(*) FROM photos p WHERE ({_view_clause('source', match_min)}) "
+            f"AND NOT ({_view_clause('unorganized', match_min)})").fetchone()[0]
+    return {"places": counts, "warnings": {"attention": attention_count}, "originals": originals}
 
 
 def photo_position(db_path: Path, photo_id: int, *, view="all", sort="newest", page_size=60,

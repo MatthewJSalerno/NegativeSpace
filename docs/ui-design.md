@@ -231,10 +231,10 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   all as recorded stays plain. *Why not a highlighted box:* at 12px in a 17rem column the
   box crowded its sentence and wrapped it mid-phrase (maintainer, 2026-11-04). It never
   starts a job: never checked, the Library row opens the **Check library** dialog.
-- **Originals in source** (decided 2026-11-04; not built): under **Library**, beside **to
-  review**, a note "N originals in source" while copied photos still have their originals
-  in the source, opening **Source folders › Still in source**, where **Move this folder…**
-  removes them. It sits under Library, not Not organized, because those photos are
+- **Originals in source** (decided 2026-11-04): under **Library**, after **To review**, a
+  note **Originals in source** with its count while copied photos still have their originals in the
+  source (`originals` from `GET /photos/places`), opening **Source folders › Still in
+  source**, where **Move this folder…** removes them; its tooltip says so. It sits under Library, not Not organized, because those photos are
   organized already; Not organized counts only what waits for a copy. *Why not under
   Source folders:* "Source folders" then "still in source" read as the same thing twice.
   On short windows or enlarged text the sidebar scrolls; the Activity links remain reachable.
@@ -251,8 +251,10 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
     photos**, Rejects; then Activity (Logs, Stats). Similar photos stays a top-level row
     because it changes the gallery (sets, percentage, its sort), not just its contents.
     Rows whose problems moved into refinements keep a one-line note so they stay in
-    sight from every page: "⚠ 7 need attention" under Not organized, "12 to review" under
-    Library.
+    sight from every page: **Need attention** (warning colour) under Not organized, **To
+    review** and **Originals in source** under Library. A note is a label with its count
+    on the right, aligned with the place counts (maintainer, 2026-11-04); its accessible
+    name reads as a sentence ("7 need attention"), which contains the visible label.
   - **Refinements:** a row of toggle buttons under the page title, in the place's own
     order, each with its count; they always combine, so pins go. Library: **Needs
     review**, **Odd dates**, **No date**. Similar photos: **Needs review**, **Odd dates**, **No date** and the

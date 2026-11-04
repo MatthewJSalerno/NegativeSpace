@@ -9,6 +9,10 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Originals in source:** [OS1a–OS1c](#originals-in-source), the note under Library,
+passed on 2026-11-04, and so did [OS2a–OS2b](#test-os2--note-counts-on-the-right), every
+sidebar note's count moved to the right after OS1.
+
 **Check library:** [CL1a–CL1k](#check-library) passed, including all lettered steps, on
 2026-11-04, and so did [CL2a–CL2d](#test-cl2--the-status-rows), the sidebar status
 redrawn after CL1.
@@ -69,6 +73,43 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Originals in source
+
+**Status:** the maintainer passed OS1a–OS1c on 2026-11-04, observing that the note put its
+count on the left while the sidebar's counts sit on the right. Every note now does the same
+as the places (`docs/ui-design.md`, Sidebar); the maintainer passed OS2a–OS2b on 2026-11-04. Read: `webui/frontend/src/components/Sidebar.tsx`
+and `originals` in `webui/gallery.py` (`places`).
+
+Verified: the review instance holds six generated photos (`rose-01.jpg`, `rose-02.jpg`,
+`tulip-01.jpg`, `river-01.jpg`, `river-02.jpg`, `bridge-01.jpg`), indexed and copied, not
+moved, so all six originals are still in the source. Each step was checked on it except
+OS1c's Move, which changes the source.
+
+### Test OS1 — Find the originals still in the source
+
+- **OS1a — The note.** Look under **Library** in the sidebar. Expected: a line **6
+  originals in source**, while **Not organized** reads 0. Hover the line. Expected: "Their
+  originals are still in the source. Source folders › Still in source lists them; Move
+  this folder… removes them."
+- **OS1b — Where it goes.** Choose **6 originals in source**. Expected: **Source folders**
+  opens with **Still in source** selected and **6 photos**, each marked **Copied**.
+- **OS1c — It goes away.** Choose **Jobs › Move › Move all (6)**, then **Move**. Expected:
+  when the Move finishes, the line is gone from the sidebar.
+
+### Test OS2 — Note counts on the right
+
+After OS1 the instance's source gained `lake-01.jpg`, `lake-02.jpg` (dated 2218, so it has
+a review reason) and an empty `broken.jpg`, then an Index and a Copy. Its sidebar now shows
+all three notes.
+
+- **OS2a — Aligned.** Look at the sidebar. Expected: under **Not organized**, **Need
+  attention** with **1** in amber; under **Library**, **To review 1** and **Originals in
+  source 2**. Each note's count is on the right, in the same column as the counts of
+  Not organized (1), Library (8), Similar photos and Rejects, and the note counts are grey
+  like theirs.
+- **OS2b — Light mode.** Turn **Dark mode** off. Expected: the same; **Need attention**
+  still amber. Turn it back on.
 
 ## Check library
 

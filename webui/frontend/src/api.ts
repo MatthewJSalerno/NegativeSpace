@@ -37,7 +37,9 @@ export interface Status {
 // The navigation sidebar's counts (GET /photos/places): each place whole, and each Look
 // into shortcut as Library with only that filter on.
 export type PlaceView = "unorganized" | "organized" | "review" | "rejects" | "similar";
-export interface Places { places: Record<PlaceView, number>; warnings: { attention: number } }
+// `originals`: organized photos whose originals are still in the source (copied, or
+// rejected after a Copy), for the note under Library.
+export interface Places { places: Record<PlaceView, number>; warnings: { attention: number }; originals: number }
 
 // "source": every photo whose original is still in the source (Source folders).
 export type View = "review" | "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects" | "source";

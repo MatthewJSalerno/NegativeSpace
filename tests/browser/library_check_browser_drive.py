@@ -37,6 +37,14 @@ with sync_playwright() as p:
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.goto(BASE)
+    # Copied photos keep their originals in the source; the note under Library opens them.
+    originals = page.get_by_role('link', name=re.compile(r'^\d+ originals in source$'))
+    expect(originals).to_be_visible()
+    originals.click()
+    expect(page).to_have_url(re.compile(r'view=source.*tree=1|tree=1.*view=source'))
+    expect(page.get_by_role('group', name='Show').get_by_role('button', name='Still in source')).to_have_attribute('aria-pressed', 'true')
+    shot(page, 'originals')
+    page.goto(BASE)
     status = page.get_by_role('region', name='Status', exact=True)
     expect(status.get_by_role('link', name=re.compile('^Source indexed'))).to_be_visible()
     expect(status).to_contain_text('not checked yet')
