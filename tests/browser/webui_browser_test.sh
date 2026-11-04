@@ -171,6 +171,8 @@ if [ -n "${SHOTS:-}" ]; then SHOT_ARGS="-v $SHOTS:/shots -e SHOTS=/shots"; fi
 # unreadable to the app (which runs as this user) and follow the failure through the UI.
 DEST_READ_ARGS=""
 if [ "$DRIVER" = metadata_primary_browser_drive.py ]; then DEST_READ_ARGS="-v $DEST:/dest:ro"; fi
+# Check library changes the generated library between checks, as a user's other programs would.
+if [ "$DRIVER" = library_check_browser_drive.py ]; then DEST_READ_ARGS="-v $DEST:/dest"; fi
 BROWSER_SETUP='pip install -q --root-user-action=ignore playwright==1.63.0 >/dev/null 2>&1 && '
 if [ -n "${PLAYWRIGHT_IMAGE:-}" ]; then BROWSER_SETUP=''; fi
 # shellcheck disable=SC2086

@@ -22,7 +22,7 @@ from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, metadata_history, oplog, outcomes, stats
 from . import access, matching, notifications, security, metadata_view, metadata_dates, metadata_primary, rotations, photo_orientation
-from . import renaming
+from . import renaming, library_status
 from . import config, jobs as job_commands
 from .config import Config
 from .jobs import JobRefused, JobRunner
@@ -273,6 +273,43 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise HTTPException(400, {"error": "invalid_request", "message": "Send the scope and optional request ID only."})
         run_id = jobs.rebuild_thumbnails(body.get("scope"), body.get("request_id"))
         return jobs.accepted_run(run_id)
+
+    # -- Check library (webui-spec 7.6) -----------------------------------------
+
+    @app.post("/api/v1/jobs/check-library", status_code=202)
+    def check_library(body: dict = Body(...)):
+        """Starts Check library: depth quick or thorough. Read only."""
+        if set(body) - {"depth", "request_id"}:
+            raise HTTPException(400, {"error": "invalid_request", "message": "Send the depth and optional request ID only."})
+        run_id = jobs.check_library(body.get("depth"), body.get("request_id"))
+        return jobs.accepted_run(run_id)
+
+    @app.get("/api/v1/library-check")
+    def get_library_check():
+        """The sidebar's library status: the source's last Index, the newest check, and
+        the newest completed check's result."""
+        return library_status.status(cfg.db_path, cfg.source)
+
+    @app.get("/api/v1/library-check/{run_id}")
+    def get_library_check_findings(run_id: int = PathParam(..., ge=1, le=2**63-1),
+                                   page: int = Query(1, ge=1), page_size: int = Query(100, ge=1, le=500)):
+        """One check's counts and its findings, most serious first, a page at a time."""
+        found = library_status.findings(cfg.db_path, run_id, page, page_size)
+        if found is None:
+            raise HTTPException(404, {"error": "not_found", "message": "No library check with this job number."})
+        return found
+
+    @app.get("/api/v1/library-check/{run_id}/export")
+    def export_library_check(run_id: int = PathParam(..., ge=1, le=2**63-1), format: str = "csv"):
+        """Every finding of one check as CSV or JSON."""
+        if format not in ("csv", "json"):
+            raise HTTPException(400, {"error": "invalid_request", "message": "format is csv or json."})
+        chunks = library_status.export(cfg.db_path, run_id, format)
+        if chunks is None:
+            raise HTTPException(404, {"error": "not_found", "message": "No library check with this job number."})
+        name = f"negativespace-library-check-{run_id}.{format}"
+        return StreamingResponse(iter(chunks), media_type="text/csv" if format == "csv" else "application/json",
+                                 headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
     @app.post("/api/v1/thumbnails/clear-previews")
     def clear_previews():

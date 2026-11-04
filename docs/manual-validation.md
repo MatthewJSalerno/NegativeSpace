@@ -9,6 +9,9 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Check library:** [CL1a–CL1g](#check-library), the check, its results and the sidebar
+status, with the Index notice's two corrections. Maintainer acceptance is pending.
+
 **Audit 043:** [A1a–A1d](#audit-043-preview-index), the Index notice and action in the
 Copy/Move confirmation, passed, including all lettered steps, on 2026-11-03.
 
@@ -65,6 +68,63 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Check library
+
+**Status:** CL1a–CL1g pending maintainer acceptance. Read: the check is `engine/library_check.py`
+with `engine/maintenance.py` (`check_destination`); the screens are `CheckLibraryDialog.tsx`,
+`LibraryStatus.tsx` and `LibraryCheckFindings.tsx` (`docs/webui-spec.md` §7.6).
+
+Verified: the review instance holds ten generated photos, indexed and copied. The library
+was then changed by hand as another program would: `cat-01.jpg` deleted from the library
+and the source; `dog-01.jpg` moved to `sorted by hand`; the folder `2024/07/14` renamed
+`2024/07/14 beach trip` (four `beach-*.jpg`); `cake-01.jpg` replaced by a different
+picture; `cake-02.jpg` edited; `cat-02 copy.jpg`, `new-photo.jpg`, an empty `empty.jpg`,
+`notes.txt` and a `.DS_Store` added. A quick check run on a copy of this catalog reported
+what the steps below expect. No check has run on the instance itself.
+
+### Test CL1 — Check the library and read what it found
+
+- **CL1a:** At the foot of the sidebar, under **Stats**, check the two lines: **Source:
+  indexed** with today's date, and **Library: not checked yet · Check library…**. Choose
+  **Check library…**. A dialog titled **Check library** explains **Quick check** and
+  **Thorough check** and says **Last checked: not checked yet**; **Quick check** has the
+  focus. Choose **Cancel**. No job starts.
+- **CL1b:** Choose **Jobs › Check library…**, then **Quick check**. While it runs the
+  sidebar may briefly read **Library: checking…** in a box with a blue left edge. When it
+  finishes, the library line is a box with a red left edge: **Library: checked** with
+  today's date **· 1 missing · 6 need attention**.
+- **CL1c:** Choose that library line. Logs opens **Job #3 · Library check finished**,
+  counting **9 findings**, under it **Quick check · 2 photos as recorded · 1 missing ·
+  6 need attention**. Check:
+  - a box: **The folder 2024/07/14 was moved or renamed to 2024/07/14 beach trip: 4
+    photos.**
+  - in the table, first and in red, **Missing** `2024/03/02/cat-01.jpg`: no copy was
+    found, with the advice to restore it from a backup;
+  - in amber: **Replaced** `cake-01.jpg` (a copy is in the source), **Changed**
+    `cake-02.jpg` (still looks like the same photo), **Empty** `empty.jpg`, **Not
+    catalogued** `new-photo.jpg`, and **Moved** `2024/03/05/dog-01.jpg`, found at `sorted
+    by hand/dog-01.jpg`;
+  - muted: **Extra copy** `cat-02 copy.jpg`, of photo #1;
+  - below the table: **1 .txt file**, with **Change in Settings → Files**, and **1 file
+    from other programs: Mac system files**.
+- **CL1d:** Under **Export findings**, choose **CSV**. The file
+  `negativespace-library-check-3.csv` downloads with a header row (`finding`, `tone`,
+  `relative`, …) and 17 findings, the moved photos' new files included. **JSON** downloads
+  the same findings.
+- **CL1e:** Open **Library**, turn on **Needs review** and choose Reason **Library check
+  (8)**: the four `beach-*.jpg`, `cake-01.jpg`, `cake-02.jpg`, `cat-01.jpg` and
+  `dog-01.jpg`. Open `cat-01.jpg`. Under **Needs review**, **Library check** says it is
+  missing with no copy found, advises restoring it to `2024/03/02/cat-01.jpg` from a
+  backup, and ends **Found by Job #3**; there is no button for this reason.
+- **CL1f:** Choose **Jobs › Check library…** again. **Last checked** now names today,
+  **Quick** and the same result, as a link. Choose **Thorough check**. When it finishes
+  the sidebar shows the same result, and its Logs entry reads **Thorough check**.
+- **CL1g:** Choose **Jobs › Move › Move all (10)**. In the notice at the top, the
+  **Index source** link sits in its sentence with no extra space above or below that
+  line. Choose **Cancel**. Zoom the browser to 200%: the sidebar status, the Check
+  library dialog and the Logs entry stay readable with no sideways scrolling. Reset the
+  zoom.
 
 ## Audit 043 preview Index
 

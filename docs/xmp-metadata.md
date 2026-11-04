@@ -24,7 +24,7 @@ embedded EXIF fields and validated XMP sources; see the adapter boundary below.
 Both are independently tested, including generated ExifTool output.
 
 `engine/xmp_store.py` now retains exact originals, parsed snapshots and immutable
-arrival/participant records (introduced in schema 23; current catalog schema 34), with
+arrival/participant records (introduced in schema 23; current catalog schema 35), with
 verified catalog backup coverage.
 
 **Index now reads associated XMP as capture-only evidence.** It retains qualified
@@ -1056,8 +1056,8 @@ before claiming the combined photo/XMP durability guarantees are enforced.
 During Copy/Move, verify destination names, written photo/sidecar content and durable
 records before source cleanup; a name collision cannot authorize overwriting or adopting
 unrelated destination content. These are checks on the operation's actual targets, not
-a catalog-wide destination scan. **Check my library** and **Repair** in place for
-external changes are decided, not built (`engine-spec.md` §9.2). They are separate
+a catalog-wide destination scan. **Check library** is built; **Repair** in place for
+external changes is decided, not built (`engine-spec.md` §9.2). They are separate
 from the required checks on each transfer.
 
 If metadata saving succeeds but subsequent refiling fails, retain the verified edit and
@@ -1103,7 +1103,7 @@ original photo. An interrupted job's recovery is not undo of a completed job.
 
 External destination editing is the maintainer's responsibility for now. No monitoring,
 external-edit conflict UI or automatic reconciliation is added in this workstream;
-**Check my library** and **Repair** are decided, not built (`engine-spec.md` §9.2).
+**Check library** is built, read only; **Repair** is decided, not built (`engine-spec.md` §9.2).
 The engine must still verify its own actual reads/writes, prevent unintended overwrites
 and verify before deleting source files.
 

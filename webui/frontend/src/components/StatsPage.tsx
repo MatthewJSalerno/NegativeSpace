@@ -17,7 +17,7 @@ const FAILURE_LABEL: Record<string, [string, string]> = {
   other: ["Other reasons", ""],
 };
 const JOB_LABEL: Record<string, string> = {
-  INDEX: "Index", COPY: "Copy", MOVE: "Move", RENAME: "Rename", REBUILD: "Thumbnail rebuild", CHECK: "Destination check", METADATA: "Metadata edits",
+  INDEX: "Index", COPY: "Copy", MOVE: "Move", RENAME: "Rename", REBUILD: "Thumbnail rebuild", CHECK: "Checks", METADATA: "Metadata edits",
 };
 
 // The Stats page (webui-spec 5.9): what the catalog records about the library, its
@@ -201,7 +201,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: (group?: "
             ["Low-detail photos", count(s.health.low_detail_photos)],
             ...s.health.thumbnail_cache.map((c): [string, ReactNode] =>
               [c.size <= 320 ? "Grid thumbnails" : "Detail previews", `${plural(c.photos, "photo")} · ${bytes(c.bytes)}`]),
-            ["Last destination check", s.health.destination_check
+            ["Last library check", s.health.destination_check
               ? `${instant(s.health.destination_check.at)} · ${Object.entries(s.health.destination_check.findings)
                   .map(([k, n]) => `${count(n)} ${k}`).join(", ") || "all as recorded"}`
               : "Never run"],

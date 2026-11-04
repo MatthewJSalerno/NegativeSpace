@@ -601,17 +601,19 @@ class DatabaseTests(unittest.TestCase):
             self.conn.execute("UPDATE photos SET sha1_hash = 'aaa' WHERE id = ?", (photo,))
             db.record_destination_findings(self.conn, run, [
                 {'path': '/d/gone.jpg', 'kind': 'missing', 'photo_id': photo, 'expected_sha1': 'aaa'},
-                {'path': '/d/x/copy.jpg', 'kind': 'unknown', 'observed_sha1': 'aaa'},
-                {'path': '/d/x/one.jpg', 'kind': 'unknown', 'observed_sha1': 'bbb'},
-                {'path': '/d/x/two.jpg', 'kind': 'unknown', 'observed_sha1': 'bbb'},
-                {'path': '/d/x/alone.jpg', 'kind': 'unknown', 'observed_sha1': 'ccc'}])
+                {'path': '/d/x/copy.jpg', 'kind': 'unknown', 'observed_sha1': 'aaa', 'file_kind': 'photo'},
+                {'path': '/d/x/one.jpg', 'kind': 'unknown', 'observed_sha1': 'bbb', 'file_kind': 'photo'},
+                {'path': '/d/x/two.jpg', 'kind': 'unknown', 'observed_sha1': 'bbb', 'file_kind': 'photo'},
+                {'path': '/d/x/alone.jpg', 'kind': 'unknown', 'observed_sha1': 'ccc', 'file_kind': 'photo'}])
         report = db.read_destination_check(self.conn, run)
         self.assertEqual([(f['path'], f['kind']) for f in report['findings']][:1], [('/d/gone.jpg', 'missing')])
         self.assertEqual(report['unknown_groups'],
                          [{'sha1': 'aaa', 'paths': ['/d/x/copy.jpg'], 'catalogued_photo_ids': [photo]},
                           {'sha1': 'bbb', 'paths': ['/d/x/one.jpg', '/d/x/two.jpg'], 'catalogued_photo_ids': []}])
-        for bad in ({'path': '/d/a', 'kind': 'unknown', 'photo_id': photo},
-                    {'path': '/d/b', 'kind': 'changed'}):
+        for bad in ({'path': '/d/a', 'kind': 'unknown', 'photo_id': photo, 'file_kind': 'photo'},
+                    {'path': '/d/b', 'kind': 'changed'},
+                    {'path': '/d/c', 'kind': 'unknown'},
+                    {'path': '/d/d', 'kind': 'missing', 'photo_id': photo, 'found_in': 'library'}):
             with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
                 db.record_destination_findings(self.conn, run, [bad])
 

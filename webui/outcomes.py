@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
-from engine import ns_db
+from engine import library_check, ns_db
 from engine.ns_db import (PhotoStatus, RunStatus, OPERATION_SKIPPED, OPERATION_CANCELLED, OPERATION_RENAMED, OPERATION_RETURNED)
 from . import catalog, discovery
 
@@ -194,6 +194,14 @@ def _run_dict(conn, row) -> dict:
     run["outcome"] = _outcome(conn, run, run["progress"])
     if run["mode"] == "INDEX":
         run["discovery"] = discovery.breakdown(conn, run["id"])
+    if run["mode"] == "CHECK":
+        # A library check's findings are what it was asked to find, not failed work:
+        # the run reads as its findings (webui-spec 7.6). A file issue check has no row.
+        found = library_check.report(conn, run["id"], findings=False)
+        if found is not None:
+            run["library_check"] = found
+            if run["status"] == RunStatus.COMPLETED:
+                run["outcome"]["verdict"] = "success"
     run["questions"] = safety_questions(conn, run)
     if "network_destination" in run["questions"]:
         prior = conn.execute("SELECT submitted_request_json FROM job_requests WHERE run_id=?", (run["id"],)).fetchone()

@@ -797,6 +797,7 @@ provider, and the back-test decides whether it earns any weight.
 | Live Photo pairing (`ContentIdentifier`) | The paired video's date | Apple metadata in both files |
 | Camera model or phone software version | "Not before" its release | The photo's EXIF, and a release-date list to maintain |
 | Camera clock offset, from same-moment pairs with a correctly set device | A correction for wrong dates rather than a date for undated ones | Dated photos of the same moment from two devices |
+| The Library folder a file was put in by hand (`library/YYYY/MM/DD`, §7.6 Add to catalog) | The day the user filed it under: their own statement, so likely strong | Nothing; only files added to the Library outside NegativeSpace. `Undated/<year>` is the file-time fallback, not a clue |
 
 **Parked for discussion:** dates from other applications’ records, such as a Lightroom
 catalog’s capture times, Google Takeout `.json`, Picasa `.picasa.ini` and Apple `.AAE`.
@@ -2009,7 +2010,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 34 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 35 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -2899,7 +2900,150 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   distinct from supported XMP handling. Detection, choices and guidance are not yet built.
 
 
-### 7.6 Re-processing a disordered destination
+### 7.6 Checking and repairing the library
+
+**Decided 2026-11-02.** The engine rules are `engine-spec.md` §9.1 (the
+check) and `engine-spec.md` §9.2 (Repair in place). Built in four steps, each with its own manual test:
+the check and its results (**built**; `docs/manual-validation.md`, Check library);
+Repair and the catalog-only answers, **Stop warning about this** among them; Add to
+catalog; Rebuild from the earlier version (not built).
+
+**Until Repair is built** (decided 2026-11-04), a finding says what was found and what the
+user can do today, never what an unbuilt feature will do: "Found at a different place in
+the Library: 2019/07/IMG_1.jpg. Move it back to 2019/06/IMG_1.jpg, then check the library
+again." No answer is offered yet, so the check changes nothing in the catalog. Step 2
+replaces the advice with Repair and the answers.
+
+**Check library…** is in **Jobs**, after Index, Copy and Move, since it runs as a job
+(progress, Cancel, a Logs entry). It opens a dialog, never starting from the menu click,
+that explains the two depths and shows the last result:
+
+* **Quick check** (the default button): compares each file's size and modified date with
+  what was recorded and reads only the files that differ. Minutes.
+* **Thorough check**: reads every file and compares its checksum; about as long as copying
+  the whole library once. Also finds files damaged on disk.
+* **Last checked:** the date, depth and findings of the latest check, linking to them,
+  or **Not checked yet**.
+
+A check runs only when the user starts it: never on a schedule and never after another
+job, which would lengthen every Copy and Move. *Why not compare folder modified times
+instead:* a folder's time changes only when an entry directly in it is added, removed or
+renamed, not when a file is edited in place or a subfolder changes; copy and sync tools
+reset it; network shares cache it. It could suggest that something changed, never that
+nothing did.
+
+**Library status at the foot of the sidebar**, above the build label, on every page: when
+the source was last indexed, and the library's last check. The library line uses the
+message-box tones (`ui-design.md`, Message boxes) for its worst finding, and its words
+always state the count, so colour is never the only signal:
+
+| State | Tone | Text |
+| :--- | :--- | :--- |
+| Never checked | plain | Library: not checked yet · **Check library…** |
+| Checking | accent | Library: checking… with progress |
+| All as recorded | plain | Library: checked 1 Nov · all as recorded |
+| Something to fix or decide | warn | Library: checked 1 Nov · 3 need attention |
+| Something lost or damaged | bad | Library: checked 1 Nov · 1 missing, 1 damaged |
+| Could not run | warn | Library: check on 2 Nov couldn't run; library folder not found (the previous result stays below it) |
+
+*Bad* is only a photo missing with no copy anywhere, or a file that cannot be read;
+everything Repair or a decision can settle is *warn*. The library line opens the latest
+check's results; the source line opens its Index job's log. Neither starts a job. No
+"check is getting old" warning: any cutoff would be a guess tuned to one library, and the
+date is always shown.
+
+**Results go where each kind already belongs**, with no page of their own:
+
+* **Library photos with a finding** (moved or renamed, missing, changed, unreadable) get
+  a **Library check** reason in Needs review (§7.9). The Inspector says in plain words
+  what was found and what to do, with a link to the check's job; once Repair is built, what
+  Repair would do ("Found at a different place in the Library. Repair moves it back."). The reason clears itself when a later check finds the photo as
+  recorded or Repair settles it.
+* **Every finding, unknown files included,** is listed in the check job's entry in Logs,
+  most serious first, with what it means and what to do; the job heading counts findings,
+  not log entries. The entry's own **Export findings** group downloads every finding as
+  CSV or JSON: finding, tone, path (and relative to the library), folder, where its
+  content was found, size, checksum, the related photo, and the meaning and advice
+  shown. *Why not Export filtered log:* that exports log entries, and a check records
+  findings, not operations.
+* **A whole missing or moved folder is one finding** ("The folder 2019/06 is missing:
+  312 photos"), so a renamed folder reads as one change, and one answer settles it.
+* **No `library` folder** stops the check with *"The library folder isn't there. Is the
+  destination connected?"*; no findings are recorded, and the sidebar says the check
+  could not run.
+
+**Unknown files are named by what they are**, from their content (`engine-spec.md` §9.2,
+Guards), never only by their extension:
+
+| Kind | Example | Shown as |
+| :--- | :--- | :--- |
+| Identical to a catalogued photo | `IMG_1 (1).jpg` | an extra copy of the named photo (plain) |
+| A photo NegativeSpace can add | a dated `.jpg` | **Add to catalog…** (warn) |
+| A type not in Settings › Files | `.mov`, `.pdf`, `.txt` | one quiet line per type ("12 .mov files"), with **Change in Settings → Files** |
+| A photo with a wrong or missing extension | `photo.dat`, a HEIC named `.jpg` | "Looks like a JPEG photo, but its name doesn't end in .jpg" (warn) |
+| Not recognisable | no known signature | "Unknown kind of file" (quiet) |
+| Empty | 0 bytes | "Empty file, often a copy that didn't finish" (warn) |
+| Damaged | a `.jpg` that will not decode | "Damaged: can't be read as a photo" (warn) |
+| Cannot be opened | permissions | "NegativeSpace can't open it (permission denied)" (warn) |
+
+**Other programs' housekeeping** is counted in one quiet line, never warned about, offered
+or touched ("1,204 files from other programs: Synology thumbnails and recycle bin, Mac
+system files"): Synology `@eaDir` and `#recycle`, `.DS_Store`, AppleDouble `._*` files,
+`Thumbs.db`, `desktop.ini`, `.picasa.ini`, `.Trash-*`, `$RECYCLE.BIN`, and any other name
+starting with a dot, which Index already skips as hidden. The list is the maintainer's
+decision (2026-11-02). Sourced: Microsoft documents `desktop.ini` as a hidden file that
+customises a folder ([How to Customize Folders with
+Desktop.ini](https://learn.microsoft.com/en-us/windows/win32/shell/how-to-customize-folders-with-desktop-ini));
+the [freedesktop Trash specification](https://specifications.freedesktop.org/trash/latest/)
+says "an $topdir/.Trash-$uid directory is to be used as the user's trash directory".
+Synology's and Apple's pages for the other names were not opened. **Sidecars** that
+editors leave beside a Library photo (`.xmp`, `.aae`, named for the photo) are counted in
+one quiet line, not listed as unknown files. Showing one on its photo as "a sidecar added
+by another app" needs NegativeSpace's own delivered sidecars told apart from other
+programs', which its operation records hold; that waits with the open sidecar TODO.
+
+**Answers for changes made on purpose**, beside Repair wherever it is offered; each
+changes only the catalog and is recorded in the photo's history (`engine-spec.md` §9.2):
+**Keep it here** (moved or renamed, a file or a whole folder), **I removed it** (missing),
+**Record as rejected** (found under `rejects/`), **Record as returned** (taken out of
+Rejects), **It's an edit of this photo** (a change too heavy to match as a look-alike), and
+**Stop warning about this** (an unknown file or folder, until it changes). Without them a
+library arranged the user's own way would warn forever.
+
+**Repair…** is offered on the Library check reason (every photo it holds, or the ticked
+ones) and on one photo's Inspector. Its preview is the Copy/Move confirmation pattern:
+every planned change, grouped by kind with counts, each group offering its repair or its
+answer ("12 photos moved: ○ Move them back ○ Keep them where they are"), any of them can be
+unticked, and unknown files are named as untouched. It then runs as an ordinary job, which
+skips and reports any file that changed since the check.
+
+**A different picture under a photo's name** is told apart from an edit by look-alike
+matching (§7.4): *"A different picture is saved under this name. The photo NegativeSpace
+filed here is missing."* Its answers are the missing photo's and the unknown photo's,
+plus **It's an edit of this photo**.
+
+**Later refinements**, after the four steps: *restored to an earlier version*, changes
+that left the picture alone grouped with the fields they touched, and format conversions
+linked to their original (`engine-spec.md` §9.2).
+
+**Add to catalog…** is offered on an unknown file that is a photo. It records the file as a
+Library photo where it lies, without moving or rewriting it (`engine-spec.md` §9.2). If its
+date files it elsewhere, it becomes a moved finding: Repair offers to move it, and **Keep
+it here** leaves it where the user put it.
+
+**A photo with no capture date** (no EXIF or XMP date) added this way is a **warn**
+finding: counted in the sidebar status, a **No date** badge on its card under Library
+check, and in the Inspector a warning box whose fix is a button:
+
+> ⚠ **No date recorded in this file.** You added it to 2019/06/14. NegativeSpace can't
+> confirm when it was taken, so it can't tell whether that folder is right.
+> Suggested date: 14 June 2019 (from the folder name) **[Edit date…]**
+
+**Edit date…**, the button suspicious dates already use, opens the existing date editor
+(§7.5) with the suggestion filled in; the verified save writes it into the file and
+clears the warning. The folder is a dating clue (§3.1, Candidate clues).
+
+#### The fresh-destination workflow (until Repair is built)
 
 A read-only destination check may detect missing expected files, unrecorded files,
 changed content, possible external moves/renames, or additional exact copies.

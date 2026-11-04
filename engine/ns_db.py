@@ -17,7 +17,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 34
+SCHEMA_VERSION = 35
 
 # --- Status vocabularies -----------------------------------------------------
 #
@@ -792,15 +792,36 @@ FOUNDATION_DDL = (
     # a catalogued copy missing, changed or unreadable, or a file the catalog did
     # not put there. Intact copies are only counted (run_progress), not stored.
     # An observation, never a status change: no photo row is altered by a check.
+    # file_kind names an unknown file by its content, signature by the format its
+    # leading bytes show; found_in/found_path say where a missing photo's content
+    # still is; gone_folder is the outermost folder of a missing photo that is
+    # itself gone; look tells an edit from a different picture (engine-spec 9.2).
     """CREATE TABLE destination_findings (
         run_id INTEGER NOT NULL REFERENCES runs(id),
         path TEXT NOT NULL,
         kind TEXT NOT NULL CHECK(kind IN ('missing','changed','unreadable','unknown')),
         photo_id INTEGER REFERENCES photos(id),
         expected_sha1 TEXT, observed_sha1 TEXT, size INTEGER, mtime REAL, detail TEXT,
+        file_kind TEXT CHECK(file_kind IN ('photo','wrong_extension','other_type','unrecognised',
+                                          'empty','damaged','unopenable')),
+        signature TEXT,
+        found_in TEXT CHECK(found_in IN ('library','rejects','source')), found_path TEXT,
+        gone_folder TEXT,
+        look TEXT CHECK(look IN ('alike','different')),
         PRIMARY KEY(run_id, path),
-        CHECK((kind = 'unknown') = (photo_id IS NULL)))""",
+        CHECK((kind = 'unknown') = (photo_id IS NULL)),
+        CHECK((kind = 'unknown') = (file_kind IS NOT NULL)),
+        CHECK((found_in IS NULL) = (found_path IS NULL)))""",
     "CREATE INDEX idx_destination_findings_sha1 ON destination_findings(observed_sha1)",
+    "CREATE INDEX idx_destination_findings_photo ON destination_findings(run_id, photo_id)",
+    # One row per library check (webui-spec 7.6), so a check is told from a file
+    # issue check, which shares the CHECK mode. stopped says why one could not run;
+    # counts_json holds what is only counted: other programs' files and sidecars.
+    """CREATE TABLE library_checks (
+        run_id INTEGER PRIMARY KEY REFERENCES runs(id),
+        depth TEXT NOT NULL CHECK(depth IN ('quick','full')), library TEXT NOT NULL,
+        stopped TEXT CHECK(stopped IN ('library_missing')),
+        counts_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(counts_json)))""",
     # outcome is NULL only while an attempt runs; one found NULL under the
     # engine lock was interrupted.
     """CREATE TABLE backup_attempts (
@@ -878,7 +899,7 @@ def require_schema(conn):
                     'file_origins','file_states','contents','operation_events','operation_evidence',
                     'attention_issues','attention_evidence','file_changes','photo_versions','photo_version_answers','content_similarity','similarity_hashes',
                     'similarity_count_cache','similarity_count_state',
-                    'review_events','review_date_confirmations','review_calendar','thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state',
+                    'review_events','review_date_confirmations','review_calendar','thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state','library_checks',
                     'xmp_versions','xmp_arrivals','xmp_arrival_files','metadata_captures','metadata_decisions'}
         present = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if not required <= present:
@@ -1328,14 +1349,17 @@ def read_progress(conn, run_id):
                 "WHERE run_id = ? ORDER BY seq", (run_id,))]
 
 
+FINDING_COLUMNS = ('path', 'kind', 'photo_id', 'expected_sha1', 'observed_sha1', 'size', 'mtime', 'detail',
+                   'file_kind', 'signature', 'found_in', 'found_path', 'gone_folder', 'look')
+
+
 def record_destination_findings(conn, run_id, findings):
     """Stores one batch of destination-check findings, each a dict with `path`, `kind`
-    and optionally photo_id, expected_sha1, observed_sha1, size, mtime, detail. Joins
-    the caller's transaction."""
+    and optionally the other FINDING_COLUMNS. Joins the caller's transaction."""
     conn.executemany(
-        "INSERT INTO destination_findings VALUES (?,?,?,?,?,?,?,?,?)",
-        [(run_id, f['path'], f['kind'], f.get('photo_id'), f.get('expected_sha1'),
-          f.get('observed_sha1'), f.get('size'), f.get('mtime'), f.get('detail')) for f in findings])
+        f"INSERT INTO destination_findings(run_id,{','.join(FINDING_COLUMNS)}) "
+        f"VALUES (?{',?' * len(FINDING_COLUMNS)})",
+        [(run_id, *(f.get(c) for c in FINDING_COLUMNS)) for f in findings])
 
 
 def read_destination_check(conn, run_id):
@@ -1345,9 +1369,8 @@ def read_destination_check(conn, run_id):
     group is one content held by more than one file outside the catalog's knowledge, or
     by an unknown file and a catalogued photo: {'sha1', 'paths', 'catalogued_photo_ids'}.
     Intact counts are in read_progress (phase checking_destination)."""
-    findings = [dict(zip(('path', 'kind', 'photo_id', 'expected_sha1', 'observed_sha1', 'size',
-                          'mtime', 'detail'), row)) for row in conn.execute(
-        "SELECT path, kind, photo_id, expected_sha1, observed_sha1, size, mtime, detail "
+    findings = [dict(zip(FINDING_COLUMNS, row)) for row in conn.execute(
+        f"SELECT {', '.join(FINDING_COLUMNS)} "
         "FROM destination_findings WHERE run_id = ? ORDER BY kind, path", (run_id,))]
     groups = {}
     for f in findings:

@@ -46,7 +46,7 @@ export function ReviewNote({ id, refreshKey, disabled = false, reason = "all", o
   const photoActions = detail && detail.location === "Library" && (
       <div className="photo-actions" role="group" aria-label="Photo actions">
         {compact && onOpenReview && (detail.reasons.length > 0 || concerns.length > 0) && <button onClick={onOpenReview}>Inspect photo…</button>}
-        {!compact && detail.reasons.filter(n => n.reason !== "date" && (reason === "all" || n.reason === reason)).map(n => <button key={n.reason}
+        {!compact && detail.reasons.filter(n => n.reason !== "date" && n.reason !== "library" && (reason === "all" || n.reason === reason)).map(n => <button key={n.reason}
           disabled={busy || disabled || !!pending.current} title={disabled ? "Wait for the running job to finish." : undefined}
           onClick={() => void decide(n.reason, n.reason === "small" ? "reviewed" : n.bookmark_reason === "keep" ? "keep" : "done")}>{n.reason === "small" ? "Mark reviewed" : n.bookmark_reason === "keep" ? "Keep it" : "Remove bookmark"}</button>)}
         {!detail.reasons.some(n => n.reason === "later") && !adding && <button disabled={busy || disabled || !!pending.current}
@@ -68,6 +68,8 @@ export function ReviewNote({ id, refreshKey, disabled = false, reason = "all", o
           {onEditDate && <button disabled={busy || disabled || !!pending.current} onClick={onEditDate}>Edit date…</button>}
           <button disabled={busy || disabled || !!pending.current} onClick={() => void decide("date", "correct")}>This date is correct</button>
         </div><p className="section-note">Confirming keeps this date and clears only its review reminder. Saving a date you choose also confirms it.</p></>}
+        {n.reason === "library" && <>{n.todo && <p>{n.todo}</p>}
+          <p className="section-note">Found by <a href={`/logs?run=${n.run_id}`} onClick={follow}>Job #{n.run_id}</a>. This clears itself when a later check finds the photo as recorded.</p></>}
 
       </div>)}
       {detail.date_warning && detail.date_confirmed && <div className="review-reason"><strong>Date confirmed</strong>

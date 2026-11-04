@@ -62,7 +62,9 @@ Use the same text roles on every screen:
 | Supporting details, badges and counts | 12px / 400; emphasis uses 600 |
 
 Text buttons embedded in a sentence inherit its size and line height, just like
-anchors. A file path inherits its surrounding text size rather than introducing a
+anchors: a `button.link` inside a paragraph or list item drops the standalone control
+height (`styles.css`), which [WCAG 2.5.8](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html)
+exempts: "The target is in a sentence or its size is otherwise constrained by the line-height of non-target text". A file path inherits its surrounding text size rather than introducing a
 second font or larger text into a compact history line. Adjacent navigation and
 action links share alignment and target height even when one is an anchor and the
 other is a button. Preserve these roles at desktop zoom and narrow widths; do not
@@ -219,7 +221,13 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   them. Active progress, safety questions and Rejects reminders sit under the top bar.
 - **Sidebar** (`Sidebar.tsx`, 17rem): Not organized, Source folders beneath it,
   Library, Similar photos and Rejects. Activity (Logs and Stats) sits at the bottom,
-  directly above the version label, with flexible space separating it from photo places.
+  then the **library status** (`LibraryStatus.tsx`: when the source was last indexed and
+  the library last checked, `webui-spec.md` §7.6), then the version label, with
+  flexible space separating them from photo places. Its lines are supporting text (12px),
+  each a link inside its sentence to that job's log. The library line is a highlighted
+  box only when a check is running (accent), could not run, or found something (amber to
+  fix or decide, red for a photo lost or damaged); otherwise it is plain text. It never
+  starts a job: never checked, it offers **Check library…**, which opens the dialog.
   On short windows or enlarged text the sidebar scrolls; the Activity links remain reachable.
   Places use real links, full visible labels and whole-place counts. Do not repeat an
   unfiltered place total above the gallery. Filtered results show Showing N of M;
@@ -242,7 +250,7 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
     percentage. Not organized: **Needs attention** (warning colour), **Small**, **Odd
     dates**, **No date** (Small is a fact of the file there, as the rule below says). Rejects: **Odd dates**, **No date**.
   - **Needs review becomes a Library refinement, not a place.** Turned on, it adds a
-    **Reason** switch (All, Small, Bookmarked, Needs verification) that picks one reason
+    **Reason** switch (All, Small, Bookmarked, Needs verification, Library check) that picks one reason
     at a time, since each brings its own answers; the date toggles still combine with it.
   - **Needs attention and Needs verification** appear when their count is above 0
     or they are selected. A selected warning remains clearable at zero, with an

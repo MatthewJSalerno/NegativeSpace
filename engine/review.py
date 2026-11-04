@@ -2,7 +2,7 @@
 import contextlib
 import json
 import re
-from engine import ns_db, attention, review_history
+from engine import ns_db, attention, library_check, review_history
 
 # Internal event reason 'later' is the personal bookmark, separate from size review.
 BOOKMARK_REASONS = {
@@ -14,15 +14,22 @@ REASONS = ('small', 'later', 'date')
 
 
 
+# Reasons with no answer of their own: a file issue, and a Library check finding, which
+# clears itself when a later check finds the photo as recorded (webui-spec 7.6).
+FINDING_REASONS = ('issues', 'library')
+
+
 def predicate(reason='all'):
-    if reason not in ('all', 'issues', *REASONS):
+    if reason not in ('all', *FINDING_REASONS, *REASONS):
         raise ValueError('Unknown review reason')
     small = review_history.small_pending_sql()
     date = review_history.date_pending_sql()
     later = (f"p.status IN ({ns_db.sql_values(ns_db.DELIVERED_STATUSES)}) AND "
              "(SELECT e.action FROM review_events e WHERE e.photo_id=p.id AND e.reason='later' ORDER BY e.id DESC LIMIT 1)='later'")
     issues = f"p.status IN ({ns_db.sql_values(ns_db.DELIVERED_STATUSES)}) AND ({attention.predicate()})"
-    return {'small': small, 'later': later, 'issues': issues, 'date': date, 'all': f'(({small}) OR ({later}) OR ({issues}) OR ({date}))'}[reason]
+    library = library_check.pending_sql()
+    return {'small': small, 'later': later, 'issues': issues, 'date': date, 'library': library,
+            'all': f'(({small}) OR ({later}) OR ({issues}) OR ({date}) OR ({library}))'}[reason]
 
 
 def details(conn, photo_id):
@@ -58,6 +65,10 @@ def details(conn, photo_id):
                 preset = next(e['bookmark_reason'] for e in history if e['reason'] == 'later')
                 reasons.append({'reason': reason, 'label': BOOKMARK_REASONS.get(preset, 'Other'),
                                 'message': note, 'bookmark_reason': preset})
+    found = library_check.photo_reason(conn, photo_id)
+    if found is not None:
+        reasons.append({'reason': 'library', 'label': 'Library check', 'tone': found['tone'],
+                        'message': found['what'], 'todo': found['todo'], 'run_id': found['run_id']})
     return {'reasons': reasons, 'history': history, 'revision': history[0]['id'] if history else 0,
             'date_taken':meta.get('date_taken'), 'date_confirmed':bool(warning[1]),
             'date_warning':warning[0], 'date_message':date_message, 'sha1': row[2], 'location': 'Library' if row[1] in ns_db.DELIVERED_STATUSES else

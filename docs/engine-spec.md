@@ -91,7 +91,7 @@ security concern, specified in `webui-spec.md` §5.6.
     *   `--preview <photo_id>` — makes the 1024px detail preview for one catalogued photo if it is not cached yet, and prints one line of JSON: `photo_id`, `availability` (`present`, `failed` or `unavailable`), `cache_filename` (relative to `--cache`), `bytes`, `reused`, `failure_category` and `failure_detail`. It exits `0` when a preview is present and `1` otherwise. The web API calls it when a photo is opened (`webui-spec.md` §4.2.1), so image decoding and every catalog write other than settings stay in the engine. It starts no run and **takes no engine lock**: it changes no photo file, only one disposable cache image and its `thumbnail_cache` row, written in a single short transaction, so a photo can be opened while a job runs. The preview is keyed on content, so identical copies share one. It is made from a delivered destination copy first, then a source that still exists, and only from a copy whose size and modification time still match the catalog, so an edited file never produces the preview for different content. A cached preview is served even when no usable copy remains. Nothing is logged to the console, so stdout carries only the answer. Measured end to end on a ~1,200-file sample, engine start included: a first view has a median of 110–195ms per format (JPEG, CR2, DNG, WebP, PNG, TIFF), and a cached repeat takes about 85ms.
     *   `--clear-previews` — the web UI's **Free up** (`webui-spec.md` §4.2.1): removes every recorded detail preview and prints one line of JSON, `removed`, `bytes_freed` and `not_removed`. It exits `1` when any file could not be removed. Grid thumbnails stay, and so do recorded preview failures, which name no file and keep the reason a photo has no preview. Only files the catalog records are removed, so the space freed matches the per-size total the page showed. Each file goes before its record, and a file that cannot be removed keeps its record. Like `--preview`, it starts no run and takes no engine lock. If it races a preview request, the worst case is a record whose file is gone, and the next request regenerates it.
     *   `--rebuild-thumbnails missing|all` — the web UI's grid repair and rebuild (`webui-spec.md` §4.2.1). A job: it takes the engine lock, opens a `REBUILD` run, reconciles interrupted work first, honours cancellation while awaiting worker results and settles `Completed`, `Cancelled` or `Failed`. It needs no `--source`. `missing` makes the grid thumbnails not on disk, and `all` regenerates every one. Each is made from `catalogued_copies`: a delivered destination copy first, then a live source, and only one whose size and modification time still match the catalog. Under `all`, an existing thumbnail is replaced only when a copy supplies a new one, never discarded for lack of one. It uses `--workers` like a scan, records no operation, takes no backup, and exits `1` only when the run Failed. Refused with `--no-thumbnails`.
-    *   `--check-destination quick|full` — the destination check (§9.1). A read-only job under the engine lock, opening a `CHECK` run. It needs no `--source`, uses `--workers` and `--exts` like a scan, records findings in `destination_findings`, changes nothing, and exits `1` only when the run Failed.
+    *   `--check-destination quick|full` — Check library (§9.1). A read-only job under the engine lock, opening a `CHECK` run and its `library_checks` row. It needs no `--source`, uses `--workers` and `--exts` like a scan (the extensions it reads as photos), records findings in `destination_findings`, changes nothing, and exits `1` only when the run Failed, which includes a missing library folder.
     *   `--rename PHOTO_ID --name NAME [--dry-run] [--rename-preview-token TOKEN]` and `--rename-candidates PHOTO_ID` — renaming a delivered file (§9.4). The rename is a `RENAME` job under the engine lock that backs up the catalog first; `--dry-run` and `--rename-candidates` answer in one line of JSON, take no lock and change nothing.
     *   `--reject` and `--return-to-library`, each with `--file-ids`, `--file-ids-from` or `--source-subdir` (required) — rejecting organized photos and returning rejected ones (§9.5). `REJECT` and `RETURN` jobs under the engine lock that back up the catalog first and record the selection as Copy and Move do.
     *   The database write-queue size is intentionally **not** configurable — left as a hardcoded internal constant rather than exposed, since there was no concrete need identified for tuning it separately from `--workers`.
@@ -342,7 +342,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 34 and refuses incompatible catalogs before processing.
+initializes schema version 35 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -641,7 +641,7 @@ CREATE INDEX idx_lineage_file ON operation_files(file_id,operation_id);
 
 **Recovery, content, cache, discovery and backup records.** The first five are
 written by recovery (4.2), `contents` and `thumbnail_cache` by the scan,
-`run_discovery` by a full Index (4.3; schema 31 adds the selected-extension counts, calculated from the already-discovered candidate list with no extra filesystem reads), `run_progress` by every job (4.3), `destination_findings` by the destination check (9.1), and the backup records by catalog backups
+`run_discovery` by a full Index (4.3; schema 31 adds the selected-extension counts, calculated from the already-discovered candidate list with no extra filesystem reads), `run_progress` by every job (4.3), `destination_findings` and `library_checks` by Check library (9.1), and the backup records by catalog backups
 (4.1). A verified metadata edit that rewrites a Library file writes `file_changes`; Index
 and that edit write `photo_versions` when a source file holds content an edit replaced
 (section 10); the user's answers write `photo_version_answers`. Index writes `content_similarity`.
@@ -808,16 +808,38 @@ CREATE TABLE run_progress (
 
 -- What a destination check (9.1) found that is not simply intact. Intact
 -- copies are only counted in run_progress. An observation: no photo changes.
+-- file_kind names an unknown file by its content, signature the format its
+-- leading bytes show; found_in/found_path say where a missing photo's content
+-- still is; gone_folder is its outermost gone folder; look tells an edit from
+-- a different picture.
 CREATE TABLE destination_findings (
     run_id INTEGER NOT NULL REFERENCES runs(id),
     path TEXT NOT NULL,
     kind TEXT NOT NULL CHECK(kind IN ('missing','changed','unreadable','unknown')),
     photo_id INTEGER REFERENCES photos(id),
     expected_sha1 TEXT, observed_sha1 TEXT, size INTEGER, mtime REAL, detail TEXT,
+    file_kind TEXT CHECK(file_kind IN ('photo','wrong_extension','other_type','unrecognised',
+                                      'empty','damaged','unopenable')),
+    signature TEXT,
+    found_in TEXT CHECK(found_in IN ('library','rejects','source')), found_path TEXT,
+    gone_folder TEXT,
+    look TEXT CHECK(look IN ('alike','different')),
     PRIMARY KEY(run_id, path),
-    CHECK((kind = 'unknown') = (photo_id IS NULL))
+    CHECK((kind = 'unknown') = (photo_id IS NULL)),
+    CHECK((kind = 'unknown') = (file_kind IS NOT NULL)),
+    CHECK((found_in IS NULL) = (found_path IS NULL))
 );
 CREATE INDEX idx_destination_findings_sha1 ON destination_findings(observed_sha1);
+CREATE INDEX idx_destination_findings_photo ON destination_findings(run_id, photo_id);
+-- One row per library check (webui-spec 7.6), telling it from a file issue
+-- check; stopped says why one could not run; counts_json holds what is only
+-- counted: other programs' files and sidecars.
+CREATE TABLE library_checks (
+    run_id INTEGER PRIMARY KEY REFERENCES runs(id),
+    depth TEXT NOT NULL CHECK(depth IN ('quick','full')), library TEXT NOT NULL,
+    stopped TEXT CHECK(stopped IN ('library_missing')),
+    counts_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(counts_json))
+);
 
 -- An attempt is history; an artifact's availability is last recorded state.
 -- outcome is NULL only while an attempt runs; one found NULL under the engine
@@ -984,7 +1006,7 @@ section changes that on the user's explicit instruction for a specific file —
 never on the engine's own initiative, and never as a side effect of something
 else the user asked for.
 
-**The destination check (§9.1) and renaming (§9.4) are implemented.** Each other
+**Check library (§9.1) and renaming (§9.4) are implemented**; Repair in place (§9.2) is not. Each other
 subsection names what the engine would need, so the gap is visible rather than implied. The corresponding user
 interface is specified in `webui-spec.md` §7.
 
@@ -1003,12 +1025,14 @@ Index walks `--source` and never inspects `--dest`, which is why a photo whose
 destination file was deleted outside the engine keeps reporting `Skipped —
 already copied` (`webui-spec.md` §5.3).
 
-`--check-destination quick|full` is a read-only job run by `check_destination`. It takes the engine lock, opens a `CHECK` run, reconciles interrupted work first, can be cancelled while awaiting worker results, and reports `discovering` then `checking_destination` progress (§4.3). It works in two passes:
+`--check-destination quick|full` is **Check library** (`webui-spec.md` §7.6), a read-only job run by `maintenance.check_destination` with `engine/library_check.py`. It takes the engine lock, opens a `CHECK` run with a `library_checks` row (its depth, the library folder checked, and why it stopped, if it did), reconciles interrupted work first, can be cancelled while awaiting worker results, and reports `discovering` then `checking_destination` progress (§4.3). A file issue check (`--check-issue`) shares the `CHECK` mode and has no `library_checks` row.
 
-*   **Every delivered copy the catalog records under `--dest`** (`ANCHOR_DELIVERED_STATUSES`, one per path) is looked up directly by its path and found **ok**, **missing**, **changed** (content differs from the catalog's SHA-1) or **unreadable**. It is never inferred missing from the walk, which can skip a folder it cannot read. `quick` trusts an unchanged size and modification time; a copy keeps the source's mtime to the nanosecond, so a match means nothing rewrote the file. It hashes only the files that differ. `full` hashes every file, which also finds a same-size edit that kept its date, or silent corruption, at the cost of reading the whole destination.
-*   **The walk** then lists files the catalog did not put there, limited to the run's extensions (other files are only counted, as at Index). They are always hashed, since the catalog has nothing to compare them with. `ns_db.read_destination_check` groups them by content, both with each other and with catalogued photos holding the same content, so redundancy something outside the engine created is visible.
+*   **No library folder, no check.** With no `library/` folder under `--dest` the run stops Failed with `stopped = 'library_missing'` and records no findings: a destination that is not connected proves nothing, as `reconcile._notice_emptied_rejects` already treats it.
+*   **Every delivered copy the catalog records under `--dest`** (`ANCHOR_DELIVERED_STATUSES`, one per path) is looked up directly by its path and found **ok**, **missing**, **changed** (content differs from the catalog's SHA-1) or **unreadable**. It is never inferred missing from the walk, which can skip a folder it cannot read. `quick` trusts an unchanged size and modification time; a copy keeps the source's mtime to the nanosecond, so a match means nothing rewrote the file. It hashes only the files that differ. `full` hashes every file, which also finds a same-size edit that kept its date, or silent corruption, at the cost of reading the whole destination. A changed file is compared with the photo's recorded perceptual hash (`look`): within the look-alike distance (§9.3) it is an edit, beyond it a different picture.
+*   **The walk** (`library_check.walk_library`) visits every file under `library/`. Other programs' housekeeping (§9.2, Guards) and sidecars (`.xmp`, `.aae`) named for a photo beside them are only counted, in `library_checks.counts_json`. Every other file the catalog did not put there is an **unknown** finding named by its content (`file_kind`): a file of a type the run selects is read once, in full, for its checksum and leading bytes, then decoded; any other type is read only for its leading bytes, and in full only when those show a photo under the wrong name. `ns_db.read_destination_check` groups hashed unknown files by content, with each other and with catalogued photos.
+*   **Where missing content still is** (`library_check.locate`), after the walk: for each missing photo, and each one replaced by a different picture, its content is looked for among the unknown library files, then in `rejects/` (reading only files of a sought size), then at a source path the catalog records for that content (`found_in`, `found_path`). For a missing photo whose folder is gone too, `gone_folder` records the outermost gone folder, so a whole missing or renamed folder reads as one finding.
 
-What is not intact goes to `destination_findings`, one row per path; intact copies are only counted. **A check is an observation, never an action.** No file is touched or catalogued, no photo's status changes, and no operation or backup is recorded. A photo found missing is not assumed lost: the source may still exist, or the user may know why. The user decides, by re-delivering with `--force-rehash` and Copy, or through the fresh-destination workflow below.
+What is not intact goes to `destination_findings`, one row per path; intact copies are only counted. **A check is an observation, never an action.** No file is touched or catalogued, no photo's status changes, and no operation or backup is recorded. A photo found missing is not assumed lost: the source may still exist, or the user may know why. `library_check.report` is what the web UI reads: each finding with its tone and what it means, folder groups, and counts.
 
 **Why two depths, the user's choice:** the two answer different questions at very different costs. A quick check finds missing, replaced and resized files in minutes. A full check reads every byte, which takes about as long as a Copy of the library, and is the only one that sees corruption that leaves size and date alone.
 
@@ -1042,18 +1066,60 @@ Three costs have to be surfaced before offering it:
 
 The destination check (§9.1) detects differences without modifying photos. When a mismatch is found, direct the user to this fresh-destination workflow; it logs new processing but cannot reconstruct external changes or recover missing pixels.
 
-**Repair in place** (decided 2026-10-18; not built). **Check my library** runs the
-destination check and reports each Library photo by what it found; **Repair** previews
-every change, then runs as an ordinary job that records each fix in the photo's lineage.
-Nothing is deleted. This replaces the fresh-destination workflow for a library rearranged
-outside the app, because that workflow restarts every photo's history.
+**Repair in place** (decided 2026-10-18, extended 2026-11-02; not built). **Check
+library** runs the destination check and reports each Library photo by what it found;
+**Repair** previews every change, then runs as an ordinary job that records each fix in
+the photo's lineage. Nothing is deleted. This replaces the fresh-destination workflow for
+a library rearranged outside the app, because that workflow restarts every photo's
+history. A check runs only when the user starts it: never on a schedule and never as
+part of another job, so no Copy or Move is made longer by it. The screens are in
+`webui-spec.md` §7.6.
 
-| Found | Repair |
-| :--- | :--- |
-| **Moved or renamed** (its content found elsewhere under `library/`) | Move it back to where it belongs |
-| **Missing** | Copy it back from the source or Rejects if a verified copy remains. If only an *earlier version* remains in the source, offer **Rebuild from the earlier version**: copy it and re-apply, as a new verified edit, every recorded change since that version (listed in the preview), refiling it where the lost file was. The result is the same picture with the same recorded details, labelled *rebuilt*, not restored: its checksum may differ from the lost file, and changes NegativeSpace did not make (external editors) cannot be re-applied. Qualified formats only; RAW sidecar edits are re-created from the retained exact XMP version. Otherwise record it gone, keeping its history |
-| **Changed** (saved over by another application) | Keep the new version in place, record its checksum as a later version (§10), and refile it if its date changed |
-| **Unknown file** (not in the catalog) | Never touched; listed so the user knows it is there |
+Each finding has a Repair, which changes files, and answers that change only the catalog,
+for changes the user made on purpose. Every answer is recorded in the photo's lineage, and
+none touches a file.
+
+| Found | Repair | Answers that change only the catalog |
+| :--- | :--- | :--- |
+| **Moved or renamed** (its content found elsewhere under `library/`) | Move it back to where it belongs | **Keep it here**: the new path becomes where the photo lives, so later checks find it as recorded. A whole moved or renamed folder is one finding and one answer |
+| **Missing** | Copy it back from the source or Rejects if a verified copy remains. If only an *earlier version* remains in the source, offer **Rebuild from the earlier version**: copy it and re-apply, as a new verified edit, every recorded change since that version (listed in the preview), refiling it where the lost file was. The result is the same picture with the same recorded details, labelled *rebuilt*, not restored: its checksum may differ from the lost file, and changes NegativeSpace did not make (external editors) cannot be re-applied. Qualified formats only; RAW sidecar edits are re-created from the retained exact XMP version. Otherwise record it gone, keeping its history | **I removed it**: recorded as removed by the user, never copied back. A whole missing folder is one finding |
+| **Missing, its content under `rejects/`** (put there by hand) | Move it back to the Library | **Record as rejected**, as if Reject had moved it (§9.5) |
+| **Changed, still looks like the photo** (edited by another application) | Keep the new version in place, record its checksum as a later version (§10), and refile it if its date changed | — |
+| **Changed, a different picture** (no look-alike match, §9.3, with the recorded content) | Two findings: the photo is *missing*, and the file is an *unknown photo* | **It's an edit of this photo** overrides the match and records it as a later version, for an edit too heavy to match |
+| **Unreadable** | Nothing to repair in place; listed with its reason, and Copy back is offered when a verified copy remains | — |
+| **Unknown file, identical to a catalogued photo** | Never touched; listed as an extra copy of that photo. Identical to a rejected photo (taken out of `rejects/` by hand): **Record as returned**, as if Return had moved it | — |
+| **Unknown file, a photo** (a supported type the catalog never recorded) | Never touched by the check. **Add to catalog** records it as a Library photo where it lies, reading it as Index reads a source file, with its own lineage starting at that add. The file is not moved or rewritten. If its date files it elsewhere, it is then a *moved* finding; if it has no capture date, it is undated and needs review (`webui-spec.md` §7.6) | **Stop warning about this** |
+| **Unknown file, not a photo** | Never touched and never added; listed by kind (`webui-spec.md` §7.6), where the walk now only counts other extensions | **Stop warning about this**, for the file or its folder |
+| **Another program's housekeeping file** (NAS thumbnails, system files, recycle bins; `webui-spec.md` §7.6) | Never touched, never added, never a warning: counted in one line | — |
+
+**Guards** (decided 2026-11-02; the first and third are built with Check library, the
+other two come with Repair and its answers):
+
+*   **A library that is not there proves nothing.** With no readable `library/` folder, the
+    check stops, records no findings and says the destination may not be connected, as
+    `reconcile._notice_emptied_rejects` already treats a missing library folder. A whole
+    missing or moved folder is reported as one finding, not one per photo; no
+    percentage threshold decides either.
+*   **Repair never acts on a stale finding.** Immediately before acting on a file it
+    confirms the file is still as the check found it; otherwise it skips the file and
+    reports why (a sync, or another program, changed it since).
+*   **What a file is comes from its content, not its name.** Unknown files are read once
+    for their checksum; the same read takes their signature (the leading bytes, as the
+    `file` command reads them), so a photo with a wrong or missing extension, an empty
+    file and a damaged one are told apart at no extra cost. Built (`library_check.file_format`),
+    from the `file` magic database (github.com/file/file, `magic/Magdir`: `jpeg`, `images`,
+    `riff`, `animation`). It has no entry for Panasonic RW2 or Canon CR3, so a RAW file is
+    never judged by its signature alone: a RAW type that will not decode is damaged.
+    A file of a type the run does not select is read only for its signature.
+*   **Stop warning about this** is remembered by path and checksum: it returns if the
+    file changes, and for a folder, when a new file appears in it.
+
+**Later refinements** (decided to follow the four steps): recognising a changed file as
+*restored to an earlier version* from its recorded checksums; grouping changes that left
+the picture alone (another program writing ratings or keywords) with the fields they
+touched; and linking a format conversion to its original through the parked relationship
+layer (`webui-spec.md` §3.1). Until then these are ordinary *changed*, *missing* and
+*unknown* findings, and their answers work.
 
 ### 9.3. Similarity: Perceptual Pairs
 
@@ -1732,7 +1798,9 @@ is needed for the job-confirmed edited-source cleanup.
 
 Move and Copy place photos under `library/` (`ns_db.library_root`) and Reject moves
 them to `rejects/` (`ns_db.rejects_root`, §9.5). Check destination walks
-`library/` only, so the folders beside it are never reported as foreign files.
+`library/` only, so the folders beside it are never reported as foreign files. Repair in
+place (§9.2, not built) adds one look under `rejects/`: for the content of photos missing
+from the library, never to report what else is there.
 
 ```
 dest/
@@ -2018,7 +2086,7 @@ The history records the cause; explicit saved-date answers also link to their jo
 Neither reads nor repeated unchanged writes add history. Bookmarks are never cleared by
 these triggers. At the next job after a calendar-year advance, a once-per-year check records dates
 that have fallen within range, with that job ID; ordinary jobs only read the year marker.
-Automatic clearing for future unbuilt reasons remains with those workstreams. Development catalogs require schema 34; no migration.
+Automatic clearing for future unbuilt reasons remains with those workstreams. Development catalogs require schema 35; no migration.
 
 
 Bulk review uses the same single-photo decision guards and history under one engine

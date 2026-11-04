@@ -49,7 +49,8 @@ development until the maintainer decides.
 - 💬 Copying all metadata, or a wider choice of fields
 
 **Checking and maintenance**
-- Check my library and Repair in place — decided, not built (`docs/engine-spec.md` §9.2)
+- Check library — built, CL1 acceptance pending (`docs/manual-validation.md`, Check library; `docs/webui-spec.md` §7.6)
+- Repair in place, its catalog-only answers (Stop warning about this among them), Add to catalog and Rebuild from the earlier version — decided, not built (`docs/engine-spec.md` §9.2, `docs/webui-spec.md` §7.6)
 - Import summary, and a filter for files that could not be previewed
 - Skip unreadable files at Index, counted by kind — decided, not built (`docs/engine-spec.md` §4.1)
 - Every warning offers a way out
@@ -76,7 +77,7 @@ development until the maintainer decides.
   Library issues also appear in Needs review → File issues. A read-only engine check
   resolves supported outcomes only with fresh verified evidence, preserving original
   history and the deletion gate while uncertainty remains.
-- [ ] Check my library and Repair in place: decided, not built (`docs/engine-spec.md` §9.2).
+- [ ] Repair, Add to catalog and Rebuild from the earlier version: decided, not built; Check library is built (`docs/engine-spec.md` §9.2, `docs/webui-spec.md` §7.6).
   `recovery.md` gets its entry when this is built.
 ## Copy, then delete the originals yourself
 
@@ -547,7 +548,7 @@ Saved orientation stays a separate action from temporary preview rotation.
   broader fingerprint formats and image-content duplicate consolidation. Retain the
   tested JPEG experiment; complete metadata preservation/editing first. Its intended use
   is the parked relationship layer (`docs/webui-spec.md` §3.1).
-- [ ] Destination inventory and repair: **Check my library** and **Repair** in place,
+- [ ] Destination inventory and repair: **Check library** is built; **Repair** in place is
   decided, not built (`docs/engine-spec.md` §9.2). Ordinary per-operation collision/write
   verification is required.
 - [ ] Revisit sidecars edited externally between Index and Copy/Move. For now the user

@@ -2,6 +2,7 @@
 import { createContext, createElement, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, subscribeJobAccepted, subscribeBackupActivity, type JobState, type Outcome, type Phase, type Run } from "./api";
 import { count, plural } from "./format";
+import { checkResult, depthName, stoppedReason } from "./libraryCheck";
 
 export type Connection = "connecting" | "open" | "lost";
 
@@ -149,7 +150,7 @@ export function useJobCompletion(onFinished: () => void, includeBackups = false)
 
 const MODE_NAME: Record<string, string> = {
   METADATA: "Metadata",
-  INDEX: "Index", COPY: "Copy", MOVE: "Move", REBUILD: "Thumbnail rebuild", CHECK: "Destination check",
+  INDEX: "Index", COPY: "Copy", MOVE: "Move", REBUILD: "Thumbnail rebuild", CHECK: "File issue check",
   SIMILARITY: "Similarity recovery", RENAME: "Rename", REJECT: "Reject", RETURN: "Return to library",
 };
 const PHASE: Record<string, string> = {
@@ -169,6 +170,7 @@ const OUTCOME: Record<string, string> = {
 };
 
 export function activeTitle(run: Run): string {
+  if (run.library_check) return `${run.id == null ? "" : `Job #${run.id} · `}Library check ${run.status === "Cancelling" ? "cancelling" : "running"}`;
   return run.mode ? `${jobLabel(run.id, run.mode)} ${run.status === "Cancelling" ? "cancelling" : run.status === "Preparing" ? "preparing" : run.status === "Interrupted" ? "interrupted" : "running"}` : "Starting a job";
 }
 
@@ -250,6 +252,16 @@ const VERDICT: Record<string, string> = {
 // `numbered` names the job ("Job #8 · Copy finished"), for the finished banner: beside a job's
 // photos it may describe a different job than the one shown (webui-spec 2, after a job).
 export function summary(run: Run, numbered = true): { headline: string; detail: string; tone: "good" | "warn" | "bad" | "neutral" } {
+  const check = run.library_check;
+  if (check) {
+    // A library check reads as what it found; findings are not failed work (webui-spec 7.6).
+    const name = numbered && run.id != null ? `Job #${run.id} · Library check` : "Library check";
+    if (check.stopped) return { headline: `${name} couldn't run`, detail: stoppedReason(check), tone: "warn" };
+    const verdict = (run.outcome as Outcome).verdict;
+    return { headline: `${name} ${VERDICT[verdict] ?? verdict}`,
+             detail: `${depthName(check.depth)} · ${count(check.intact)} as recorded · ${checkResult(check)}`,
+             tone: verdict !== "success" ? "warn" : check.tone === "bad" ? "bad" : check.tone === "warn" ? "warn" : "good" };
+  }
   const outcome = run.outcome as Outcome;
   const name = numbered && run.id != null ? jobLabel(run.id, run.mode) : modeName(run.mode);
   const headline = `${name} ${VERDICT[outcome.verdict] ?? outcome.verdict}`;

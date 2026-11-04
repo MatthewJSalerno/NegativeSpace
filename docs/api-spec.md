@@ -1128,6 +1128,47 @@ request-ID replay and conflicts, job lookup and cancellation use the existing jo
 protocol; the UI uses the uncertain-submission tracker. The job records no operations
 and takes no catalog backup.
 
+### `POST /api/v1/jobs/check-library`
+
+Body: `{depth: "quick" | "thorough", request_id?: string}`. Starts Check library
+(`webui-spec.md` §7.6) as `--check-destination quick|full` and returns `202` with the
+accepted `CHECK` run. Unknown fields or depths return `400`; a catalog that is not ready
+returns `409`. Engine locking, `409 job_already_running`, durable request-ID replay and
+conflicts, job lookup and cancellation use the existing job protocol; the UI uses the
+uncertain-submission tracker. Read only: it records findings, no operations, and takes no
+catalog backup.
+
+### `GET /api/v1/library-check`
+
+The sidebar's library status: `{source, latest, result}`. `source` is the latest Completed
+whole-source Index with no run-level failure, `{run_id, at}`, or `null`. `latest` is the
+newest library check in any state and `result` the newest Completed one, each a check
+summary or `null`; a later check that could not run leaves `result` standing.
+
+A **check summary** (also a run's `library_check`, section 6) is `{run_id, depth: "quick" |
+"full", stopped: "library_missing" | null, status, started_at, ended_at, intact, progress:
+{done, total} | null, lost, damaged, attention, found, tone: "plain" | "warn" | "bad",
+folders: [{folder, photos, moved_to, tone, lost}], housekeeping: {program: count},
+sidecars, other_types: {extension: count}}`. `lost` counts photos missing with no copy
+anywhere, `damaged` unreadable ones, `attention` the findings to fix or decide (a whole
+folder counts once), `found` every finding.
+
+### `GET /api/v1/library-check/{run_id}`
+
+Query: `page` (from 1), `page_size` (1–500, default 100). The check summary plus `total` and
+one page of `findings`, most serious first: `{path, relative, kind, finding, tone: "bad" |
+"warn" | "quiet", what, todo, photo_id, folder, size, checksum, found_in, found_path}`.
+`finding` names it (`missing`, `moved`, `replaced`, `changed`, `unreadable`, `extra_copy`,
+`moved_here`, `unknown_photo`, `wrong_extension`, `other_type`, `unrecognised`, `empty`,
+`damaged`, `unopenable`); `what` and `todo` are the words the screens show. `404` when no
+library check has this job number.
+
+### `GET /api/v1/library-check/{run_id}/export`
+
+Query: `format=csv|json` (default `csv`). Every finding of one check as a download, with
+`finding, tone, relative, path, folder, found_in, found_path, size, checksum, photo_id,
+what, todo`. `400` for another format, `404` for an unknown check.
+
 ## 6. The run object and its outcome
 
     {"id": 47, "mode": "INDEX" | "COPY" | "MOVE" | "REBUILD" | "CHECK" | "RENAME" | "SIMILARITY",
@@ -1136,7 +1177,12 @@ and takes no catalog backup.
      "started_at", "ended_at", "reconciled_by_run_id",
      "targeting": {"selection": 2, "sha256": "..."} | {"source_subdir": "..."} | null,
      "progress": [<phase>, ...],
-     "outcome": <outcome>}
+     "outcome": <outcome>,
+     "library_check": <check summary>}
+
+**`library_check`**, only on a library check's run, is its check summary (section 5,
+`GET /api/v1/library-check`). Its findings are what the job was asked to find, not failed
+work, so a Completed library check's `outcome.verdict` is `success`.
 
 **`targeting`** for a selection is its size and the checksum of its ids, never the ids,
 which can run to hundreds of thousands: they are recorded with the run in

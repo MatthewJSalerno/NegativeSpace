@@ -323,7 +323,7 @@ unbacked changes and failed backups offer Back up now or Retry backup; no job qu
 Specified but not yet on screen:
 *   A downloadable Copy/Move plan is deferred for discussion only after every other
     requirement is built (`webui-spec.md` §2); the grouped folder preview is implemented.
-*   Check my library and Repair (`engine-spec.md` §9.2).
+*   Repair in place, Add to catalog and Rebuild from the earlier version; Check library itself is built (`engine-spec.md` §9.2, `webui-spec.md` §7.6).
 *   Undated-photo evidence with a per-library back-test (`webui-spec.md` §3.1). Date taken editing/copying
     with a filing preview is built and validated, as are saved rotations. Other fields
     remain read-only; broader engine capabilities do not imply a general-purpose web editor.
@@ -336,7 +336,7 @@ Specified but not yet on screen:
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 34; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
+at schema version 35; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
 It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its
