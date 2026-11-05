@@ -9,6 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Menu descriptions:** [MN1a–MN1e](#menu-descriptions). Maintainer acceptance is pending.
+
 **Renames recorded by the check:** [RN1a–RN1e](#renames-recorded-by-the-check) passed,
 including all lettered steps, on 2026-11-05.
 
@@ -76,6 +78,37 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Menu descriptions
+
+**Status:** MN1a–MN1e pending maintainer acceptance. Read: `MenuList` in
+`webui/frontend/src/components/ui/MenuButton.tsx`, `JobsMenu.tsx`, `SelectMenu.tsx`
+(`docs/ui-design.md`, Menus).
+
+Verified: the review instance holds six generated photos, indexed and not copied; no
+folder is shown in the Folders tree. Every step was walked on the instance; opening a menu
+changes nothing.
+
+### Test MN1 — Names in the menu, what each does at its foot
+
+- **MN1a — The Jobs menu.** Choose **Jobs**. Expected: four items with only their names,
+  **Index**, **Copy ▸**, **Move ▸** and **Check library…**; under a rule at the menu's foot,
+  one grey line: "Read new and changed photos from the source. Nothing is moved or copied."
+- **MN1b — Pointing.** Without clicking, point at **Copy**. Expected: the foot line reads
+  "Copy photos into the library. The source is left untouched." Point at **Move**: "Organize
+  photos into the library, deleting each source once its copy is verified." The menu keeps
+  its height as the line changes.
+- **MN1c — A submenu, and a disabled item.** Choose **Move**. Expected: beside it,
+  **Move this folder** in grey with "Show a folder in the Folders tree to act on it." under
+  its name, and **Move all (6)**. Point at **Move all (6)**: the submenu's own foot line reads
+  "Every photo not yet organized. Each source is deleted only after its copy is verified."
+- **MN1d — The keyboard.** Move the pointer off the menu and press **Escape** twice; focus is
+  on **Jobs**. Press **↓**, then **↓** again. Expected: **Copy** is highlighted and the foot
+  line reads "Copy photos into the library. The source is left untouched." Press **Escape**.
+- **MN1e — The Select menu.** Choose **Select ▾** above the photos. Expected: **Select all in
+  this view (6)** and **Unselect all** (grey, with "Nothing is selected." under it); the foot
+  line reads "Every photo the view, search and dates show, scrolled to or not." Point at
+  **Unselect all**: "Every selected photo, in this view or any other." Press **Escape**.
 
 ## Renames recorded by the check
 

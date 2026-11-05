@@ -332,6 +332,10 @@ of the checkout, build that copy under another tag, and run with `IMAGE` set to 
 
 The default driver and `ui_browser_drive.py` run `ui_browser_checks.py` for shared control behavior: modal
 focus, menus, field errors, help, theme contrast, failed-page retry and narrow layouts.
+The default driver also checks that a Jobs item shows only its name, and that the item
+under the pointer or keyboard is described in the menu's foot line and as its accessible
+description, in a submenu too. Manual acceptance is
+[MN1](../docs/manual-validation.md#menu-descriptions).
 Help checks require icon-only activation when an information icon is present, preserve
 pointer access to open help, and verify keyboard focus, click and Escape dismissal.
 Selection checks preserve the toolbar height and navigation position while keeping

@@ -21,6 +21,7 @@ development until the maintainer decides.
 - Audit 043 preview/review corrections, including the Copy/Move preview naming the Index it is based on, with Index source — built, A1 passed (`docs/manual-validation.md`, Audit 043 preview Index; `docs/webui-spec.md` §2)
 - Earlier versions arriving again — exact copies built, EV1–EV3 passed; audit 045 fixes and long-list folding passed EV4–EV5; look-alike versions later (`docs/engine-spec.md` §10)
 - Copy/Move preview grouped by destination folder — implemented; TP1–TP3 passed (`docs/manual-validation.md`, Destination folder preview; `docs/webui-spec.md` §2)
+- Menu items show only their names; what the pointed item does shows in one line at the menu's foot (Jobs, Select) — built, MN1 acceptance pending (`docs/manual-validation.md`, Menu descriptions; `docs/ui-design.md`, Menus)
 - 💬 Source-folder handling behind the scenes
 - 💬 A content-history link from a photo to its earlier versions
 
