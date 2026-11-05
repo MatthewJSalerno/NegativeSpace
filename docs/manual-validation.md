@@ -9,7 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Menu descriptions:** [MN1a–MN1e](#menu-descriptions). Maintainer acceptance is pending.
+**Menu descriptions:** [MN1a–MN1e](#menu-descriptions) passed, including all lettered steps,
+on 2026-11-05.
 
 **Renames recorded by the check:** [RN1a–RN1e](#renames-recorded-by-the-check) passed,
 including all lettered steps, on 2026-11-05.
@@ -81,7 +82,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Menu descriptions
 
-**Status:** MN1a–MN1e pending maintainer acceptance. Read: `MenuList` in
+**Status:** the maintainer passed MN1a–MN1e on 2026-11-05. Read: `MenuList` in
 `webui/frontend/src/components/ui/MenuButton.tsx`, `JobsMenu.tsx`, `SelectMenu.tsx`
 (`docs/ui-design.md`, Menus).
 
