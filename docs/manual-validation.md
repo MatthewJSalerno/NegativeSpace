@@ -9,8 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Renames recorded by the check:** [RN1a–RN1d](#renames-recorded-by-the-check). Maintainer
-acceptance is pending.
+**Renames recorded by the check:** [RN1a–RN1e](#renames-recorded-by-the-check) passed,
+including all lettered steps, on 2026-11-05.
 
 **Originals in source:** [OS1a–OS1c](#originals-in-source), the note under Library,
 passed on 2026-11-04, and so did [OS2a–OS2b](#test-os2--note-counts-on-the-right), every
@@ -79,14 +79,14 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Renames recorded by the check
 
-**Status:** RN1a–RN1d pending maintainer acceptance. Read: `renames` and `record_renames` in
+**Status:** the maintainer passed RN1a–RN1e on 2026-11-05. Read: `renames` and `record_renames` in
 `engine/library_check.py`, `_record_renames` in `engine/maintenance.py`
 (`docs/webui-spec.md` §7.6).
 
 Verified: the review instance holds four generated photos, indexed and copied. Then, by
 hand, `rose-01.jpg` was renamed `Rose by the gate.jpg` in its own folder, and `tulip-01.jpg`
 was moved to a folder `sorted` and renamed `tulip.jpg`. Every step was walked on a copy of
-the instance; no check has run on the instance itself.
+the instance before the maintainer ran it.
 
 ### Test RN1 — A rename is kept, a move is not
 
@@ -106,6 +106,9 @@ the instance; no check has run on the instance itself.
 - **RN1d — Recorded for good.** Run **Jobs › Check library… › Quick check** again. Expected:
   Job #4 lists no rename and no finding for `Rose by the gate.jpg`; `tulip.jpg` is still
   **Moved**.
+- **RN1e — The dialog says what a quick check reads.** Choose **Jobs › Check library…**.
+  Expected: under **Quick check**, "Reads only files that are new or whose size or modified
+  date changed since they were recorded, and trusts the rest. Usually minutes." Cancel.
 
 ## Originals in source
 
