@@ -99,17 +99,18 @@ changes nothing.
   photos into the library, deleting each source once its copy is verified." The menu keeps
   its height as the line changes.
 - **MN1c — A submenu, and a disabled item.** Choose **Move**. Expected: its arrow turns to
-  **▾** and, indented under it inside the same menu, **Move this folder** in grey with "Show
-  a folder in the Folders tree to act on it." under its name, and **Move all (6)**. Nothing
-  opens to the side. Point at **Move all (6)**: the foot line reads "Every photo not yet
-  organized. Each source is deleted only after its copy is verified."
+  **▾** and, indented under it inside the same menu, **Move this folder** in grey and **Move
+  all (6)**, with only their names. Nothing opens to the side. Point at **Move this folder**:
+  the foot line reads "Show a folder in the Folders tree to act on it." Point at **Move all
+  (6)**: "Every photo not yet organized. Each source is deleted only after its copy is
+  verified."
 - **MN1d — The keyboard.** Move the pointer off the menu and press **Escape** twice; focus is
   on **Jobs**. Press **↓**, then **↓** again. Expected: **Copy** is highlighted and the foot
   line reads "Copy photos into the library. The source is left untouched." Press **Escape**.
 - **MN1e — The Select menu.** Choose **Select ▾** above the photos. Expected: **Select all in
-  this view (6)** and **Unselect all** (grey, with "Nothing is selected." under it); the foot
-  line reads "Every photo the view, search and dates show, scrolled to or not." Point at
-  **Unselect all**: "Every selected photo, in this view or any other." Press **Escape**.
+  this view (6)** and **Unselect all** in grey; the foot line reads "Every photo the view,
+  search and dates show, scrolled to or not." Point at **Unselect all**: "Nothing is
+  selected." Press **Escape**.
 
 ## Renames recorded by the check
 

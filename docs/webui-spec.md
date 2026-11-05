@@ -977,7 +977,7 @@ and Gmail, so that no menu has to adapt to what is selected:
 The search is in the top bar; Filters and Sort end
 the place's heading row. Every Jobs item, **Copy ▸** and **Move ▸** included, carries a one-line
 explanation, shown at the menu's foot for the item pointed at (ui-design "Menus"). One
-that cannot run also says why under its name: a job is running, nothing is indexed, nothing is selected, or
+that cannot run is greyed and says why there instead: a job is running, nothing is indexed, nothing is selected, or
 nothing is left (**"Nothing to copy - every photo is copied or organized."**), or what
 is left needs attention first (**"Nothing ready to copy - 2 photos in Not organized need
 attention first."**). The

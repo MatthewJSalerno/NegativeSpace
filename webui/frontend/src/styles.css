@@ -562,7 +562,6 @@ body.dragging { cursor: col-resize; user-select: none; }
 .menu-item[aria-disabled="true"] { cursor: default; color: var(--muted); }
 .menu-branch { grid-template-columns: 1fr auto; align-items: center; }
 .menu-label { font-weight: var(--weight-strong); }
-.menu-hint { font-size: var(--type-sm); color: var(--muted); }
 .menu-foot { display: grid; margin-top: var(--space-1); padding: var(--space-2) var(--space-3) var(--space-1);
   border-top: 1px solid var(--border); font-size: var(--type-sm); color: var(--muted); }
 .menu-foot > p { grid-area: 1 / 1; margin: 0; visibility: hidden; }
