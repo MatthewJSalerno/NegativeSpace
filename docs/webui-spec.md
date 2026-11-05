@@ -2918,8 +2918,9 @@ replaces the advice with Repair and the answers.
 (progress, Cancel, a Logs entry). It opens a dialog, never starting from the menu click,
 that explains the two depths and shows the last result:
 
-* **Quick check** (the default button): compares each file's size and modified date with
-  what was recorded and reads only the files that differ. Minutes.
+* **Quick check** (the default button): reads only files that are new or whose size or
+  modified date changed since they were recorded, and trusts the rest. Minutes. A new
+  file is always read in full, so a rename or a moved photo is still matched by checksum.
 * **Thorough check**: reads every file and compares its checksum; about as long as copying
   the whole library once. Also finds files damaged on disk.
 * **Last checked:** the date, depth and findings of the latest check, linking to them,
