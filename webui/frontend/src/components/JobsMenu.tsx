@@ -61,7 +61,9 @@ export function JobsMenu({ state, onIndex, onTransfer, onCheck }: {
   const items: MenuEntry[] = [
     { label: "Index", hint: "Read new and changed photos from the source. Nothing is moved or copied.", why: indexWhy, onClick: onIndex },
     ...(["copy", "move"] as Mode[]).map((mode) => ({
-      label: verb(mode), children: [
+      label: verb(mode), hint: mode === "copy" ? "Copy photos into the library. The source is left untouched."
+        : "Organize photos into the library, deleting each source once its copy is verified.",
+      children: [
         ...folderItem(mode, "Everything in it and its subfolders."),
         { label: `${verb(mode)} all (${count(state.eligible[mode])})`, hint: allHint(mode), why: allWhy(mode),
           onClick: () => onTransfer(mode, "all") },
