@@ -98,10 +98,11 @@ changes nothing.
   "Copy photos into the library. The source is left untouched." Point at **Move**: "Organize
   photos into the library, deleting each source once its copy is verified." The menu keeps
   its height as the line changes.
-- **MN1c — A submenu, and a disabled item.** Choose **Move**. Expected: beside it,
-  **Move this folder** in grey with "Show a folder in the Folders tree to act on it." under
-  its name, and **Move all (6)**. Point at **Move all (6)**: the submenu's own foot line reads
-  "Every photo not yet organized. Each source is deleted only after its copy is verified."
+- **MN1c — A submenu, and a disabled item.** Choose **Move**. Expected: its arrow turns to
+  **▾** and, indented under it inside the same menu, **Move this folder** in grey with "Show
+  a folder in the Folders tree to act on it." under its name, and **Move all (6)**. Nothing
+  opens to the side. Point at **Move all (6)**: the foot line reads "Every photo not yet
+  organized. Each source is deleted only after its copy is verified."
 - **MN1d — The keyboard.** Move the pointer off the menu and press **Escape** twice; focus is
   on **Jobs**. Press **↓**, then **↓** again. Expected: **Copy** is highlighted and the foot
   line reads "Copy photos into the library. The source is left untouched." Press **Escape**.

@@ -582,7 +582,11 @@ with sync_playwright() as p:
     move_all = menu.get_by_role("menuitem", name=f"Move all ({PHOTOS - 1:,})")
     expect(move_all).to_be_enabled()
     move_all.hover()
-    expect(page.locator(".submenu > .menu-foot > .shown")).to_contain_text(f"including {PHOTOS - 1:,} already copied")
+    expect(page.locator(".actions-menu > .menu > .menu-foot > .shown")).to_contain_text(f"including {PHOTOS - 1:,} already copied")
+    # The submenu opens in place, inside the menu, and its item's arrow turns down.
+    inner, outer = page.get_by_role("menu", name="Move", exact=True).bounding_box(), menu.bounding_box()
+    assert outer["x"] < inner["x"] and inner["x"] + inner["width"] <= outer["x"] + outer["width"] + 1, (inner, outer)
+    expect(menu.get_by_role("menuitem", name="Move", exact=True)).to_contain_text("▾")
     shot("6b-jobs-menu")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")

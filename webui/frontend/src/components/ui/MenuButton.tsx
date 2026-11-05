@@ -32,16 +32,28 @@ export function MenuButton({ label, items, className = "" }: { label: string; it
   </div>;
 }
 
-function MenuList({ id, label, items, last = false, onExit, onTab, onRun, nested = false }: {
-  id?: string; label: string; items: MenuEntry[]; last?: boolean; nested?: boolean;
+// Every hint in a menu and its submenus, keyed by the item's path ("1", "1.0").
+function hintsOf(items: MenuEntry[], prefix = ""): { key: string; hint: string }[] {
+  return items.flatMap((item, i) => [
+    ...(item.hint ? [{ key: `${prefix}${i}`, hint: item.hint }] : []),
+    ...(item.children ? hintsOf(item.children, `${prefix}${i}.`) : []),
+  ]);
+}
+
+// The menu's foot line, shared by the menu and the submenus opened inside it.
+interface Foot { id: (key: string) => string; point: (key: string) => void }
+
+function MenuList({ id, label, items, last = false, onExit, onTab, onRun, nested, prefix = "" }: {
+  id?: string; label: string; items: MenuEntry[]; last?: boolean; nested?: Foot; prefix?: string;
   onExit: () => void; onTab: () => void; onRun: (action?: () => void) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [branch, setBranch] = useState<number | null>(null);
   // The item under the pointer or keyboard, whose hint the menu's foot line shows.
-  const [pointed, setPointed] = useState<number | null>(null);
+  const [pointed, setPointed] = useState<string | null>(null);
   const base = useId();
-  const hinted = items.some((item) => item.hint);
+  const foot: Foot = nested ?? { id: (key) => `${base}-${key}`, point: setPointed };
+  const hints = nested ? [] : hintsOf(items);
   const buttons = () => [...(ref.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])]
     .filter((el) => el.closest('[role="menu"]') === ref.current);
   useLayoutEffect(() => { const all = buttons(); (last ? all.at(-1) : all[0])?.focus(); }, [last]);
@@ -62,27 +74,30 @@ function MenuList({ id, label, items, last = false, onExit, onTab, onRun, nested
         ordered.find((el) => el.querySelector('.menu-label')?.textContent?.toLowerCase().startsWith(e.key.toLowerCase()))?.focus();
       }
     }}>
-    {items.map((item, i) => <div className="menu-parent" role="none" key={item.label}>
-      <button role="menuitem" tabIndex={-1} aria-disabled={!!item.why} aria-haspopup={item.children ? "menu" : undefined}
-              aria-expanded={item.children ? branch === i : undefined}
-              aria-describedby={item.hint ? `${base}-${i}` : undefined}
-              className={`menu-item ${item.children ? "menu-branch" : ""}`}
-              onFocus={() => setPointed(i)} onPointerEnter={() => setPointed(i)}
-              onClick={() => { if (!item.why) { if (item.children) setBranch(branch === i ? null : i); else onRun(item.onClick); } }}>
-        <span className="menu-label">{item.label}</span>
-        {item.children && <span aria-hidden="true">▸</span>}
-        {item.why && <span className="menu-hint">{item.why}</span>}
-      </button>
-      {item.children && branch === i && <MenuList nested label={item.label} items={item.children} onRun={onRun} onTab={onTab}
-        onExit={() => { setBranch(null); buttons()[i]?.focus(); }} />}
-    </div>)}
-    {/* The hint of the item pointed at (ui-design "Menus"). Every hint sits in one grid
-        cell and only the pointed one shows, so the menu keeps the height of its longest
-        hint and does not jump as the pointer moves. Screen readers hear each hint as its
-        item's description instead, so the line itself is hidden from them. */}
-    {hinted && <div className="menu-foot" aria-hidden="true">
-      {items.map((item, i) => item.hint && <p key={item.label} id={`${base}-${i}`}
-        className={pointed === i ? "shown" : undefined}>{item.hint}</p>)}
+    {items.map((item, i) => {
+      const key = `${prefix}${i}`;
+      return <div className="menu-parent" role="none" key={item.label}>
+        <button role="menuitem" tabIndex={-1} aria-disabled={!!item.why} aria-haspopup={item.children ? "menu" : undefined}
+                aria-expanded={item.children ? branch === i : undefined}
+                aria-describedby={item.hint ? foot.id(key) : undefined}
+                className={`menu-item ${item.children ? "menu-branch" : ""}`}
+                onFocus={() => foot.point(key)} onPointerEnter={() => foot.point(key)}
+                onClick={() => { if (!item.why) { if (item.children) setBranch(branch === i ? null : i); else onRun(item.onClick); } }}>
+          <span className="menu-label">{item.label}</span>
+          {item.children && <span aria-hidden="true">{branch === i ? "▾" : "▸"}</span>}
+          {item.why && <span className="menu-hint">{item.why}</span>}
+        </button>
+        {/* A submenu opens in place, under its item, never sideways (ui-design "Menus"). */}
+        {item.children && branch === i && <MenuList nested={foot} prefix={`${key}.`} label={item.label} items={item.children}
+          onRun={onRun} onTab={onTab} onExit={() => { setBranch(null); buttons()[i]?.focus(); }} />}
+      </div>;
+    })}
+    {/* The hint of the item pointed at (ui-design "Menus"), for the submenus too. Every
+        hint sits in one grid cell and only the pointed one shows, so the menu keeps the
+        height of its longest hint and does not jump as the pointer moves. Screen readers
+        hear each hint as its item's description instead, so the line is hidden from them. */}
+    {hints.length > 0 && <div className="menu-foot" aria-hidden="true">
+      {hints.map(({ key, hint }) => <p key={key} id={foot.id(key)} className={pointed === key ? "shown" : undefined}>{hint}</p>)}
     </div>}
   </div>;
 }
