@@ -10,7 +10,7 @@ from typing import Optional, List
 
 from engine.ns_db import PhotoStatus, RunStatus, SUPPORTED_EXTENSIONS
 from engine import workers as worker_pool
-from engine import constants, destinations, fileinfo, jobs, library_check, ns_db, runtime, scan, store, thumbnails
+from engine import backups, constants, destinations, fileinfo, jobs, library_check, ns_db, runtime, scan, store, thumbnails
 
 
 def repair_similarity(db_path: Path, dest_root: Path, scope: str, photo_id=None):
@@ -130,7 +130,7 @@ def _check_destination_file(path: str, expected: Optional[tuple], full: bool, ph
 
 
 def check_destination(db_path: Path, dest_root: Path, run_id: int, depth: str, workers: int,
-                      extensions: set, log_dir: Path) -> str:
+                      extensions: set, log_dir: Path, backups_dir: Path = None, base_dir: Path = None) -> str:
     """Check library (engine-spec 9.1, 9.2). Returns the run outcome.
 
     Answers "is my library still as recorded?", which Index cannot: it never reads
@@ -143,8 +143,10 @@ def check_destination(db_path: Path, dest_root: Path, run_id: int, depth: str, w
     there and names each by its content (library_check.unknown_file); other programs'
     housekeeping and sidecars beside photos are only counted. Last, it looks for the
     content of each missing photo elsewhere in the library, in Rejects and the source.
+    A photo found under a new name in its own folder is a rename the user made: after a
+    catalog backup, it is recorded as Rename records one (library_check.record_renames).
 
-    Read only, and an observation: no file is touched and no photo's status changes.
+    No file is touched and no photo's status changes; renames are the one catalog change.
     What is not intact is stored in destination_findings; intact copies are counted.
     """
     full = depth == "full"
@@ -231,12 +233,38 @@ def check_destination(db_path: Path, dest_root: Path, run_id: int, depth: str, w
             with ns_db.transaction(conn):
                 conn.executemany("UPDATE destination_findings SET found_in=?, found_path=? WHERE run_id=? AND path=?",
                                  [(f["found_in"], f["found_path"], run_id, f["path"]) for f in rows if f.get("found_in")])
+            found = library_check.renames(conn, rows)
+            if found and not runtime.cancel_requested.is_set():
+                renamed = _record_renames(conn, db_path, run_id, found, backups_dir, base_dir)
+                counts["renamed"] = renamed
             if runtime.cancel_requested.is_set():
                 outcome = RunStatus.CANCELLED
     runtime.logger.info(f"Library check: {counts['ok']:,} intact, {counts['missing']:,} missing, "
                 f"{counts['changed']:,} changed, {counts['unreadable']:,} unreadable, "
-                f"{counts['unknown']:,} not put there by NegativeSpace. Nothing was changed.")
+                f"{counts['unknown']:,} not put there by NegativeSpace, {counts['renamed']:,} rename(s) "
+                f"recorded. No file was changed.")
     return outcome
+
+
+def _record_renames(conn, db_path: Path, run_id: int, found: list, backups_dir, base_dir) -> int:
+    """Records the renames a check found between two catalog backups, one before as Rename
+    takes and one after as a Copy takes; without the first (none configured, or it failed)
+    they stay findings, for a later check."""
+    if backups_dir is None or base_dir is None:
+        return 0
+    backup = ns_db.backup_catalog(db_path, backups_dir, base_dir, trigger="pre_action", related_run_id=run_id)
+    backups._log_backup(backup, "before recording renames")
+    if backup["outcome"] != "succeeded":
+        runtime.logger.warning(f"{len(found)} rename(s) were not recorded because the catalog backup failed; "
+                               f"they stay findings for the next check.")
+        return 0
+    with ns_db.transaction(conn):
+        n = library_check.record_renames(conn, run_id, found)
+        library_check.add_count(conn, run_id, "renamed", n)
+    runtime.logger.info(f"Recorded {n} rename(s) made outside NegativeSpace, matched by checksum.")
+    # Back up again so the recorded renames are themselves in a backup, as after a Copy.
+    backups.backup_after_job(db_path, backups_dir, base_dir, run_id)
+    return n
 
 
 def run_destination_check(args, db_path: Path, log_dir: Path, lock_fd) -> int:
@@ -249,7 +277,8 @@ def run_destination_check(args, db_path: Path, log_dir: Path, lock_fd) -> int:
         overrides={**({"workers": args.workers} if args.workers is not None else {}),
                    **({"exts": sorted(scan.normalize_extensions(args.exts))} if args.exts is not None else {})},
         body=lambda run_id, config: check_destination(db_path, dest_root, run_id, args.check_destination,
-                                                      config["workers"], set(config["exts"]), log_dir))
+                                                      config["workers"], set(config["exts"]), log_dir,
+                                                      Path(args.backups), Path(args.base).resolve()))
 
 
 def run_thumbnail_rebuild(args, db_path: Path, log_dir: Path, lock_fd) -> int:

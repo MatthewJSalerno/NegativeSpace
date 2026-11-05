@@ -11,7 +11,9 @@ const LABELS: Record<string, string> = {
   Renamed: "Renamed", Rejected: "Moved to Rejects", Rejected_Copied: "Moved to Rejects; original kept",
   Returned: "Returned to Library",
 };
-export const actionLabel = (op: LineageOperation) => operationLabel(op, LABELS[op.status] ?? op.status);
+// A rename a library check found and recorded was made outside NegativeSpace (webui-spec 7.6).
+export const actionLabel = (op: LineageOperation) => op.mode === "CHECK" && op.status === "Renamed"
+  ? "Renamed outside NegativeSpace" : operationLabel(op, LABELS[op.status] ?? op.status);
 export const shortJob = (op: LineageOperation) => `${({ INDEX: "Index", COPY: "Copy", MOVE: "Move", REJECT: "Reject", RETURN: "Return", RENAME: "Rename", METADATA: "Metadata", CHECK: "Check" } as Record<string, string>)[op.mode ?? ""] ?? op.mode ?? "Job"} #${op.run_id}`;
 // Compare immutable discovery evidence, never the current photo's edited hash.
 export function sourceLanes(tree: Lineage): Map<number, number> {

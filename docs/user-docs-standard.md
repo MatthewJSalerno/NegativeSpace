@@ -63,7 +63,7 @@ changes. Current claims and their sources:
 | Every photo is verified in the library before Move deletes its original | engine-spec §4.2, Copy-Verify-Delete |
 | Existing files are never replaced; a taken name gets a numbered suffix | engine-spec §4.2, Unique Filename Enforcement |
 | The app container runs as `PUID`/`PGID`; neither container is privileged | `docker/entrypoint.sh`, `docker/compose.yml` |
-| Check library never touches a file; the catalog records what it found (once built, renames the user made too) | engine-spec §9.1, §9.2 |
+| Check library never touches a file; the catalog records what it found, and renames the user made in a photo's own folder | engine-spec §9.1 |
 
 Do not claim the containers never run as root: the app container's entrypoint starts as
 root to set folder ownership before dropping to `PUID`/`PGID`, and the web container uses

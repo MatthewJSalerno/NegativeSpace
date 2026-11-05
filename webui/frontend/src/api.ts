@@ -412,6 +412,8 @@ export interface LibraryCheck {
   lost: number; damaged: number; attention: number; found: number; tone: "plain" | "warn" | "bad";
   folders: { folder: string; photos: number; moved_to: string | null; tone: "warn" | "bad"; lost: number }[];
   housekeeping: Record<string, number>; sidecars: number; other_types: Record<string, number>;
+  // Renames the user made, which the check recorded (webui-spec 7.6).
+  renamed: { photo_id: number; old: string; new: string }[];
 }
 export interface LibraryFinding {
   path: string; relative: string; kind: string; finding: string; tone: "bad" | "warn" | "quiet";

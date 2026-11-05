@@ -277,14 +277,15 @@ compares a saved choice with the photo’s current primary source without changi
 
 **Jobs › Check library…** looks for photos that are missing, moved, changed or damaged in
 your library, and for files NegativeSpace didn't put there, such as photos you added by
-hand. **Quick check** compares each file's size and modified date with what was recorded
-and reads only the files that differ. **Thorough check** reads every file, which also
+hand. **Quick check** reads only files that are new or whose size or modified date changed
+since they were recorded, and trusts the rest. **Thorough check** reads every file, which also
 finds files damaged on disk, and takes about as long as copying the library. A check
 changes nothing. The foot of the sidebar shows when your source was last indexed and when
 the library was last checked, with what it found. Choose it to see each finding in
 **Logs**, with what it means and what you can do, and **Export findings** as CSV or JSON.
 Library photos with a finding appear under **Needs review** with the reason **Library
-check** until a later check finds them as recorded. Files other programs keep beside
+check** until a later check finds them as recorded. If you renamed a photo in its own
+folder, the check keeps your name and records it in the photo's history. Files other programs keep beside
 your photos, such as NAS thumbnails and Mac system files, are only counted.
 
 ![The lineage timeline follows a photo from Index through Copy, Reject and Return](images/photo-history-timeline.png)

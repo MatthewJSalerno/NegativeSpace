@@ -77,6 +77,8 @@ with sync_playwright() as p:
     moved.rename(LIBRARY / 'sorted' / 'photo-006.jpg')
     (LIBRARY / 'sorted' / 'notes.txt').write_text('notes')
     (LIBRARY / 'sorted' / '.DS_Store').write_bytes(b'\0')
+    renamed = next(LIBRARY.rglob('photo-007.jpg'))
+    renamed.rename(renamed.with_name('Garden party.jpg'))                  # a rename in its own folder
 
     page.get_by_role('button', name='Jobs', exact=True).click()
     page.get_by_role('menu', name='Jobs', exact=True).get_by_role('menuitem', name=re.compile('^Check library…')).click()
@@ -101,6 +103,8 @@ with sync_playwright() as p:
     expect(sixth).to_contain_text('Moved')
     expect(findings).to_contain_text('1 .txt file')
     expect(findings).to_contain_text('from other programs: Mac system files')
+    expect(findings).to_contain_text('1 rename you made recorded')
+    expect(findings.get_by_role('listitem').filter(has_text='Garden party.jpg')).to_contain_text('photo-007.jpg')
     export = findings.get_by_role('group', name='Export findings', exact=True)
     assert export.get_by_role('link', name='CSV', exact=True).get_attribute('download') is not None
     assert export.get_by_role('link', name='JSON', exact=True).get_attribute('href').endswith('format=json')
@@ -127,6 +131,14 @@ with sync_playwright() as p:
     expect(note.get_by_role('link', name=re.compile(r'^Job #\d+$'))).to_be_visible()
     expect(note.get_by_role('button', name='Remove bookmark')).to_have_count(0)
     shot(page, 'inspector')
+
+    # The recorded rename is in the photo's history, saying how it was found.
+    garden = request.get('/api/v1/photos', params={'view': 'organized', 'q': 'Garden party'}).json()['items'][0]['id']
+    page.goto(BASE + f'/?view=organized&photo={garden}')
+    page.get_by_role('button', name='View lineage tree').click()
+    expect(page.locator('.lineage-timeline')).to_contain_text('Renamed outside NegativeSpace')
+    shot(page, 'rename-lineage')
+    page.keyboard.press('Escape')
 
     # The Copy/Move notice is a named region, and its link keeps the sentence's line height.
     page.goto(BASE)

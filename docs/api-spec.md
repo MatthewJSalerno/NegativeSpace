@@ -1151,7 +1151,8 @@ A **check summary** (also a run's `library_check`, section 6) is `{run_id, depth
 "full", stopped: "library_missing" | null, status, started_at, ended_at, intact, progress:
 {done, total} | null, lost, damaged, attention, found, tone: "plain" | "warn" | "bad",
 folders: [{folder, photos, moved_to, tone, lost}], housekeeping: {program: count},
-sidecars, other_types: {extension: count}}`. `lost` counts photos missing with no copy
+sidecars, other_types: {extension: count}, renamed: [{photo_id, old, new}]}`; `renamed` lists the
+renames the check recorded, paths relative to the library. `lost` counts photos missing with no copy
 anywhere, `damaged` unreadable ones, `attention` the findings to fix or decide (a whole
 folder counts once), `found` every finding.
 

@@ -2918,8 +2918,9 @@ replaces the advice with Repair and the answers.
 (progress, Cancel, a Logs entry). It opens a dialog, never starting from the menu click,
 that explains the two depths and shows the last result:
 
-* **Quick check** (the default button): compares each file's size and modified date with
-  what was recorded and reads only the files that differ. Minutes.
+* **Quick check** (the default button): reads only files that are new or whose size or
+  modified date changed since they were recorded, and trusts the rest. Minutes. A new
+  file is always read in full, so a rename or a moved photo is still matched by checksum.
 * **Thorough check**: reads every file and compares its checksum; about as long as copying
   the whole library once. Also finds files damaged on disk.
 * **Last checked:** the date, depth and findings of the latest check, linking to them,
@@ -3038,11 +3039,15 @@ an Index. A thorough check would not help here: unknown Library files are read i
 either depth. **I removed it** comes last; it keeps every record of the photo, and the same
 content arriving later is joined to its history (`engine-spec.md` §9.2).
 
-**A rename the user made is kept, and recorded by the check itself** (decided 2026-11-04):
+**A rename the user made is kept, and recorded by the check itself** (decided 2026-11-04;
+built):
 the same content, by checksum, under a new name in the photo's own folder, with the old
-name gone. The check adds the new name to the photo's lineage and its photo information
-("Renamed outside NegativeSpace: found by Job #5, matched by checksum"), counts it in its
-results ("2 renames recorded"), and never offers to name it back. This is the one thing a
+name gone. The check adds the new name to the photo's lineage, as **Renamed outside NegativeSpace** by
+its check job, whose detail says it was found by a library check and matched by its
+checksum; its Logs entry lists each rename, old name → new name, under "N renames you made
+recorded"; it never offers to name it back. Catalog backups before and after keep the
+recorded renames backed up. A photo with an XMP sidecar NegativeSpace delivered is left
+to Repair, which renames the pair together. This is the one thing a
 check writes beyond its findings, and it touches no file. A file that is renamed and in
 the wrong folder keeps its new name when **Move it back** files it.
 

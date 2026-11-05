@@ -4811,6 +4811,72 @@ def check_library_names_files_by_content_and_finds_where_missing_photos_went():
           "a library check changed the catalog's photos")
 
 
+@test
+def check_library_records_a_rename_in_its_own_folder_and_nothing_else():
+    """
+    webui-spec 7.6 (decided 2026-11-04): a photo's exact content under a new name in
+    its own folder, the old name gone, is a rename the user made. After a catalog backup
+    the check records it as Rename would: the photo and its file identity name the new
+    path, a Renamed operation of the check run says how it was found, and no finding is
+    left for it. Moved to another folder, or found twice, it stays a finding. No file is
+    touched.
+    """
+    from engine import library_check
+    case = new_case("check_library_renames")
+    for name, day in (("a", "01"), ("b", "02"), ("c", "03")):
+        make_photo(case / "src" / f"{name}.jpg", f"rename-{name}", date=f"2021:04:{day} 10:00:00")
+    run_engine(case)
+    run_engine(case, "--copy")
+    placed = {Path(r["source_path"]).stem: (r["id"], Path(r["dest_path"]))
+              for r in rows(case, "SELECT id, source_path, dest_path FROM photos")}
+    a_id, a = placed["a"]
+    renamed = a.with_name("Garden party.jpg")
+    a.rename(renamed)                                                       # renamed in its own folder
+    b_id, b = placed["b"]
+    elsewhere = case / "dest" / "library" / "sorted"
+    elsewhere.mkdir()
+    b.rename(elsewhere / "b renamed.jpg")                                   # renamed and moved
+    c_id, c = placed["c"]
+    shutil.copyfile(c, c.with_name("c one.jpg"))
+    shutil.copyfile(c, c.with_name("c two.jpg"))
+    c.unlink()                                                              # two candidates: ambiguous
+    backups = len(backups_of(case))
+    files_before = sorted(p.relative_to(case / "dest").as_posix() for p in (case / "dest").rglob("*") if p.is_file())
+
+    run_engine(case, "--check-destination", "quick")
+    run_id = rows(case, "SELECT MAX(run_id) m FROM library_checks")[0]["m"]
+    check(rows(case, "SELECT dest_path FROM photos WHERE id = ?", (a_id,))[0]["dest_path"] == str(renamed),
+          "the rename was not recorded on the photo")
+    check(rows(case, "SELECT current_path FROM file_states WHERE location_role = 'destination' AND "
+                     "presence_state = 'present' AND current_path IN (?, ?)", (str(a), str(renamed)))
+          == [{"current_path": str(renamed)}], "the Library file's identity did not follow the rename")
+    op = rows(case, "SELECT source_path, dest_path, status, error_message FROM operations WHERE run_id = ?", (run_id,))
+    check(op == [{"source_path": str(a), "dest_path": str(renamed), "status": "Renamed",
+                  "error_message": library_check.RENAME_NOTE}], f"the check's rename record: {op}")
+    names = {Path(r["path"]).name for r in rows(case, "SELECT path FROM destination_findings WHERE run_id = ?", (run_id,))}
+    check("Garden party.jpg" not in names and "a.jpg" not in names, f"a recorded rename left findings: {names}")
+    check({"b.jpg", "b renamed.jpg", "c.jpg", "c one.jpg", "c two.jpg"} <= names,
+          f"a move or an ambiguous match was recorded as a rename: {names}")
+    check([b["trigger_kind"] for b in backups_of(case)[backups:]] == ["pre_action", "post_job"],
+          "renames were not recorded between a catalog backup before and one after")
+    files_after = sorted(p.relative_to(case / "dest").as_posix() for p in (case / "dest").rglob("*") if p.is_file())
+    check(files_after == files_before, "the check changed files")
+    conn = db(case)
+    try:
+        report = library_check.report(conn, run_id)
+    finally:
+        conn.close()
+    check(report["renamed"] == [{"photo_id": a_id, "old": a.relative_to(case / "dest" / "library").as_posix(),
+                                 "new": renamed.relative_to(case / "dest" / "library").as_posix()}]
+          and "renamed" not in report["housekeeping"], f"the report's renames: {report['renamed']}")
+    _assert_lineage_complete(case, "after a check recorded a rename")
+
+    run_engine(case, "--check-destination", "quick")
+    later = rows(case, "SELECT MAX(run_id) m FROM library_checks")[0]["m"]
+    check(rows(case, "SELECT COUNT(*) n FROM destination_findings WHERE run_id = ? AND photo_id = ?",
+               (later, a_id))[0]["n"] == 0, "the next check did not find the renamed photo as recorded")
+
+
 def _engine_json(case, *args, expect_rc=0):
     proc = run_engine(case, *args, expect_rc=expect_rc)
     lines = [l for l in proc.stdout.splitlines() if l.strip()]

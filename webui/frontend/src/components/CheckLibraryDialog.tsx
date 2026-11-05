@@ -32,7 +32,7 @@ export function CheckLibraryDialog({ onClose }: { onClose: () => void }) {
     <p>Looks for photos that are missing, moved, changed or damaged in the library, and for files NegativeSpace didn't put there. Nothing is changed.</p>
     <dl className="check-depths">
       <dt>Quick check</dt>
-      <dd>Compares each file's size and modified date with what was recorded, and reads only the files that differ. Usually minutes.</dd>
+      <dd>Reads only files that are new or whose size or modified date changed since they were recorded, and trusts the rest. Usually minutes.</dd>
       <dt>Thorough check</dt>
       <dd>Reads every file and compares its checksum, which also finds files damaged on disk. About as long as copying the whole library once.</dd>
     </dl>
