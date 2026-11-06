@@ -2011,7 +2011,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 35 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 36 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -2906,14 +2906,15 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
 **Decided 2026-11-02.** The engine rules are `engine-spec.md` §9.1 (the
 check) and `engine-spec.md` §9.2 (Repair in place). Built in four steps, each with its own manual test:
 the check and its results (**built**; `docs/manual-validation.md`, Check library);
-Repair and the catalog-only answers, **Stop warning about this** among them; Add to
-catalog; Rebuild from the earlier version (not built).
+Repair and the catalog-only answers, **Stop warning about this** among them (**Move it
+back**, back from Rejects and **Copy it back** built; `docs/manual-validation.md`, Repair);
+Add to catalog; Rebuild from the earlier version (not built).
 
-**Until Repair is built** (decided 2026-11-04), a finding says what was found and what the
-user can do today, never what an unbuilt feature will do: "Found at a different place in
-the Library: 2019/07/IMG_1.jpg. Move it back to 2019/06/IMG_1.jpg, then check the library
-again." No answer is offered yet, so the check changes nothing in the catalog. Step 2
-replaces the advice with Repair and the answers.
+**A finding says what was found and what the user can do now** (decided 2026-11-04), never
+what an unbuilt feature will do. One Repair fixes says what Repair does: "Found at a
+different place in the Library: 2019/07/IMG_1.jpg. Repair moves it back to its date folder,
+keeping its name." Until the catalog-only answers are built, other findings name what works
+today.
 
 **Check library…** is in **Jobs**, after Index, Copy and Move, since it runs as a job
 (progress, Cancel, a Logs entry). It opens a dialog, never starting from the menu click,
@@ -2959,9 +2960,10 @@ date is always shown.
 
 * **Library photos with a finding** (moved or renamed, missing, changed, unreadable) get
   a **Library check** reason in Needs review (§7.9). The Inspector says in plain words
-  what was found and what to do, with a link to the check's job; once Repair is built, what
-  Repair would do ("Found at a different place in the Library. Repair moves it back."). The reason clears itself when a later check finds the photo as
-  recorded or Repair settles it.
+  what was found and what to do, with a link to the check's job, and **Repair…** when
+  Repair can fix it. The reason clears itself when a later check finds the photo as
+  recorded or Repair fixes it. A fixed finding stays in the check's Logs entry, marked
+  "Repaired by Job #N", and no longer counts in the sidebar's result.
 * **Every finding, unknown files included,** is listed in the check job's entry in Logs,
   most serious first, with what it means and what to do; the job heading counts findings,
   not log entries. The entry's own **Export findings** group downloads every finding as
@@ -3053,13 +3055,18 @@ check writes beyond its findings, and it touches no file. A file that is renamed
 the wrong folder keeps its new name when **Move it back** files it.
 
 **Repair…** is offered on the Library check reason (every photo it holds, or the ticked
-ones) and on one photo's Inspector (confirmed 2026-11-04). **Stop warning about this**, for
+ones) and on one photo's Inspector (confirmed 2026-11-04; built). The selection bar shows
+**Repair (n)…** when n of the selected photos have a finding, so **Select ▾ › Select all in
+this view** under the reason takes every photo it holds; the Inspector offers **Repair…**
+only when Repair can fix that photo. **Stop warning about this**, for
 a file that is not a photo, is on its row in the check's Logs entry. Repair's preview is
 the Copy/Move confirmation pattern: every planned change, grouped by kind with counts, each
 group offering its repair or its answer ("4 in the wrong folder → move back to
 2024/07/14"), any of them can be unticked, and unknown files are named as untouched. It
 then runs as an ordinary job, which skips and reports any file that changed since the
-check.
+check. Each group lists its files on request (from → to, as paths in the library). A Repair
+started from a preview of an older check, or naming a photo Repair would no longer fix, is
+refused with "What Repair would do has changed since you opened it. Review it again."
 
 **What Repair cannot fix is shown, never dropped** (decided 2026-11-04). A second group,
 "Can't be fixed here (nothing will be done)", lists each such photo with what the user can
@@ -3070,7 +3077,12 @@ files with their reasons (permission denied, input/output error), as paths from 
 destination folder (`library/2024/03/02/cat-01.jpg`): the app's own path inside its
 container is not one the user can open. **Copy list** copies them one per line. The same
 files and reasons are in the check's Logs entry and its export. One photo's Inspector shows
-the advice and no **Repair…** when there is nothing it can fix.
+the advice and no **Repair…** when there is nothing it can fix. Until pairs are repaired,
+the group also holds a moved photo with an XMP sidecar NegativeSpace delivered ("put the
+photo and its .xmp back in 2024/03/02 yourself") and a rename the check could not record
+(its sidecar still has the old name, or its content is in two files there). Where the
+browser does not allow copying (a page not served over HTTPS or from this computer),
+**Copy list** shows the list selected for the user to copy.
 
 ```
 Repair 9 photos?

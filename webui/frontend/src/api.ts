@@ -265,6 +265,8 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
 export interface SelectionPage {
   review_actions?: BulkReviewCounts;
   pair_retries?: number;
+  // Selected photos with a Library check finding, which Repair… opens on.
+  repair_findings?: number;
   items: PhotoItem[];
   page: number;
   page_size: number;
@@ -414,11 +416,27 @@ export interface LibraryCheck {
   housekeeping: Record<string, number>; sidecars: number; other_types: Record<string, number>;
   // Renames the user made, which the check recorded (webui-spec 7.6).
   renamed: { photo_id: number; old: string; new: string }[];
+  // Findings Repair has fixed since: listed and marked, no longer counted.
+  repaired: number;
 }
 export interface LibraryFinding {
   path: string; relative: string; kind: string; finding: string; tone: "bad" | "warn" | "quiet";
   what: string; todo: string | null; photo_id: number | null; folder: string | null;
   size: number | null; checksum: string | null; found_in: string | null; found_path: string | null;
+  // The Repair job that fixed it.
+  repaired_by: number | null;
+}
+// Repair's preview (webui-spec 7.6): the fixes grouped by kind and folder, and what it can't fix.
+export type RepairKind = "move_back" | "from_rejects" | "copy_back";
+export interface RepairItem {
+  photo_id: number; relative: string; finding: string; what: string; todo?: string;
+  repair?: RepairKind; from_relative?: string | null; to_relative?: string; folder?: string; index_source?: boolean;
+}
+export interface RepairPreview {
+  check_run: number | null; fixes: number;
+  groups: { repair: RepairKind; folder: string; items: RepairItem[] }[];
+  cannot: RepairItem[];
+  unreadable: { path: string; reason: string | null }[];
 }
 export interface LibraryStatus {
   source: { run_id: number; at: string } | null;
@@ -593,7 +611,7 @@ export interface LineageFile {
 export interface LineageOperation {
   consolidated_path: string | null;
   consolidated_into: number | null;
-  action: "rotation" | "date" | "metadata_source" | "metadata" | null;
+  action: "rotation" | "date" | "metadata_source" | "metadata" | "move_back" | "from_rejects" | "copy_back" | null;
   id: number;
   run_id: number;
   mode: string | null;
@@ -946,6 +964,8 @@ export const api = {
   runs: (limit = 100) => request<{ runs: Run[] }>("GET", `/api/v1/runs?limit=${limit}`),
   lineage: (id: number) => request<Lineage>("GET", `/api/v1/photos/${id}/lineage`),
   fileIssues: (id: number) => request<{items: FileIssue[]}>("GET", `/api/v1/photos/${id}/issues`),
+  repairPreview: (file_ids?: number[]) => request<RepairPreview>("POST", "/api/v1/repair/preview", file_ids ? { file_ids } : {}),
+  repair: (file_ids: number[], check_run: number) => submitJob("/api/v1/jobs/repair", { file_ids, check_run }),
   pairRetryPreview: (file_ids: number[]) => request<PairRetryPreview>("POST", "/api/v1/pair-retries/preview", {file_ids}),
   retryPairs: (group: PairRetryGroup, request_id: string) => request<Run>("POST", "/api/v1/pair-retries/start", {...group,request_id}),
   checkIssue: (issue_id: number, request_id: string) => request<Run>("POST", "/api/v1/issues/check", {issue_id,request_id}),

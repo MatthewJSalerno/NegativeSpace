@@ -311,6 +311,33 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         return StreamingResponse(iter(chunks), media_type="text/csv" if format == "csv" else "application/json",
                                  headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
+    # -- Repair (webui-spec 7.6) -------------------------------------------------
+
+    @app.post("/api/v1/repair/preview")
+    def preview_repair(body: dict = Body(...)):
+        """What Repair would do for the chosen photos (file_ids), or for every photo the
+        latest check found: fixes grouped by kind and folder, and what it cannot fix.
+        A POST only because a selection's ids are too long for a URL; it reads."""
+        if set(body) - {"file_ids"}:
+            raise HTTPException(400, {"error": "invalid_request", "message": "Send the chosen photos only."})
+        ids = body.get("file_ids")
+        if ids is not None:
+            try:
+                ids = ns_db.normalize_selection(ids)
+            except ns_db.SelectionRefused:
+                raise HTTPException(400, {"error": "invalid_request",
+                                          "message": "file_ids must be a list of positive 64-bit integer photo ids."})
+        return library_status.repair_preview(cfg.db_path, cfg.dest, ids)
+
+    @app.post("/api/v1/jobs/repair", status_code=202)
+    def start_repair(body: dict = Body(...)):
+        """Starts Repair for the photos ticked in its preview, from the check it showed."""
+        if set(body) - {"file_ids", "check_run", "request_id"}:
+            raise HTTPException(400, {"error": "invalid_request",
+                                      "message": "Send the photos, the check and an optional request ID only."})
+        run_id = jobs.repair(body.get("file_ids"), body.get("check_run"), body.get("request_id"))
+        return jobs.accepted_run(run_id)
+
     @app.post("/api/v1/thumbnails/clear-previews")
     def clear_previews():
         """Free up: removes detail previews and returns what was removed and freed."""
@@ -401,6 +428,12 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             with catalog.connect(cfg.db_path) as conn:
                 pairs = pair_retry.preview(conn,source=cfg.source,destination=cfg.dest,photo_ids=body.get('ids')) if body.get('ids') else []
             result['pair_retries'] = sum(not row['blocked'] for row in pairs)
+            # Selected photos with a Library check finding, which Repair… opens on (webui-spec 7.6).
+            if body.get('ids'):
+                found = library_status.repair_preview(cfg.db_path, cfg.dest, ns_db.normalize_selection(body['ids']))
+                result['repair_findings'] = sum(len(g['items']) for g in found['groups']) + len(found['cannot'])
+            else:
+                result['repair_findings'] = 0
             return result
         except (ValueError, TypeError) as exc:
             raise _bad_request(ValueError(str(exc)))

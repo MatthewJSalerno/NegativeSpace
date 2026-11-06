@@ -195,7 +195,8 @@ def locate(conn, findings: list, rejects: Path, cancelled) -> None:
     catalog records for that content. Rejects is read only for files of a sought size."""
     wanted = {}
     for f in findings:
-        if f["kind"] == "missing" or f.get("look") == "different":
+        # An unreadable photo's copy is named, so the user knows it is not lost (webui-spec 7.6).
+        if f["kind"] in ("missing", "unreadable") or f.get("look") == "different":
             wanted.setdefault(f["expected_sha1"], []).append(f)
     if not wanted:
         return
@@ -296,23 +297,30 @@ def record_counts(conn, run_id: int, counts: dict) -> None:
 
 # How each finding reads, how serious it is, and what the user can do about it now
 # (webui-spec 7.6). Tones: 'bad' is a photo lost or damaged, 'warn' something to fix or
-# decide, 'quiet' only counted. Repair and the catalog-only answers are not built: the
-# advice names only what works today.
+# decide, 'quiet' only counted. A finding Repair fixes says what Repair does (engine/repair.py);
+# the catalog-only answers are not built, so other advice names only what works today.
 def describe(f: dict, library: Path, catalogued: dict, moved_here: Optional[dict] = None) -> dict:
     moved_here = moved_here or {}
     rel = lambda p: os.path.relpath(p, library) if p and Path(p).is_relative_to(library) else p
     kind, file_kind, where = f["kind"], f.get("file_kind"), f.get("found_in")
+    if kind == "missing" and where == "library" and os.path.dirname(f["found_path"]) == os.path.dirname(f["path"]):
+        # A rename the check could not record: a delivered sidecar, or the content twice (renames).
+        return {"finding": "moved", "tone": "warn", "what": f"Found under a new name in its own folder: {rel(f['found_path'])}.",
+                "todo": "If it has an .xmp sidecar, rename that to match; if its content is in two files, keep one. "
+                        "Then check the library again."}
     if kind == "missing" and where:
         what = {"library": f"Found at a different place in the Library: {rel(f['found_path'])}.",
                 "rejects": f"Its file is in Rejects: {rel(f['found_path'])}.",
                 "source": "Missing from the Library. A copy is still in the source."}[where]
-        todo = (f"Move it back to {rel(f['path'])}" if where == "library" else f"Put a copy back at {rel(f['path'])}") \
-            + ", then check the library again."
+        todo = {"library": "Repair moves it back to its date folder, keeping its name.",
+                "rejects": "Repair moves it back from Rejects.",
+                "source": "Repair copies it back from the source."}[where]
         return {"finding": "moved" if where == "library" else "missing", "tone": "warn", "what": what, "todo": todo}
     if kind == "missing":
         return {"finding": "missing", "tone": "bad",
                 "what": "Missing from the Library, and no copy was found in the Library, Rejects or the source.",
-                "todo": f"If a backup has it, restore it to {rel(f['path'])}, then check the library again."}
+                "todo": "If the original is still somewhere in your source, Index source finds it; then check the "
+                        f"library again. If a backup has it, restore it to {rel(f['path'])}."}
     if kind == "changed" and f.get("look") == "different":
         return {"finding": "replaced", "tone": "warn" if where else "bad",
                 "what": "A different picture is saved under this name. The photo NegativeSpace filed here is missing"
@@ -324,8 +332,10 @@ def describe(f: dict, library: Path, catalogued: dict, moved_here: Optional[dict
                         + ("; it still looks like the same photo." if f.get("look") == "alike" else "."),
                 "todo": "Nothing is lost if the change was intended. If not, restore the file from a backup."}
     if kind == "unreadable":
-        return {"finding": "unreadable", "tone": "bad", "what": f"Can't be read: {f.get('detail') or 'no reason given'}.",
-                "todo": "Check the file's permissions and the disk, then check the library again."}
+        copy = ("" if not where else " A copy is in the source, so the photo isn't lost." if where == "source"
+                else f" A copy is at {rel(f['found_path'])}, so the photo isn't lost.")
+        return {"finding": "unreadable", "tone": "bad", "what": f"Can't be read: {f.get('detail') or 'no reason given'}."
+                + copy, "todo": "Check the file's permissions and the disk, then check the library again."}
     ext = os.path.splitext(f["path"])[1]
     if f["path"] in moved_here:
         source = moved_here[f["path"]]
@@ -404,29 +414,39 @@ def report(conn, run_id: int, *, findings=True) -> Optional[dict]:
         if hit:
             catalogued[sha1] = hit[0]
     moved_here = {f["found_path"]: f for f in rows if f.get("found_in") == "library"}
+    # The Repair job that fixed a finding: listed, marked, and no longer counted.
+    settled = sorted({f["settled_by"] for f in rows if f.get("settled_by")})
+    repaired = dict(conn.execute(f"SELECT id, run_id FROM operations WHERE id IN ({','.join('?' * len(settled))})",
+                                 settled).fetchall()) if settled else {}
     groups = _folders(rows, library)
     grouped = {p for g in groups for p in g["paths"]}
+    repaired_paths = {f["path"]: f.get("settled_by") for f in rows}
     described = []
     for f in rows:
         d = describe(f, library, catalogued, moved_here)
         described.append({**{k: f[k] for k in ("path", "kind", "photo_id", "size", "found_in", "found_path")},
+                          "repaired_by": repaired.get(f["settled_by"]),
                           "relative": os.path.relpath(f["path"], library) if Path(f["path"]).is_relative_to(library) else f["path"],
                           "checksum": f.get("observed_sha1") or f.get("expected_sha1"),
                           "folder": next((g["folder"] for g in groups if f["path"] in g["paths"]), None), **d})
     # A moved photo's new file is the other half of its "moved" finding: exported, not
     # listed or counted again.
     loose = [d for d in described if d["path"] not in grouped and d["finding"] != "moved_here"]
+    open_ = [d for d in described if not d["repaired_by"]]
+    open_loose = [d for d in loose if not d["repaired_by"]]
     counts = json.loads(row[2])
     other_types = collections.Counter(os.path.splitext(d["path"])[1].lower() or "(none)"
                                       for d in described if d["finding"] in ("other_type", "unrecognised"))
-    lost_photos = sum(1 for d in described if d["finding"] in ("missing", "replaced") and d["tone"] == "bad")
-    damaged = sum(1 for d in described if d["finding"] == "unreadable")
-    attention = (sum(1 for d in loose if d["tone"] == "warn") + sum(1 for g in groups if g["tone"] == "warn"))
+    lost_photos = sum(1 for d in open_ if d["finding"] in ("missing", "replaced") and d["tone"] == "bad")
+    damaged = sum(1 for d in open_ if d["finding"] == "unreadable")
+    open_groups = [g for g in groups if not all(repaired_paths.get(p) for p in g["paths"])]
+    attention = (sum(1 for d in open_loose if d["tone"] == "warn") + sum(1 for g in open_groups if g["tone"] == "warn"))
     progress = {p["phase"]: p for p in ns_db.read_progress(conn, run_id)}.get("checking_destination")
     result = {"run_id": run_id, "depth": row[0], "stopped": row[1], "status": row[3], "started_at": row[4],
               "ended_at": row[5], "intact": (progress or {}).get("counts", {}).get("ok", 0),
               "progress": {"done": progress["done"], "total": progress["total"]} if progress else None,
               "lost": lost_photos, "damaged": damaged, "attention": attention, "found": len(loose) + len(groups),
+              "repaired": sum(1 for d in described if d["repaired_by"] and d["finding"] != "moved_here"),
               "tone": "bad" if lost_photos or damaged else "warn" if attention else "plain",
               "folders": [{k: v for k, v in g.items() if k != "paths"} for g in groups],
               "housekeeping": {k: v for k, v in counts.items() if k not in ("sidecars", "renamed")},
@@ -446,7 +466,7 @@ def photo_reason(conn, photo_id: int) -> Optional[dict]:
     check found, while the photo is still where and what the check saw."""
     row = conn.execute(f"SELECT f.* FROM destination_findings f JOIN photos p ON p.id=f.photo_id "
                        f"WHERE f.run_id=({LATEST_COMPLETED_SQL}) AND f.photo_id=? AND f.path=p.dest_path "
-                       f"AND f.expected_sha1 IS p.sha1_hash", (photo_id,)).fetchone()
+                       f"AND f.expected_sha1 IS p.sha1_hash AND f.settled_by IS NULL", (photo_id,)).fetchone()
     if row is None:
         return None
     f = dict(zip([d[0] for d in conn.execute("SELECT * FROM destination_findings LIMIT 0").description], row))
@@ -460,8 +480,8 @@ LATEST_COMPLETED_SQL = (f"SELECT MAX(c.run_id) FROM library_checks c JOIN runs r
 
 def pending_sql() -> str:
     """Library photos the latest completed check found missing, changed or unreadable,
-    still at the path and with the content it checked; a later check or a change by
-    NegativeSpace clears the reason."""
+    still at the path and with the content it checked, and not repaired since; a later
+    check, Repair or another change by NegativeSpace clears the reason."""
     return (f"p.status IN ({ns_db.sql_values(ns_db.DELIVERED_STATUSES)}) AND EXISTS (SELECT 1 FROM "
             f"destination_findings f WHERE f.run_id=({LATEST_COMPLETED_SQL}) AND f.photo_id=p.id "
-            f"AND f.path=p.dest_path AND f.expected_sha1 IS p.sha1_hash)")
+            f"AND f.path=p.dest_path AND f.expected_sha1 IS p.sha1_hash AND f.settled_by IS NULL)")

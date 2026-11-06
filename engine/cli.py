@@ -185,6 +185,13 @@ def main():
              "the user empties dest/rejects. Backs up the catalog first. Takes the engine lock."
     )
     mode_group.add_argument(
+        "--repair-library", type=int, metavar="CHECK_RUN", default=None,
+        help="Repair what library check CHECK_RUN found for the selected photos (--file-ids or "
+             "--file-ids-from): move a photo back to its date folder, back from dest/rejects, or copy "
+             "it back from the source. Refused unless CHECK_RUN is the latest completed check. Backs up "
+             "the catalog first. Takes the engine lock."
+    )
+    mode_group.add_argument(
         "--return-to-library", action="store_true",
         help="Move the selected rejected photos (--file-ids, --file-ids-from or --source-subdir) from dest/rejects "
              "back to their date folder in dest/library. Backs up the catalog first. Takes the "
@@ -256,6 +263,8 @@ def main():
             targeting._release_selection_lease()
     if (args.reject or args.return_to_library) and not (args.file_ids or args.source_subdir):
         parser.error("--reject and --return-to-library need --file-ids, --file-ids-from or --source-subdir.")
+    if args.repair_library is not None and (not args.file_ids or args.source_subdir or args.repair_library < 1):
+        parser.error("--repair-library needs a library check's run number and --file-ids or --file-ids-from.")
     if args.rebuild_thumbnails and args.no_thumbnails:
         parser.error("--rebuild-thumbnails makes thumbnails; it cannot be combined with --no-thumbnails.")
 
@@ -403,6 +412,9 @@ def main():
         sys.exit(relocate.run_rename(args, db_path, base_dir, lock_fd))
     if args.reject or args.return_to_library:
         sys.exit(relocate.run_relocation(args, db_path, base_dir, lock_fd))
+    if args.repair_library is not None:
+        from engine import repair
+        sys.exit(repair.run_repair(args, db_path, base_dir, lock_fd))
 
     # 2b. ExifTool is a hard requirement (the package docstring) — fail fast and
     # clearly, before touching source/dest/the database at all, rather than

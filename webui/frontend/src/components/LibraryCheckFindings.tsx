@@ -33,6 +33,7 @@ export function LibraryCheckFindings({ runId, refreshKey }: { runId: number; ref
       <a href={api.libraryExportUrl(runId, "csv")} download>CSV</a>
       <a href={api.libraryExportUrl(runId, "json")} download>JSON</a>
     </div>}
+    {data.repaired > 0 && <p>{plural(data.repaired, "finding")} repaired since this check, marked below.</p>}
     {data.renamed.length > 0 && <div className="library-renames">
       <p>{plural(data.renamed.length, "rename")} you made recorded, each matched by its checksum. The new names are kept.</p>
       <ul>{data.renamed.map(r => <li key={r.photo_id}><span className="path">{r.old}</span> → <span className="path">{r.new}</span>{" "}
@@ -40,7 +41,7 @@ export function LibraryCheckFindings({ runId, refreshKey }: { runId: number; ref
     </div>}
     {data.folders.map(g => <p key={g.folder} className={noticeClass(g.tone)}>
       {g.moved_to
-        ? <>The folder <strong>{g.folder}</strong> was moved or renamed to <strong>{g.moved_to}</strong>: {plural(g.photos, "photo")}. Move it back, then check the library again.</>
+        ? <>The folder <strong>{g.folder}</strong> was moved or renamed to <strong>{g.moved_to}</strong>: {plural(g.photos, "photo")}. Repair moves its photos back.</>
         : <>The folder <strong>{g.folder}</strong> is missing: {plural(g.photos, "photo")}{g.lost ? `, ${count(g.lost)} with no copy anywhere` : ""}. Put it back, or restore it from a backup, then check the library again.</>}
     </p>)}
     {rows.length > 0 && <table className="log-table library-findings-table">
@@ -50,7 +51,9 @@ export function LibraryCheckFindings({ runId, refreshKey }: { runId: number; ref
         <td className={f.tone === "bad" ? "error" : f.tone === "warn" ? "warning-text" : "muted"}><strong>{FINDING_LABEL[f.finding] ?? f.finding}</strong></td>
         <td><span className="path">{f.relative}</span>
           {f.photo_id != null && <div className="row-links"><a href={photoUrl(f.photo_id)} onClick={follow}>Photo #{f.photo_id}</a></div>}</td>
-        <td>{f.what}{f.todo && <div className="hint">{f.todo}</div>}</td>
+        <td>{f.what}{f.repaired_by != null
+          ? <div className="hint">Repaired by <a href={`/logs?run=${f.repaired_by}`} onClick={follow}>Job #{f.repaired_by}</a>.</div>
+          : f.todo && <div className="hint">{f.todo}</div>}</td>
       </tr>)}</tbody>
     </table>}
     {data.total > PAGE && <Pager page={page} pages={Math.ceil(data.total / PAGE)} total={data.total} pageSize={PAGE} sizes={[PAGE]}

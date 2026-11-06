@@ -1,4 +1,5 @@
 import { PairRetryProvider } from "./components/PairRetry";
+import { RepairProvider } from "./components/Repair";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type Status } from "./api";
 import { CatalogProblem, FirstRun } from "./components/FirstRun";
@@ -64,7 +65,7 @@ export function App() {
                                                         onSaved={() => { navigate("/", true); setFirstRunDone(true); }} /></div>;
   }
   return (
-    <JobFeedProvider><NotificationsProvider><DismissedRunProvider><PairRetryProvider>
+    <JobFeedProvider><NotificationsProvider><DismissedRunProvider><PairRetryProvider><RepairProvider>
       <a className="skip-link" href="#main-content">Skip to main content</a>
       {path === "/logs"
         ? <LogsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => { setSettingsGroup("appearance"); setSettingsOpen(true); }} />
@@ -74,6 +75,6 @@ export function App() {
             ? <SimilarRedirect />
             : <LibraryPage status={status} refreshStatus={loadStatus} onOpenSettings={() => { setSettingsGroup("appearance"); setSettingsOpen(true); }} />}
       {settingsOpen && <SettingsDialog initialGroup={settingsGroup} firstRun={false} onClose={() => setSettingsOpen(false)} onSaved={() => { void loadStatus(); window.dispatchEvent(new Event("ns-settings-saved")); }} />}
-    </PairRetryProvider></DismissedRunProvider></NotificationsProvider></JobFeedProvider>
+    </RepairProvider></PairRetryProvider></DismissedRunProvider></NotificationsProvider></JobFeedProvider>
   );
 }

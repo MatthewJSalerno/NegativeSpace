@@ -14,7 +14,7 @@ from webui_api_test import ApiCase, make_photo
 
 class LibraryCheck(ApiCase):
     def setUp(self):
-        super().setUp()
+        ApiCase.setUp(self)                            # shared with Repair below
         self.create_catalog()
         for name in ("one", "two"):
             make_photo(self.cfg.source / f"{name}.jpg", name, exif={36867: "2001:02:03 04:05:06"})
@@ -101,6 +101,56 @@ class LibraryCheck(ApiCase):
         self.assertEqual(conflict.status_code, 409, conflict.text)
         self.assertEqual(self.client.get(f"/api/v1/library-check/{run['id']}/export", params={"format": "xml"}).status_code, 400)
 
+
+class Repair(ApiCase):
+    """Repair through the web API (webui-spec 7.6): its preview, the selection's count, the
+    job, and its refusal once a newer check has run."""
+    setUp, check = LibraryCheck.setUp, LibraryCheck.check
+
+    def test_repair_previews_runs_and_clears_the_reason(self):
+        one_id, one = self.placed["one"]
+        two_id, two = self.placed["two"]
+        library = ns_db.library_root(self.cfg.dest.resolve())
+        (library / "sorted").mkdir()
+        one.rename(library / "sorted" / "one.jpg")
+        two.unlink()
+        os.unlink(self.cfg.source / "two.jpg")         # no copy anywhere
+        run = self.check()
+        preview = self.client.post("/api/v1/repair/preview", json={}).json()
+        self.assertEqual((preview["check_run"], preview["fixes"]), (run["id"], 1))
+        self.assertEqual([(g["repair"], [i["photo_id"] for i in g["items"]]) for g in preview["groups"]],
+                         [("move_back", [one_id])])
+        item = preview["groups"][0]["items"][0]
+        self.assertEqual((item["from_relative"], item["to_relative"]),
+                         ("sorted/one.jpg", os.path.relpath(one, library)))
+        self.assertNotIn("from", item)                 # no container paths reach the screen
+        self.assertEqual([(i["photo_id"], i.get("index_source")) for i in preview["cannot"]], [(two_id, True)])
+        chosen = self.client.post("/api/v1/photos/selection", json={"ids": [one_id, two_id]}).json()
+        self.assertEqual(chosen["repair_findings"], 2)
+
+        self.assertEqual(self.client.post("/api/v1/jobs/repair", json={"file_ids": [one_id]}).status_code, 400)
+        self.assertEqual(self.client.post("/api/v1/jobs/repair", json={"file_ids": [one_id], "check_run": run["id"],
+                                                                       "extra": 1}).status_code, 400)
+        refused = self.client.post("/api/v1/jobs/repair", json={"file_ids": [one_id, two_id], "check_run": run["id"]})
+        self.assertEqual((refused.status_code, refused.json()["error"]), (409, "repair_preview_changed"))
+        started = self.client.post("/api/v1/jobs/repair", json={"file_ids": [one_id], "check_run": run["id"]})
+        self.assertEqual(started.status_code, 202, started.text)
+        done = self.wait_for(started.json()["id"])
+        self.assertEqual((done["mode"], done["status"], done["outcome"]["counts"].get("Repaired")),
+                         ("REPAIR", "Completed", 1))
+        self.assertTrue(one.is_file())
+        listed = self.client.get("/api/v1/photos", params={"view": "review", "reason": "library"}).json()
+        self.assertEqual([p["id"] for p in listed["items"]], [two_id])
+        page = self.client.get(f"/api/v1/library-check/{run['id']}").json()
+        self.assertEqual(page["repaired"], 1)
+        self.assertEqual({f["photo_id"]: f["repaired_by"] for f in page["findings"] if f["photo_id"]},
+                         {one_id: done["id"], two_id: None})
+        lineage = self.client.get(f"/api/v1/photos/{one_id}/lineage").json()
+        self.assertIn("move_back", [op["action"] for op in lineage["operations"] if op["status"] == "Repaired"])
+
+        self.check()
+        stale = self.client.post("/api/v1/jobs/repair", json={"file_ids": [two_id], "check_run": run["id"]})
+        self.assertEqual(stale.status_code, 409, stale.text)
 
 if __name__ == "__main__":
     unittest.main()

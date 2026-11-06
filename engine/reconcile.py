@@ -418,7 +418,7 @@ def _reconcile_interrupted_renames(conn, run_id: int):
                                step="recovery",
                                operation_status=expected.get("operation_status", OPERATION_RENAMED),
                                photo_id=photo_id if kind != "rename" else None,
-                               status_after=expected.get("status_after"))
+                               status_after=expected.get("status_after"), recorded=expected.get("recorded_path"))
             runtime.logger.info(f"Recovered an interrupted {noun}: {old} is now {new}.")
         elif candidate == "old" and verification == "match":
             recovered_event = ns_db.settle_operation(conn, operation_id, status=PhotoStatus.FAILED, step="recovery",

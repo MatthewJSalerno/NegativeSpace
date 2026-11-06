@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Optional
 
 from engine import library_check, ns_db
-from engine.ns_db import (PhotoStatus, RunStatus, OPERATION_SKIPPED, OPERATION_CANCELLED, OPERATION_RENAMED, OPERATION_RETURNED)
+from engine.ns_db import (PhotoStatus, RunStatus, OPERATION_SKIPPED, OPERATION_CANCELLED, OPERATION_RENAMED, OPERATION_RETURNED,
+                          OPERATION_REPAIRED)
 from . import catalog, discovery
 
 
@@ -17,13 +18,14 @@ from . import catalog, discovery
 # happened, which are failures, and which are deliberate non-actions.
 _SUCCESS = {"indexed", "duplicates", PhotoStatus.COPIED, PhotoStatus.COMPLETED,
             PhotoStatus.FOUND_AT_DESTINATION, PhotoStatus.REMOVED_DUPLICATE, "made", "ok", "Compared", OPERATION_RENAMED,
-            PhotoStatus.REJECTED, PhotoStatus.REJECTED_COPIED, OPERATION_RETURNED, "Metadata_Saved"}
+            PhotoStatus.REJECTED, PhotoStatus.REJECTED_COPIED, OPERATION_RETURNED, "Metadata_Saved",
+            OPERATION_REPAIRED}
 _FAILURE = {"failed", PhotoStatus.FAILED, "missing", "changed", "unreadable"}
 _SKIPPED = {"unchanged", OPERATION_SKIPPED, "already", "kept", "Already_Gone", "unknown"}
 _REQUESTED_PHASES = {"INDEX": ("scanning", "checking_destination"), "COPY": ("scanning", "transferring"),
                      "MOVE": ("scanning", "transferring", "removing_duplicates"),
                      "SIMILARITY": ("scanning", "matching"), "REBUILD": ("rebuilding_thumbnails",), "CHECK": ("checking_destination",),
-                     "REJECT": ("transferring",), "RETURN": ("transferring",)}
+                     "REJECT": ("transferring",), "RETURN": ("transferring",), "REPAIR": ("transferring",)}
 _TERMINAL_WINS = {RunStatus.CANCELLED: "cancelled", RunStatus.INTERRUPTED: "interrupted",
                   RunStatus.FAILED: "stopped"}
 

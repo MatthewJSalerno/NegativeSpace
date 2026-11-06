@@ -1,6 +1,6 @@
 """Check library in a browser (webui-spec 7.6), on generated photos only: the dialog from
 Jobs and from the sidebar, the sidebar's library status, the check's findings in Logs,
-the Library check review reason, and the Index notice's inline link and landmark."""
+the Library check review reason, Repair, and the Index notice's inline link and landmark."""
 import os
 import re
 import sys
@@ -73,7 +73,8 @@ with sync_playwright() as p:
     moved = next(LIBRARY.rglob('photo-006.jpg'))
     lost.unlink()
     Path('/src/photo-005.jpg').unlink()
-    (LIBRARY / 'sorted').mkdir()
+    (LIBRARY / 'sorted').mkdir(mode=0o777)
+    (LIBRARY / 'sorted').chmod(0o777)        # this container runs as root; the app must be able to move files out
     moved.rename(LIBRARY / 'sorted' / 'photo-006.jpg')
     (LIBRARY / 'sorted' / 'notes.txt').write_text('notes')
     (LIBRARY / 'sorted' / '.DS_Store').write_bytes(b'\0')
@@ -131,6 +132,33 @@ with sync_playwright() as p:
     expect(note.get_by_role('link', name=re.compile(r'^Job #\d+$'))).to_be_visible()
     expect(note.get_by_role('button', name='Remove bookmark')).to_have_count(0)
     shot(page, 'inspector')
+    # Repair (webui-spec 7.6): never offered for a photo it can't fix, offered for one it can.
+    expect(note.get_by_role('button', name='Repair…')).to_have_count(0)
+    six = request.get('/api/v1/photos', params={'view': 'review', 'reason': 'library', 'q': 'photo-006'}).json()['items'][0]['id']
+    page.goto(BASE + f'/?view=review&reason=library&photo={six}')
+    expect(page.get_by_role('region', name='Photo review', exact=True).get_by_role('button', name='Repair…')).to_be_visible()
+    # From a selection of every photo under the reason: one fix, one it can't make.
+    page.goto(BASE + '/?view=review&reason=library')
+    page.get_by_role('button', name='Select', exact=True).click()
+    page.get_by_role('menu', name='Select').get_by_role('menuitem', name=re.compile('^Select all in this view')).click()
+    page.get_by_role('region', name='Selection').get_by_role('button', name='Repair (2)…').click()
+    repair = page.get_by_role('dialog', name='Repair 2 photos?')
+    expect(repair).to_contain_text('1 photo in the wrong folder → move back to')
+    expect(repair).to_contain_text("Can't be fixed here (nothing will be done)")
+    expect(repair.get_by_role('button', name='Index source', exact=True)).to_be_visible()
+    shot(page, 'repair')
+    repair.get_by_role('button', name='Repair 1', exact=True).click()
+    expect(repair).to_have_count(0)
+    idle()
+    last = request.get('/api/v1/runs').json()['runs'][0]
+    assert last['mode'] == 'REPAIR' and next(LIBRARY.rglob('photo-006.jpg')).parent.name != 'sorted', \
+        (last, request.get('/api/v1/operations', params={'run': last['id']}).text()[:2000])
+    page.goto(BASE + '/?view=review&reason=library')
+    expect(page.get_by_role('checkbox', name=re.compile(r'^Select photo-00[56]\.jpg$'))).to_have_count(1)
+    page.goto(BASE + f'/?view=organized&photo={six}')
+    page.get_by_role('button', name='View lineage tree').click()
+    expect(page.locator('.lineage-timeline')).to_contain_text('Moved back to its date folder')
+    page.keyboard.press('Escape')
 
     # The recorded rename is in the photo's history, saying how it was found.
     garden = request.get('/api/v1/photos', params={'view': 'organized', 'q': 'Garden party'}).json()['items'][0]['id']

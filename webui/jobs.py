@@ -15,7 +15,7 @@ import time
 import uuid
 from typing import Optional
 
-from engine import move_confirmation, transfer_preview, pair_retry, ns_db
+from engine import move_confirmation, transfer_preview, pair_retry, ns_db, repair
 from . import catalog, catalog_backups, outcomes, transfer_plans
 from .config import ENGINE_CWD, Config
 
@@ -494,6 +494,33 @@ class JobRunner:
         with self._start_lock:
             return self._launch(['--check-destination', CHECK_DEPTHS[depth]], request_id)
 
+    def repair(self, file_ids, check_run, request_id=None):
+        """Repair (webui-spec 7.6) for the photos ticked in its preview, as a job. Refused
+        when the preview no longer holds: a newer check ran, or a chosen photo is no longer
+        one Repair would fix."""
+        validate_request_id(request_id)
+        if type(check_run) is not int:
+            raise JobRefused(400, {'error': 'invalid_request', 'message': 'Open Repair to review its changes first.'})
+        try:
+            selection = ns_db.normalize_selection(file_ids)
+        except ns_db.SelectionRefused:
+            raise JobRefused(400, {'error': 'invalid_request',
+                                   'message': 'file_ids must be a non-empty list of positive 64-bit integer photo ids.'})
+        status = catalog.status(self.cfg.db_path)
+        if status['state'] != 'ok':
+            raise JobRefused(409, {'error': f"catalog_{status['state']}", 'message': status['detail']})
+        flags = ['--repair-library', str(check_run)]
+        with self._start_lock:
+            replay = self._replay(flags, request_id, selection)
+            if replay is not None:
+                return replay
+            with catalog.connect(self.cfg.db_path) as conn:
+                plan = repair.plan(conn, self.cfg.dest, selection)
+            if plan['check_run'] != check_run or plan['fixes'] != len(selection):
+                raise JobRefused(409, {'error': 'repair_preview_changed',
+                                       'message': 'What Repair would do has changed since you opened it. Review it again.'})
+            return self._launch(flags, request_id, selection)
+
     def rebuild_thumbnails(self, scope, request_id=None):
         """--rebuild-thumbnails as a job (webui-spec 4.2.1): 'missing' repairs, 'all'
         regenerates every grid thumbnail. It takes the engine lock like any job."""
@@ -612,6 +639,8 @@ class JobRunner:
         for flag, mode in (("--reject", "REJECT"), ("--return-to-library", "RETURN")):
             if flag in flags:
                 expected = {**expected, "mode": mode, "submitted": {}}
+        if '--repair-library' in flags:
+            expected = {**expected, 'mode': 'REPAIR', 'submitted': {'check_run': int(argument('--repair-library'))}}
         if '--rename' in flags:
             expected = {'mode':'RENAME','source':None,'destination':None,'targeting':None,'overrides':{},
                         'submitted':{'photo_id':int(argument('--rename')), 'name':argument('--name'),
