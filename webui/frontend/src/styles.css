@@ -84,7 +84,6 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
 .menu-toggle { display: none; }
 /* The Jobs menu sits near the right edge: its menus open leftwards, inside the window. */
 .topbar .actions-menu > .menu { left: auto; right: 0; }
-.topbar .submenu { left: auto; right: calc(100% + 6px); }
 .frame-body { flex: 1; display: flex; min-height: 0; }
 .frame-body > main { flex: 1; min-width: 0; }
 .sidebar { flex: 0 0 var(--sidebar-w); position: sticky; top: var(--header-offset); height: calc(100vh - var(--header-offset));
@@ -554,16 +553,20 @@ body.dragging { cursor: col-resize; user-select: none; }
 .menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 300px; display: grid; padding: var(--space-2);
   background: var(--surface); border: 0; border-radius: var(--radius); box-shadow: var(--shadow); }
 .menu-parent { position: relative; }
-.submenu { top: -6px; left: calc(100% + 6px); min-width: 320px; }
+/* A submenu opens in place, under its item and indented, never sideways. */
+.submenu { position: static; box-shadow: none; border-left: 2px solid var(--border); border-radius: 0;
+  margin-left: var(--space-3); padding: 0 0 0 var(--space-1); min-width: 0; }
 .menu-item { display: grid; gap: var(--space-1); width: 100%; text-align: left; border: 0; border-radius: var(--control-radius); background: none;
   padding: var(--space-3); font: inherit; color: inherit; cursor: pointer; }
 .menu-item:hover:not([aria-disabled="true"]), .menu-item:focus-visible, .menu-item.current { background: var(--surface-2); }
 .menu-item[aria-disabled="true"] { cursor: default; color: var(--muted); }
 .menu-branch { grid-template-columns: 1fr auto; align-items: center; }
 .menu-label { font-weight: var(--weight-strong); }
-.menu-hint { font-size: var(--type-sm); color: var(--muted); }
+.menu-foot { display: grid; margin-top: var(--space-1); padding: var(--space-2) var(--space-3) var(--space-1);
+  border-top: 1px solid var(--border); font-size: var(--type-sm); color: var(--muted); }
+.menu-foot > p { grid-area: 1 / 1; margin: 0; visibility: hidden; }
+.menu-foot > p.shown { visibility: visible; }
 @media (max-width: 700px) {
-  .submenu { position: static; box-shadow: none; border: 0; border-left: 2px solid var(--border); border-radius: 0; margin-left: var(--space-3); min-width: 0; }
   .menu { min-width: min(300px, calc(100vw - 32px)); }
 }
 

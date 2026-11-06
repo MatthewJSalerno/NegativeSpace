@@ -975,8 +975,9 @@ and Gmail, so that no menu has to adapt to what is selected:
 * *Why the top bar, not a floating bottom bar:* the selection count is already read there,
   the bar stays in view, and a bottom bar would cover the last row of photos.
 The search is in the top bar; Filters and Sort end
-the place's heading row. Every Jobs item carries a one-line explanation, and one that cannot run
-replaces it with why: a job is running, nothing is indexed, nothing is selected, or
+the place's heading row. Every Jobs item, **Copy ▸** and **Move ▸** included, carries a one-line
+explanation, shown at the menu's foot for the item pointed at (ui-design "Menus"). One
+that cannot run is greyed and says why there instead: a job is running, nothing is indexed, nothing is selected, or
 nothing is left (**"Nothing to copy - every photo is copied or organized."**), or what
 is left needs attention first (**"Nothing ready to copy - 2 photos in Not organized need
 attention first."**). The

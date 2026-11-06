@@ -27,8 +27,10 @@ export function SelectMenu({ onScreen, screenSelected, total, selected, disabled
       why: disabledWhy,
       hint: "Every photo the view, search and dates show, scrolled to or not." },
     ...(partial ? [{ label: "Unselect all on screen", onClick: onUnselectScreen,
-      why: disabledWhy ?? (screenSelected === 0 ? "Nothing on screen is selected." : null) }] : []),
-    { label: "Unselect all", onClick: onUnselectAll, why: selected === 0 ? "Nothing is selected." : null },
+      why: disabledWhy ?? (screenSelected === 0 ? "Nothing on screen is selected." : null),
+      hint: "The photos you can see right now; the rest stay selected." }] : []),
+    { label: "Unselect all", onClick: onUnselectAll, why: selected === 0 ? "Nothing is selected." : null,
+      hint: "Every selected photo, in this view or any other." },
   ];
 
   return <MenuButton label="Select" items={items} className="select-menu" />;

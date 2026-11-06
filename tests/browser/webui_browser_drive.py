@@ -147,11 +147,24 @@ with sync_playwright() as p:
     assert logo and logo["x"] < 40 and abs(logo["width"] / logo["height"] - 991 / 956) < 0.05, f"logo: {logo}"
     # The Jobs menu: every item that cannot run says why.
     menu = open_actions(page, "Move")
-    expect(menu.get_by_role("menuitem", name=re.compile(r"^Move all"))).to_be_disabled()
-    expect(menu).to_contain_text("Index your library first")
+    move_all = menu.get_by_role("menuitem", name=re.compile(r"^Move all"))
+    expect(move_all).to_be_disabled()
+    # Why it cannot run is its description, and the foot line's while it is pointed at.
+    expect(move_all).to_have_accessible_description(re.compile("Index your library first"))
+    move_all.hover()
+    expect(page.locator(".actions-menu > .menu > .menu-foot > .shown")).to_have_text(re.compile("^Index your library first"))
     expect(menu.get_by_role("menuitem", name=re.compile(r"^Index"))).to_be_enabled()
     page.keyboard.press("Escape")
-    expect(menu.get_by_role("menuitem", name="Move", exact=True)).to_be_focused()
+    move = menu.get_by_role("menuitem", name="Move", exact=True)
+    expect(move).to_be_focused()
+    # Items show only their names; what the one pointed at does is the menu's foot line,
+    # and its description for screen readers (ui-design "Menus").
+    expect(page.locator(".actions-menu > .menu > .menu-foot > .shown")).to_have_text(re.compile(r"^Organize photos into the library"))
+    expect(move).to_have_accessible_description(re.compile(r"^Organize photos into the library"))
+    index = menu.get_by_role("menuitem", name="Index", exact=True)
+    expect(index).to_have_text("Index")
+    index.hover()
+    expect(page.locator(".actions-menu > .menu > .menu-foot > .shown")).to_have_text(re.compile(r"^Read new and changed photos"))
     page.keyboard.press("Escape")
     expect(page.locator(".menu")).to_have_count(0)
 
@@ -203,7 +216,7 @@ with sync_playwright() as p:
     folders_nav.get_by_label("Show only the files in the source folder").check()
     item = open_actions(page, "Copy").get_by_role("menuitem", name=re.compile(r"^Copy this folder"))
     expect(item).to_be_disabled()
-    expect(item).to_contain_text("Show one folder to act on it.")
+    expect(item).to_have_accessible_description("Show one folder to act on it.")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")  # Close the parent Jobs menu after its submenu.
     page.locator(".gallery-filters").get_by_role("button", name="Show all folders").click()
@@ -564,14 +577,20 @@ with sync_playwright() as p:
     shot("6-skip-reasons")
     # Everything copyable is copied, but Move still has every copied photo to finish.
     menu = open_actions(page, "Copy")
-    expect(menu.get_by_role("menuitem", name="Copy all (0)")).to_be_disabled()
-    # The failed photo is held in Not organized, so the hint names it rather than claiming
-    # every photo is copied.
-    expect(menu).to_contain_text("Nothing ready to copy")
-    expect(menu).to_contain_text("attention first")
+    copy_all = menu.get_by_role("menuitem", name="Copy all (0)")
+    expect(copy_all).to_be_disabled()
+    # The failed photo is held in Not organized, so the reason names it rather than
+    # claiming every photo is copied.
+    expect(copy_all).to_have_accessible_description(re.compile("^Nothing ready to copy.*attention first"))
     menu.get_by_role("menuitem", name="Move", exact=True).click()
-    expect(menu.get_by_role("menuitem", name=f"Move all ({PHOTOS - 1:,})")).to_be_enabled()
-    expect(menu).to_contain_text(f"including {PHOTOS - 1:,} already copied")
+    move_all = menu.get_by_role("menuitem", name=f"Move all ({PHOTOS - 1:,})")
+    expect(move_all).to_be_enabled()
+    move_all.hover()
+    expect(page.locator(".actions-menu > .menu > .menu-foot > .shown")).to_contain_text(f"including {PHOTOS - 1:,} already copied")
+    # The submenu opens in place, inside the menu, and its item's arrow turns down.
+    inner, outer = page.get_by_role("menu", name="Move", exact=True).bounding_box(), menu.bounding_box()
+    assert outer["x"] < inner["x"] and inner["x"] + inner["width"] <= outer["x"] + outer["width"] + 1, (inner, outer)
+    expect(menu.get_by_role("menuitem", name="Move", exact=True)).to_contain_text("▾")
     shot("6b-jobs-menu")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
