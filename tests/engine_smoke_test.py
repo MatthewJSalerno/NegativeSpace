@@ -4891,7 +4891,7 @@ def repair_moves_and_copies_back_what_the_check_found_and_nothing_else():
     import hashlib
     from engine import library_check, repair
     case = new_case("repair_move_copy")
-    for name, day in (("a", "01"), ("b", "02"), ("c", "03"), ("d", "04"), ("e", "05")):
+    for name, day in (("a", "01"), ("b", "02"), ("c", "03"), ("d", "04"), ("e", "05"), ("f", "06")):
         make_photo(case / "src" / f"{name}.jpg", f"repair-{name}", date=f"2021:06:{day} 10:00:00")
     run_engine(case)
     run_engine(case, "--copy")
@@ -4914,7 +4914,9 @@ def repair_moves_and_copies_back_what_the_check_found_and_nothing_else():
     (case / "src" / "d.jpg").unlink()                                       # missing everywhere
     e_id, e = placed["e"]
     e.rename(library / "sorted" / "e.jpg")                                  # moved, then changed below
-    run_engine(case, "--check-destination", "quick")
+    f_id, f_path = placed["f"]
+    f_path.chmod(0)                                                         # can't be read
+    run_engine(case, "--check-destination", "full")
     check_run = rows(case, "SELECT MAX(run_id) m FROM library_checks")[0]["m"]
 
     conn = db(case)
@@ -4928,13 +4930,18 @@ def repair_moves_and_copies_back_what_the_check_found_and_nothing_else():
                     c_id: ("copy_back", c.relative_to(library).as_posix()),
                     e_id: ("move_back", (e.parent / "e.jpg").relative_to(library).as_posix())},
           f"Repair's plan: {fixes}")
-    check([(i["photo_id"], i["todo"]) for i in planned["cannot"]] == [(d_id, repair.NO_COPY_TODO)],
+    check([(i["photo_id"], i["todo"]) for i in planned["cannot"]]
+          == [(d_id, repair.NO_COPY_TODO),
+              (f_id, repair.UNREADABLE_TODO + " A copy is in the source, so the photo isn't lost.")],
           f"what Repair can't fix: {planned['cannot']}")
+    check(planned["unreadable"] == [{"path": f_path.relative_to(case / "dest").as_posix(), "reason": "permission denied"}],
+          f"the unreadable files Repair lists: {planned['unreadable']}")
+    f_path.chmod(0o644)
 
     with open(library / "sorted" / "e.jpg", "ab") as f:
         f.write(b"changed since the check")
     backups = len(backups_of(case))
-    ids = ",".join(str(i) for i in (a_id, b_id, c_id, d_id, e_id))
+    ids = ",".join(str(i) for i in (a_id, b_id, c_id, d_id, e_id, f_id))
     run_engine(case, "--repair-library", check_run, "--file-ids", ids)
     run_id = rows(case, "SELECT MAX(id) m FROM runs")[0]["m"]
     check(rows(case, "SELECT mode FROM runs WHERE id=?", (run_id,))[0]["mode"] == "REPAIR", "Repair ran as another mode")
@@ -4950,7 +4957,8 @@ def repair_moves_and_copies_back_what_the_check_found_and_nothing_else():
     ops = {r["photo_id"]: r for r in rows(case, "SELECT photo_id, status, error_message FROM operations WHERE run_id=?",
                                           (run_id,))}
     check({p: ops[p]["status"] for p in ops} == {a_id: "Repaired", b_id: "Repaired", c_id: "Repaired",
-                                                d_id: "Skipped", e_id: "Skipped"}, f"Repair's outcomes: {ops}")
+                                                d_id: "Skipped", e_id: "Skipped", f_id: "Skipped"},
+          f"Repair's outcomes: {ops}")
     check(repair.NO_COPY_TODO in ops[d_id]["error_message"] and "changed since" in ops[e_id]["error_message"],
           f"the skipped photos' reasons: {ops[d_id]['error_message']} / {ops[e_id]['error_message']}")
     check([x["trigger_kind"] for x in backups_of(case)[backups:]] == ["pre_action", "post_job"],
@@ -4960,7 +4968,7 @@ def repair_moves_and_copies_back_what_the_check_found_and_nothing_else():
              "JOIN operation_events e ON e.operation_id=o.id AND e.step='intent' WHERE o.run_id=?", (run_id,))}
     check(kinds == {a_id: "move_back", b_id: "from_rejects", c_id: "copy_back"}, f"Repair's recorded intents: {kinds}")
     pending = {r["id"] for r in rows(case, f"SELECT p.id FROM photos p WHERE {library_check.pending_sql()}")}
-    check(pending == {d_id, e_id}, f"the Library check reason after Repair: {pending}")
+    check(pending == {d_id, e_id, f_id}, f"the Library check reason after Repair: {pending}")
     conn = db(case)
     try:
         report = library_check.report(conn, check_run)

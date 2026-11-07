@@ -112,7 +112,7 @@ def _check_destination_file(path: str, expected: Optional[tuple], full: bool, ph
     except FileNotFoundError:
         return dict(finding, outcome="missing", kind="missing")
     except OSError as exc:
-        return dict(finding, outcome="unreadable", kind="unreadable", detail=f"{type(exc).__name__}: {exc}")
+        return dict(finding, outcome="unreadable", kind="unreadable", detail=library_check.unreadable_reason(exc))
     finding.update(size=st.st_size, mtime=st.st_mtime)
     # Quick trusts an unchanged size and modification time: a copy keeps the source's
     # mtime to the nanosecond, so a match means nothing has rewritten the file since.
@@ -122,7 +122,7 @@ def _check_destination_file(path: str, expected: Optional[tuple], full: bool, ph
     try:
         observed = fileinfo.compute_sha1(path)
     except OSError as exc:
-        return dict(finding, outcome="unreadable", kind="unreadable", detail=f"{type(exc).__name__}: {exc}")
+        return dict(finding, outcome="unreadable", kind="unreadable", detail=library_check.unreadable_reason(exc))
     finding["observed_sha1"] = observed
     if observed == sha1:
         return dict(finding, outcome="ok", kind=None)

@@ -152,7 +152,7 @@ def unknown_file(path: str, photo_type: bool) -> dict:
                 return dict(finding, file_kind="other_type" if ext else "unrecognised")
             head, sha1 = _read(path, True)
     except OSError as exc:
-        return dict(finding, file_kind="unopenable", detail=f"{type(exc).__name__}: {exc}")
+        return dict(finding, file_kind="unopenable", detail=unreadable_reason(exc))
     finding.update(observed_sha1=sha1, signature=shown)
     expected = _RAW_FORMATS if ext in RAW_EXTENSIONS else _EXPECTED.get(ext, set())
     if not photo_type or (shown is not None and shown not in expected):
@@ -299,9 +299,26 @@ def record_counts(conn, run_id: int, counts: dict) -> None:
 # (webui-spec 7.6). Tones: 'bad' is a photo lost or damaged, 'warn' something to fix or
 # decide, 'quiet' only counted. A finding Repair fixes says what Repair does (engine/repair.py);
 # the catalog-only answers are not built, so other advice names only what works today.
+def unreadable_reason(exc: OSError) -> str:
+    """Why a file can't be read, in plain words ("permission denied", "input/output
+    error"), never the app's own path inside its container (webui-spec 7.6)."""
+    return (exc.strerror or type(exc).__name__).lower()
+
+
+def shown_path(path: Optional[str], library: Path) -> Optional[str]:
+    """A path as the screens show it: relative to the library, or "Rejects/..." for one in
+    Rejects, never the app's own path inside its container."""
+    rejects = ns_db.rejects_root(library.parent)
+    if path and Path(path).is_relative_to(library):
+        return os.path.relpath(path, library)
+    if path and Path(path).is_relative_to(rejects):
+        return "Rejects/" + os.path.relpath(path, rejects)
+    return path
+
+
 def describe(f: dict, library: Path, catalogued: dict, moved_here: Optional[dict] = None) -> dict:
     moved_here = moved_here or {}
-    rel = lambda p: os.path.relpath(p, library) if p and Path(p).is_relative_to(library) else p
+    rel = lambda p: shown_path(p, library)
     kind, file_kind, where = f["kind"], f.get("file_kind"), f.get("found_in")
     if kind == "missing" and where == "library" and os.path.dirname(f["found_path"]) == os.path.dirname(f["path"]):
         # A rename the check could not record: a delivered sidecar, or the content twice (renames).

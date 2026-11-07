@@ -53,7 +53,7 @@ def _pending(conn, check_run: int, photo_ids=None) -> list:
 def classify(conn, f: dict, library: Path, dest_root: Path, holders: collections.Counter) -> dict:
     """One photo's finding as Repair sees it: a fix ({'repair', 'from', 'to'}) or what
     the user can do instead ({'todo'})."""
-    rel = lambda p: os.path.relpath(p, library)
+    rel = lambda p: library_check.shown_path(p, library)
     described = library_check.describe(f, library, {})
     item = {"photo_id": f["photo_id"], "path": f["path"], "relative": rel(f["path"]),
             "finding": described["finding"], "what": described["what"]}

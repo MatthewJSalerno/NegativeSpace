@@ -9,6 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Repair:** [RP1a–RP1i](#repair). Maintainer acceptance is pending.
+
 **Menu descriptions:** [MN1a–MN1e](#menu-descriptions) passed, including all lettered steps,
 on 2026-11-05.
 
@@ -79,6 +81,58 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Repair
+
+**Status:** RP1a–RP1i pending maintainer acceptance. Read: `engine/repair.py`,
+`webui/frontend/src/components/Repair.tsx` (`docs/webui-spec.md` §7.6, `docs/engine-spec.md`
+§9.2).
+
+Verified: the review instance holds six generated photos, indexed and copied, the originals
+kept in the source. Then, by hand: `tulip-01.jpg` was moved to a folder `sorted` and renamed
+`tulip.jpg`; `rose-01.jpg` was moved into `rejects/by hand`; `daisy-01.jpg` was deleted from
+the library (its original is in the source); `lily-01.jpg` was deleted from the library and
+the source; `iris-01.jpg` was made unreadable; `poppy-01.jpg` is untouched. Every step was
+walked on a copy of the instance; no check has run on the instance itself.
+
+### Test RP1 — Repair moves and copies photos back
+
+- **RP1a — A thorough check.** Choose **Jobs › Check library…**, then **Thorough check** (a
+  quick check trusts the unreadable file, whose size and date are unchanged). Expected: the
+  sidebar's **Library** row reads **1 missing, 1 damaged · 3 need attention** in red.
+- **RP1b — Offered only where it helps.** Choose **Needs review**, set **Reason** to **Library
+  check (5)**, and open `tulip-01.jpg`. Expected: under **Library check**, "Repair moves it back
+  to its date folder, keeping its name." and a **Repair…** button. Open `lily-01.jpg`. Expected:
+  the **Index source** advice and no **Repair…**.
+- **RP1c — Choose them all.** Choose **Select ▾ › Select all in this view (5)**. Expected: the
+  selection bar offers **Repair (5)…**.
+- **RP1d — The preview.** Choose **Repair (5)…**. Expected: **Repair 5 photos?**, with
+  **Will be fixed** listing three ticked groups: "1 photo in the wrong folder → move back to
+  2024/05/03", "1 photo in Rejects → move back to 2024/05/04" and "1 photo missing, a copy is in
+  the source → copy back to 2024/05/05". Their **Show the file** lines read
+  `sorted/tulip.jpg → 2024/05/03/tulip.jpg`, `Rejects/by hand/rose-01.jpg → 2024/05/04/rose-01.jpg`
+  and `From the source → 2024/05/05/daisy-01.jpg`. Under **Can't be fixed here (nothing will be
+  done)**: one photo with the **Index source** advice and button, and one with "Fix its
+  permissions, then check the library again. A copy is in the source, so the photo isn't
+  lost." The button reads **Repair 3**.
+- **RP1e — Untick a group.** Untick "1 photo in Rejects…". Expected: the button reads
+  **Repair 2**. Tick it again: **Repair 3**.
+- **RP1f — The unreadable file.** Open **Show these files (1)**. Expected:
+  `library/2024/05/07/iris-01.jpg (permission denied)`. Choose **Copy list**. Expected: "The list
+  is copied, one file per line." when the page is opened from this computer, or, from another
+  computer over plain HTTP, "The browser didn't allow copying. Select the list and copy it:"
+  above a box holding that path.
+- **RP1g — Repair.** Choose **Repair 3**. Expected: the dialog closes and **Job #4** runs. The
+  sidebar's **Library** row then reads **1 missing, 1 damaged**, and **Library check** under
+  Needs review holds only `iris-01.jpg` and `lily-01.jpg`.
+- **RP1h — The history and the check's entry.** In **Library**, search `tulip`, open
+  `tulip.jpg` and choose **View lineage tree**. Expected: **Repair #4 · Moved back to its date
+  folder**. Close it, then choose the sidebar's **Library** row. Expected: Job #3's entry says
+  "3 findings repaired since this check, marked below.", and the rows for `tulip-01.jpg`,
+  `rose-01.jpg` and `daisy-01.jpg` read "Repaired by Job #4."
+- **RP1i — Check again.** In **Library**, choose **Jobs › Check library… › Thorough check**.
+  Expected: **Job #5 · Library check finished**, "4 as recorded · 1 missing, 1 damaged", **2
+  findings**: `lily-01.jpg` missing and `iris-01.jpg` unreadable.
 
 ## Menu descriptions
 
