@@ -78,7 +78,7 @@ def is_library_check(conn, run_id: int) -> bool:
 # What the Repair preview shows of each planned change (webui-spec 7.6): paths from the
 # Library or the destination folder, never the app's own paths inside its container.
 _REPAIR_ITEM = ("photo_id", "relative", "finding", "what", "todo", "repair", "from_relative", "to_relative",
-                "folder", "index_source")
+                "folder", "index_source", "stays")
 
 
 def repair_preview(db_path: Path, dest: Path, photo_ids) -> dict:

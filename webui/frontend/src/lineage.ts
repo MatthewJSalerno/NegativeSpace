@@ -14,6 +14,7 @@ const LABELS: Record<string, string> = {
 // What a Repair did (webui-spec 7.6), from its recorded intent (webui/operation_actions.py).
 const REPAIRS: Record<string, string> = {
   move_back: "Moved back to its date folder", from_rejects: "Moved back from Rejects", copy_back: "Copied back from the source",
+  keep_new: "Kept the new version", edit: "Kept as an edit of this photo",
 };
 // A rename a library check found and recorded was made outside NegativeSpace (webui-spec 7.6).
 export const actionLabel = (op: LineageOperation) => op.mode === "CHECK" && op.status === "Renamed"

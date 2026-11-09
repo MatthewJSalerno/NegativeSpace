@@ -413,6 +413,20 @@ def _reconcile_interrupted_renames(conn, run_id: int):
             # removed the old name and failed on this very sync.
             if same_file or Path(old).parent != Path(new).parent:
                 durable._fsync_directory(Path(old).parent)
+            if kind == "repair":
+                # A kept version's content is committed with its move (repair._keep), and
+                # Repair's findings are settled by the operation that fixed them.
+                from engine import repair
+                if expected.get("keep"):
+                    try:
+                        repair.record_kept(conn, operation_id, photo_id, expected)
+                    except ns_db.RevisionConflict:
+                        # Checked before any write: the move is recorded, and the next
+                        # library check offers to keep the version again.
+                        runtime.logger.warning(f"Photo #{photo_id} changed since its interrupted repair; "
+                                               "its move is recorded, its new version is not.")
+                repair._settle_findings(conn, expected["check_run"], operation_id,
+                                        expected.get("recorded_path") or old, old)
             recovered_event = relocate._record_relocation(conn, operation_id, old, new, file_id,
                                detail={"recovered": True, "status_before": expected.get("status_before")},
                                step="recovery",

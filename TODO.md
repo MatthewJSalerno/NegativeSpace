@@ -55,7 +55,8 @@ development until the maintainer decides.
 - Copied photos whose originals are still in the source: a note under Library, **Originals in source** with its count, opening Source folders › Still in source — built, OS1–OS2 passed (`docs/manual-validation.md`, Originals in source; `docs/ui-design.md`, Page frame)
 - 💬 The user's own groupings of Library photos (a trip, an album) without breaking the date folders (`docs/webui-spec.md` §7.6)
 - Repair: Move it back, back from Rejects and Copy it back — built, RP1 passed 2026-11-11 (`docs/manual-validation.md`, Repair; `docs/webui-spec.md` §7.6)
-- Repair of a photo with a delivered XMP sidecar (the pair moves together), Keep the new version, It's an edit, Edit date…, the catalog-only answers (Stop warning about this among them), Add to catalog and Rebuild from the earlier version — decided, not built (`docs/engine-spec.md` §9.2, `docs/webui-spec.md` §7.6)
+- Repair: Keep the new version and It's an edit of this photo — built, RP2 acceptance pending (`docs/manual-validation.md`, Repair; `docs/engine-spec.md` §9.2)
+- Repair of a photo with a delivered XMP sidecar (the pair moves together), Edit date…, the catalog-only answers (Stop warning about this among them), Add to catalog and Rebuild from the earlier version — decided, not built (`docs/engine-spec.md` §9.2, `docs/webui-spec.md` §7.6)
 - Import summary, and a filter for files that could not be previewed
 - Skip unreadable files at Index, counted by kind — decided, not built (`docs/engine-spec.md` §4.1)
 - Every warning offers a way out
@@ -82,7 +83,7 @@ development until the maintainer decides.
   Library issues also appear in Needs review → File issues. A read-only engine check
   resolves supported outcomes only with fresh verified evidence, preserving original
   history and the deletion gate while uncertainty remains.
-- [ ] Repair's remaining fixes, Add to catalog and Rebuild from the earlier version: decided, not built; Check library and Repair's Move it back, back from Rejects and Copy it back are built (`docs/engine-spec.md` §9.2, `docs/webui-spec.md` §7.6).
+- [ ] Repair's remaining fixes, Add to catalog and Rebuild from the earlier version: decided, not built; Check library and Repair's Move it back, back from Rejects, Copy it back, Keep the new version and It's an edit are built (`docs/engine-spec.md` §9.2, `docs/webui-spec.md` §7.6).
   `recovery.md` gets its entry when this is built.
 ## Copy, then delete the originals yourself
 

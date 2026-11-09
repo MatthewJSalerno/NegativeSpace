@@ -427,10 +427,11 @@ export interface LibraryFinding {
   repaired_by: number | null;
 }
 // Repair's preview (webui-spec 7.6): the fixes grouped by kind and folder, and what it can't fix.
-export type RepairKind = "move_back" | "from_rejects" | "copy_back";
+export type RepairKind = "move_back" | "from_rejects" | "copy_back" | "keep_new" | "edit";
 export interface RepairItem {
   photo_id: number; relative: string; finding: string; what: string; todo?: string;
   repair?: RepairKind; from_relative?: string | null; to_relative?: string; folder?: string; index_source?: boolean;
+  stays?: boolean;
 }
 export interface RepairPreview {
   check_run: number | null; fixes: number;
@@ -611,7 +612,7 @@ export interface LineageFile {
 export interface LineageOperation {
   consolidated_path: string | null;
   consolidated_into: number | null;
-  action: "rotation" | "date" | "metadata_source" | "metadata" | "move_back" | "from_rejects" | "copy_back" | null;
+  action: "rotation" | "date" | "metadata_source" | "metadata" | "move_back" | "from_rejects" | "copy_back" | "keep_new" | "edit" | null;
   id: number;
   run_id: number;
   mode: string | null;

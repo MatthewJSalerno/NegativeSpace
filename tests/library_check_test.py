@@ -4,6 +4,7 @@ check's findings and export, and the Library check review reason. Generated phot
 import csv
 import io
 import os
+import subprocess
 from pathlib import Path
 
 import unittest
@@ -151,6 +152,28 @@ class Repair(ApiCase):
         self.check()
         stale = self.client.post("/api/v1/jobs/repair", json={"file_ids": [two_id], "check_run": run["id"]})
         self.assertEqual(stale.status_code, 409, stale.text)
+
+    def test_keep_the_new_version_files_it_by_its_new_date(self):
+        one_id, one = self.placed["one"]
+        library = ns_db.library_root(self.cfg.dest.resolve())
+        subprocess.run(["exiftool", "-overwrite_original", "-DateTimeOriginal=2003:04:05 06:07:08", str(one)],
+                       check=True, capture_output=True)       # another program changed its date
+        run = self.check(depth="thorough")
+        preview = self.client.post("/api/v1/repair/preview", json={"file_ids": [one_id]}).json()
+        self.assertEqual([(g["repair"], g["folder"]) for g in preview["groups"]], [("keep_new", "2003/04/05")])
+        item = preview["groups"][0]["items"][0]
+        self.assertEqual((item["from_relative"], item["to_relative"], item["stays"]),
+                         (os.path.relpath(one, library), "2003/04/05/one.jpg", False))
+        self.assertFalse({"from", "to", "version", "observed_sha1"} & set(item))   # no container paths or internals
+        started = self.client.post("/api/v1/jobs/repair", json={"file_ids": [one_id], "check_run": run["id"]})
+        self.assertEqual(started.status_code, 202, started.text)
+        done = self.wait_for(started.json()["id"])
+        self.assertEqual((done["status"], done["outcome"]["counts"].get("Repaired")), ("Completed", 1))
+        self.assertTrue((library / "2003" / "04" / "05" / "one.jpg").is_file())
+        lineage = self.client.get(f"/api/v1/photos/{one_id}/lineage").json()
+        self.assertIn("keep_new", [op["action"] for op in lineage["operations"] if op["status"] == "Repaired"])
+        edits = self.client.get("/api/v1/operations", params={"metadata_edits": "true", "photo": one_id}).json()
+        self.assertEqual(edits["items"], [])            # a kept version is not a metadata edit
 
 if __name__ == "__main__":
     unittest.main()
