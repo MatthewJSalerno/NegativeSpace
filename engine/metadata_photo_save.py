@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 import uuid
 
-from engine import earlier_versions, review_history
+from engine import earlier_versions, library_check, review_history
 from engine import (constants, durable, fileinfo, metadata_capture, metadata_duplicates, metadata_embedded, metadata_relocate,
                     metadata_save, metadata_transfer, ns_db, relocate, thumbnails)
 
@@ -43,13 +43,20 @@ def prepare(conn, *, run_id, preview, photo, recorded, cache_root=None):
         str(Path(binding['destination_root']) / preview['filing']['proposed']))
     if proposed != photo and (os.path.lexists(proposed) or os.path.lexists(str(proposed)+'.xmp')):
         raise ValueError('The proposed date location is occupied; no metadata was changed')
+    # A photo the check found in another folder is edited where it is; the catalog still
+    # names its recorded path until the save records its place (engine-spec 9.2).
+    found = binding.get('found')
+    if found and (preview.get('exact_output') or {}).get('duplicate'):
+        raise ValueError('The new date makes this photo identical to another. Repair moves it back first; then '
+                         'edit its date.')
+    recorded_path = found['recorded'] if found else str(photo)
     retained = conn.execute("SELECT file_id FROM file_states WHERE current_path=? "
-        "AND location_role='destination' AND presence_state='present'", (str(photo),)).fetchone()
+        "AND location_role='destination' AND presence_state='present'", (recorded_path,)).fetchone()
     if not retained:
         raise ValueError('The Library photo has no retained file identity')
     aliases = conn.execute('SELECT p.id,p.status,p.sha1_hash,pf.revision FROM photos p '
         'JOIN photo_files pf ON pf.photo_id=p.id WHERE p.dest_path=? AND p.id<>?',
-        (str(photo),binding['photo_id'])).fetchall()
+        (recorded_path,binding['photo_id'])).fetchall()
     if any(row[1] not in ('Duplicate','Removed_Duplicate') or row[2]!=binding['sha1'] for row in aliases):
         raise ValueError('Multiple organized records share this destination; resolve their identity before editing')
     nonce = uuid.uuid4().hex
@@ -61,6 +68,8 @@ def prepare(conn, *, run_id, preview, photo, recorded, cache_root=None):
         revision=binding['file_revision'], aliases=[list(row) for row in aliases],
         status=conn.execute('SELECT status FROM photos WHERE id=?',(binding['photo_id'],)).fetchone()[0],
         cache_root=str(cache_root) if cache_root else None)
+    if found:
+        m.update(recorded=found['recorded'], check_run=found['check_run'])
     _sidecar(m, photo)
     with ns_db.transaction(conn):
         op = ns_db.begin_operation(conn, run_id=run_id, photo_id=binding['photo_id'],
@@ -105,7 +114,7 @@ def _catalog_photo(conn, pid, op, m):
     digest = saved['sha1_hash'] if saved else m['sha1']
     row = conn.execute('SELECT p.dest_path,p.sha1_hash,p.status,pf.revision FROM photos p '
         'JOIN photo_files pf ON pf.photo_id=p.id WHERE p.id=?',(pid,)).fetchone()
-    if (not row or row[0] not in (m['photo'],m['proposed']) or row[1]!=digest
+    if (not row or row[0] not in (m['photo'],m['proposed'],m.get('recorded')) or row[1]!=digest
             or row[2]!=m['status'] or row[3]!=_revision(conn,op,m)):
         raise ns_db.RevisionConflict('The photo changed after this edit was prepared')
     return Path(row[0])
@@ -208,7 +217,7 @@ def _record_saved(conn, op, pid, m, output):
         "(p.sha1_hash=? AND p.status='Duplicate' AND NOT EXISTS(SELECT 1 FROM photos anchor "
         "WHERE anchor.id<>? AND anchor.sha1_hash=? AND anchor.status IN "
         "('Copied','Completed','Found_At_Destination','Rejected','Rejected_Copied'))))",
-        (pid,m['photo'],m['sha1'],pid,m['sha1'])).fetchall()
+        (pid,m.get('recorded') or m['photo'],m['sha1'],pid,m['sha1'])).fetchall()
     if any(row[1] not in ('Duplicate','Removed_Duplicate') or row[2]!=m['sha1'] for row in aliases):
         raise ns_db.RevisionConflict('Another organized record shares the edited destination; preserve both histories')
     receipt['detached_duplicate_photo_ids']=[row[0] for row in aliases]
@@ -255,8 +264,21 @@ def _record_saved(conn, op, pid, m, output):
                 detail=dict(receipt,xmp_sha256=side['sha256'],version_id=side['version_id']))
 
 
+def _found_here(conn, op, m):
+    """A photo found in another folder whose new date names that folder stays there: its
+    place is recorded and its finding settled, in one commit (engine-spec 9.2)."""
+    with ns_db.transaction(conn):
+        relocate._record_relocation(conn,op,m['recorded'],m['photo'],m['retained_id'],
+            step='metadata_refiled',operation_status='Processing')
+        library_check.settle(conn,m['check_run'],op,m['recorded'])
+
+
 def _refile(conn, op, pid, m, output):
-    if m['photo']==m['proposed'] or metadata_save._event(conn,op,'metadata_refiled'):
+    if metadata_save._event(conn,op,'metadata_refiled'):
+        return
+    if m['photo']==m['proposed']:
+        if m.get('recorded'):
+            _found_here(conn,op,m)
         return
     expected=metadata_save._event(conn,op,'metadata_refile_intent')
     if expected is None:
@@ -290,7 +312,9 @@ def _refile(conn, op, pid, m, output):
         durable._fsync_directory(Path(m['photo']).parent)
     with ns_db.transaction(conn):
         relocate._record_relocation(conn,op,m['photo'],m['proposed'],m['retained_id'],
-            step='metadata_refiled',operation_status='Processing')
+            step='metadata_refiled',operation_status='Processing',recorded=m.get('recorded'))
+        if m.get('recorded'):
+            library_check.settle(conn,m['check_run'],op,m['recorded'])
 
 
 def _cleanup(m, output):
@@ -331,7 +355,8 @@ def _execute(conn, op, pid, m):
     if not metadata_save._event(conn,op,'metadata_saved'):
         db_path=conn.execute('PRAGMA database_list').fetchone()[2]
         metadata_duplicates.guard(conn,db_path,op,pid,m,output)
-    if output['no_change'] and not duplicate:
+    # A photo found in another folder is still filed when its file already holds the date.
+    if output['no_change'] and not duplicate and not m.get('recorded'):
         _verify(m,m['photo'],m['sha1'])
         _cleanup(m,output)
         return metadata_save._finish(conn,op,'no_change')
@@ -392,6 +417,8 @@ def check(conn, op, pid, m):
         metadata_save._failure(conn,op,m,message)
         return {'resolved':False,'message':message}
     photo=_catalog_photo(conn,pid,op,m)
+    if str(photo)==m.get('recorded'):
+        photo=Path(m['photo'])   # still where the check found it
     output=metadata_save._event(conn,op,'embedded_staged')
     if metadata_save._event(conn,op,'metadata_saved'):
         candidates={str(photo),m['proposed']}

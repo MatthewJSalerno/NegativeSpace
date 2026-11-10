@@ -2907,15 +2907,14 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
 check) and `engine-spec.md` §9.2 (Repair in place). Built in four steps, each with its own manual test:
 the check and its results (**built**; `docs/manual-validation.md`, Check library);
 Repair and the catalog-only answers, **Stop warning about this** among them (**Move it
-back**, back from Rejects, **Copy it back**, **Keep the new version** and **It's an edit of
-this photo** built; `docs/manual-validation.md`, Repair);
+back**, back from Rejects, **Copy it back**, **Keep the new version**, **It's an edit of
+this photo** and fixing a misfiled photo's date built; `docs/manual-validation.md`, Repair);
 Add to catalog; Rebuild from the earlier version (not built).
 
 **A finding says what was found and what the user can do now** (decided 2026-11-04), never
-what an unbuilt feature will do. One Repair fixes says what Repair does: "Found at a
-different place in the Library: 2019/07/IMG_1.jpg. Repair moves it back to its date folder,
-keeping its name." Until the catalog-only answers are built, other findings name what works
-today.
+what an unbuilt feature will do. One Repair fixes says what Repair does: "Its file is in
+Rejects: Rejects/2019/07/IMG_1.jpg. Repair moves it back from Rejects." Until the
+catalog-only answers are built, other findings name what works today.
 
 **Check library…** is in **Jobs**, after Index, Copy and Move, since it runs as a job
 (progress, Cancel, a Logs entry). It opens a dialog, never starting from the menu click,
@@ -3015,13 +3014,28 @@ changes only the catalog and is recorded in the photo's history (`engine-spec.md
 Rejects), **It's an edit of this photo** (a change too heavy to match as a look-alike), and
 **Stop warning about this** (an unknown file or folder, until it changes).
 
-**A photo in the wrong folder has no "keep it here"** (decided 2026-11-04). The Library's
-folders are NegativeSpace's date layout, so the only ways out are **Move it back**, into
-the folder for its date, and **Edit date…**, when the folder is right and the date in the
-file is wrong; the date editor suggests the folder's date when its name is one. Doing
-neither leaves it a finding at every check. *Why not keep it:* a photo parked in a folder
-of its own breaks the layout that filing, Rename and the date tree rely on. Folders for
-the user's own groupings (a trip, an album) are a separate idea (`TODO.md`).
+**A photo in the wrong folder is a date mismatch, stated, never a question** (decided
+2026-11-09; built). The finding says what disagrees, the date its recorded folder names
+against where it is: "Its date is 5 May 2023, but it's at 2021/06/14/IMG_1.jpg", or "It has
+no date, so it belongs in Undated/2021, but it's at sorted/IMG_1.jpg". It never asks whether
+the photo belongs where it is. The Library's folders are NegativeSpace's date layout, so
+there are two ways out, both buttons in the finding: fix the date with **Edit metadata
+date…**, which opens the existing date editor (§7.5) on the file where the check found it;
+or **Repair…**, which moves it back into the folder for its date (**Move it back**). The
+editor says "This photo is outside the folder for its date", names where it is, and
+suggests the day the folder names when it names one, keeping any recorded time (00:00:00
+for an EXIF date that had none), marked as suggested from the folder. Its verified save
+writes the date into the file and files the photo by it (it stays when the new date names
+its folder); the commit that records where the photo ends up also settles the finding.
+Until then the photo stays flagged: by the finding, or, if the date was written but the
+move failed, by the save's own retry under **File needs checking**. The editor refuses an
+edit that is not a new date ("That's the date it already has", which Repair handles), a
+date kept in an XMP sidecar, and a photo with a sidecar NegativeSpace delivered, which
+has to move with it; each refusal says what to do instead. *Why not clear the finding once
+the new place is recorded:* a failed save would then leave the photo in a folder its date
+disagrees with, and nothing would say so. *Why no "keep it here":* a photo parked in a
+folder of its own breaks the layout that filing, Rename and the date tree rely on. Folders
+for the user's own groupings (a trip, an album) are a separate idea (`TODO.md`).
 
 **A file that is not a photo may stay** (confirmed 2026-11-04, under the stricter folder
 rule): it does not break the date layout, NegativeSpace never moves or deletes what it did

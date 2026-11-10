@@ -68,7 +68,8 @@ def details(conn, photo_id):
     found = library_check.photo_reason(conn, photo_id)
     if found is not None:
         reasons.append({'reason': 'library', 'label': 'Library check', 'tone': found['tone'],
-                        'message': found['what'], 'todo': found['todo'], 'run_id': found['run_id']})
+                        'message': found['what'], 'todo': found['todo'], 'run_id': found['run_id'],
+                        'date_fix': bool(found.get('date_fix'))})
     return {'reasons': reasons, 'history': history, 'revision': history[0]['id'] if history else 0,
             'date_taken':meta.get('date_taken'), 'date_confirmed':bool(warning[1]),
             'date_warning':warning[0], 'date_message':date_message, 'sha1': row[2], 'location': 'Library' if row[1] in ns_db.DELIVERED_STATUSES else

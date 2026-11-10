@@ -257,7 +257,8 @@ def _review_cards(conn, rows):
         if row['library']:
             found = library_check.photo_reason(conn, row['id'])
             reasons.append({'reason': 'library', 'label': 'Library check', 'tone': found['tone'],
-                            'message': found['what'], 'todo': found['todo'], 'run_id': found['run_id']})
+                            'message': found['what'], 'todo': found['todo'], 'run_id': found['run_id'],
+                            'date_fix': bool(found.get('date_fix'))})
         cards[row['id']] = {'reasons': reasons, 'location':
             'Library' if row['status'] in catalog.DELIVERED else
             'Rejects' if row['status'] in IN_REJECTS_STATUSES else 'Not organized'}

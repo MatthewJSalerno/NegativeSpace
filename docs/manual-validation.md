@@ -9,7 +9,7 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Repair:** [RP1a–RP1i and RP2a–RP2i](#repair) passed, including all lettered steps, on 2026-11-11.
+**Repair:** [RP1a–RP1i and RP2a–RP2i](#repair) passed, including all lettered steps, on 2026-11-11; [RP3a–RP3g](#repair) pending.
 
 **Menu descriptions:** [MN1a–MN1e](#menu-descriptions) passed, including all lettered steps,
 on 2026-11-05.
@@ -84,7 +84,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Repair
 
-**Status:** the maintainer passed RP1a–RP1i and RP2a–RP2i on 2026-11-11. Read: `engine/repair.py`,
+**Status:** the maintainer passed RP1a–RP1i and RP2a–RP2i on 2026-11-11; RP3a–RP3g pending. Read: `engine/repair.py`,
 `webui/frontend/src/components/Repair.tsx` (`docs/webui-spec.md` §7.6, `docs/engine-spec.md`
 §9.2).
 
@@ -101,8 +101,10 @@ walked on a copy of the instance; no check has run on the instance itself.
   quick check trusts the unreadable file, whose size and date are unchanged). Expected: the
   sidebar's **Library** row reads **1 missing, 1 damaged · 3 need attention** in red.
 - **RP1b — Offered only where it helps.** Choose **Needs review**, set **Reason** to **Library
-  check (5)**, and open `tulip-01.jpg`. Expected: under **Library check**, "Repair moves it back
-  to its date folder, keeping its name." and a **Repair…** button. Open `lily-01.jpg`. Expected:
+  check (5)**, and open `tulip-01.jpg`. Expected: under **Library check**, "Its date is 3 May
+  2024, but it's at sorted/tulip.jpg." and "If the date is wrong, fix it with Edit metadata date…:
+  the photo is filed by the date you save. If the date is right, Repair moves it back to
+  2024/05/03, keeping its name.", with **Edit metadata date…** and **Repair…** buttons. Open `lily-01.jpg`. Expected:
   the **Index source** advice and no **Repair…**.
 - **RP1c — Choose them all.** Choose **Select ▾ › Select all in this view (5)**. Expected: the
   selection bar offers **Repair (5)…**.
@@ -182,6 +184,49 @@ check has run on the instance itself.
 - **RP2i — Check again.** In **Library**, choose **Jobs › Check library… › Thorough check**.
   Expected: **Job #6 · Library check finished**, "Thorough · 5 as recorded · all as recorded",
   **0 findings**.
+
+### Test RP3 — A photo in the wrong folder, fixed by its date
+
+Verified: a third review instance holds five generated photos, indexed and copied, the
+originals kept in the source. Then, in the library, by hand: `tulip-01.jpg` was moved from
+2024/05/03 into 2024/06/15; `rose-01.jpg` from 2024/05/04 into a folder `sorted`; `daisy-01.jpg`
+from 2024/05/05 into 2024/05/09; `lily-01.jpg` and `poppy-01.jpg` are untouched. Every step was
+walked on a copy of the instance; no check has run on the instance itself.
+
+- **RP3a — A thorough check.** Choose **Jobs › Check library…**, then **Thorough check**.
+  Expected: the sidebar's **Library** row reads **3 need attention**.
+- **RP3b — The mismatch, stated.** Choose **Needs review**, set **Reason** to **Library check
+  (3)**, and open `tulip-01.jpg`. Expected: under **Library check**, "Its date is 3 May 2024, but
+  it's at 2024/06/15/tulip-01.jpg." and "If the date is wrong, fix it with Edit metadata date…:
+  the photo is filed by the date you save. If the date is right, Repair moves it back to
+  2024/05/03, keeping its name.", then the buttons **Edit metadata date…** and **Repair…**.
+- **RP3c — Fix the date; it stays.** Choose **Edit metadata date…**. Expected: "This photo is
+  outside the folder for its date. It's at library/2024/06/15/tulip-01.jpg. Saving a date files
+  it by that date; the date below is suggested from the folder it's in, 15 June 2024.", and
+  **Date taken** reads `2024-06-15T10:00:00`. Choose **Preview change**. Expected: **Current
+  location** and **Resulting location** both `library/2024/06/15/tulip-01.jpg`, and the button
+  **Save date**. Choose it. Expected: **Date saved**. Choose **Close**. Expected: the
+  **Library** row reads **2 need attention**.
+- **RP3d — Fix the date; it moves.** Back under **Library check**, open `rose-01.jpg` and
+  choose **Edit metadata date…**. Expected: "This photo is outside the folder for its date.
+  It's at library/sorted/rose-01.jpg. Saving a date files it by that date." with no suggestion,
+  since `sorted` names no date. Enter `2024-07-01T10:00:00` in **Date taken** and choose
+  **Preview change**. Expected: **Resulting location** `library/2024/07/01/rose-01.jpg` and the
+  button **Save date and move file**. Choose it, then **Close**.
+- **RP3e — The date is right.** Open `daisy-01.jpg` and choose **Edit metadata date…**.
+  Expected: **Date taken** suggested as `2024-05-09T10:00:00`. Enter `2024-05-05T10:00:00` and
+  choose **Preview change**. Expected: "That's the date it already has. If the date is right,
+  Repair moves the photo back to its date folder." Choose **Cancel**, then **Discard**. Open
+  `daisy-01.jpg` again under **Library check**, choose **Repair…**, then **Repair 1**.
+  Expected: the **Library** row reads **all as recorded**, and **Library check** holds no
+  photos.
+- **RP3f — The history.** In **Library**, open `tulip-01.jpg` and choose **View lineage tree**.
+  Expected: **Metadata #4 · Date saved**, and the destination path ends
+  `library/2024/06/15/tulip-01.jpg`. `rose-01.jpg` shows **Metadata #5 · Date saved**, ending
+  `library/2024/07/01/rose-01.jpg`; `daisy-01.jpg` shows **Repair #6 · Moved back to its date
+  folder**, ending `library/2024/05/05/daisy-01.jpg`.
+- **RP3g — Check again.** Choose **Jobs › Check library… › Thorough check**. Expected: **Job
+  #7 · Library check finished**, all as recorded, **0 findings**.
 
 ## Menu descriptions
 

@@ -14,7 +14,7 @@ from pathlib import PurePosixPath, Path
 import re
 from xml.sax import saxutils
 
-from engine import metadata, metadata_adapter, metadata_capture, metadata_decisions, metadata_gps, metadata_save, metadata_transfer, ns_db, xmp
+from engine import library_check, metadata, metadata_adapter, metadata_capture, metadata_decisions, metadata_gps, metadata_relocate, metadata_save, metadata_transfer, ns_db, xmp
 from engine.metadata import MetadataSource
 
 EDITABLE = frozenset({'date_taken', 'orientation', 'title', 'caption', 'keywords', 'rating', 'creators', 'rights', 'gps'})
@@ -245,8 +245,18 @@ def plan(sources, *, primary_id, changes, settings, photo_name, original_year, c
     return result
 
 
-def _catalog_state(db_path, *, photo_id, capture_id, destination_root, settings=None, allow_primary_choice=False, allow_rejected=False):
-    """Read captured sources plus the last verified edit in one catalog snapshot."""
+# A photo the latest library check found in another Library folder (engine-spec 9.2).
+WRONG_FOLDER = ("The latest library check found this photo in another folder. Fix its date with Edit metadata "
+                "date…, or Repair it, before changing anything else.")
+
+
+def _catalog_state(db_path, *, photo_id, capture_id, destination_root, settings=None, allow_primary_choice=False,
+                   allow_rejected=False, found_ok=False):
+    """Read captured sources plus the last verified edit in one catalog snapshot.
+
+    A photo the latest check found in another Library folder is edited where it was found
+    when `found_ok` (a date edit, which files it): the binding names its recorded path and
+    the check, and the save records its place and settles the finding (engine-spec 9.2)."""
     if type(photo_id) is not int or not 1 <= photo_id <= 2**63-1:
         raise ValueError('Invalid photo identity')
     with contextlib.closing(ns_db.connect(db_path)) as conn:
@@ -302,6 +312,16 @@ def _catalog_state(db_path, *, photo_id, capture_id, destination_root, settings=
         binding = {'photo_id':photo_id,'file_id':file_id,'file_revision':revision,'sha1':digest,
             'capture_id':capture_id,'primary_revision':saved['revision'] if saved else 0,
             'settings':{k:settings.get(k,v) for k,v in ns_db.METADATA_DEFAULTS.items()},'destination_root':str(root)}
+        elsewhere = library_check.found_elsewhere(conn, photo_id)
+        if elsewhere:
+            if not found_ok:
+                raise ValueError(WRONG_FOLDER)
+            if metadata_relocate.current(conn, dest_path) is not None:
+                raise ValueError('NegativeSpace delivered an XMP sidecar with this photo, and the pair has to move '
+                                 'together. Put the photo and its .xmp back in its date folder yourself, then check '
+                                 'the library again.')
+            relative = Path(elsewhere['found']).relative_to(root).as_posix()
+            binding['found'] = {'check_run':elsewhere['run_id'],'recorded':elsewhere['recorded']}
         return sources, primary_id, original_year, relative, binding
 
 
@@ -343,12 +363,27 @@ def _resolve_filing(result):
 def preview_catalog(db_path, *, photo_id, capture_id, changes, destination_root, settings=None, remove_fields=()):
     """Read-only identity-bound preview; never silently changes the primary source."""
     sources, primary, year, relative, binding = _catalog_state(db_path, photo_id=photo_id,
-        capture_id=capture_id, destination_root=destination_root, settings=settings)
+        capture_id=capture_id, destination_root=destination_root, settings=settings, found_ok=True)
     result = plan(sources, primary_id=primary, changes=changes, settings=binding['settings'],
         photo_name=Path(relative).name, original_year=year, current_relative_path=relative, remove_fields=remove_fields)
     result['binding'] = binding
+    if 'found' in binding:
+        _date_fix(result)
     _resolve_filing(result)
     return _token(result)
+
+
+def _date_fix(result):
+    """Only a new date in the file fixes a photo in the wrong folder: the save files it by
+    that date (engine-spec 9.2). Anything else would leave it where its date disagrees."""
+    if 'date_taken' not in result['changes'] and 'date_taken' not in result.get('remove_fields', ()):
+        raise ValueError(WRONG_FOLDER)
+    if result['target']['kind'] == 'sidecar_xmp':
+        raise ValueError("This photo's date is kept in an XMP sidecar, which can't be edited while the photo is in "
+                         "another folder. Repair moves it back first; then edit its date.")
+    if result['before']['proposed_effective'].get('date_taken') == result['after']['proposed_effective'].get('date_taken'):
+        raise ValueError("That's the date it already has. If the date is right, Repair moves the photo back to its "
+                         "date folder.")
 
 
 def _donor(conn, selection):

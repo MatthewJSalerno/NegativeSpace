@@ -1,5 +1,7 @@
 """Date-only web boundary over the engine's metadata preview/save contract."""
-from engine import metadata_command, metadata_edits, metadata_save, review_history
+from pathlib import PurePosixPath
+
+from engine import library_check, metadata_command, metadata_edits, metadata_save, review_history
 from . import catalog, metadata_view
 
 
@@ -20,13 +22,20 @@ def context(cfg, photo_id):
     if capture_id is None:
         raise ValueError('No recorded metadata capture is available for this photo.')
     sources, primary, year, relative, binding = metadata_edits._catalog_state(
-        cfg.db_path, photo_id=photo_id, capture_id=capture_id, destination_root=cfg.dest)
+        cfg.db_path, photo_id=photo_id, capture_id=capture_id, destination_root=cfg.dest, found_ok=True)
     target, kind, creating = metadata_edits.write_target(sources, primary_id=primary,
         settings=binding['settings'], photo_name=relative)
     fields = sources.get(target, {}).get('fields', {})
     return dict(capture_id=capture_id, target=dict(source_id=target, kind=kind, create=creating),
         date=dict(present='date_taken' in fields, value=fields.get('date_taken')),
-        current_path=relative, can_clear=kind != 'embedded_exif')
+        current_path=relative, can_clear=kind != 'embedded_exif', found=_found(relative) if 'found' in binding else None)
+
+
+def _found(relative):
+    """Where the latest check found a photo outside its date folder, and the day that
+    folder names, suggested in the editor (webui-spec 7.6)."""
+    day = library_check.folder_date(PurePosixPath(relative).parent.relative_to('library').as_posix())
+    return dict(path=relative, folder_date=day.isoformat() if day else None)
 
 
 def validate_edit(photo_id, edit):

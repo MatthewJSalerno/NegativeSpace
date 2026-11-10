@@ -318,7 +318,7 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
           </div>
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", activeTab)}>
             {detail && activeTab === "information" && <Details onRename={setRenameName} onImportChoices={() => setImportChoices(true)} onMetadata={openMetadata} onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
-              review={inLibrary ? <ReviewNote key={`review:${id}`} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto ? () => rotationExit.requestLeave(onReviewPhoto) : undefined}
+              review={inLibrary ? <ReviewNote key={`review:${id}`} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onEditDate={() => editDate()} onOpenReview={onReviewPhoto ? () => rotationExit.requestLeave(onReviewPhoto) : undefined}
                 concerns={captureDateMessage(detail) ? [{label:"No usable capture date",message:captureDateMessage(detail)!}] : []}
                 actions={IN_LIBRARY.includes(detail.status) && onReject
                   ? <button onClick={() => rotationExit.requestLeave(() => onReject(detail.filename))} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Move this photo to Rejects. Nothing is deleted."}>Reject…</button>

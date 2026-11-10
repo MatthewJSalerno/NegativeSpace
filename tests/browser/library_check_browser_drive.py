@@ -102,7 +102,9 @@ with sync_playwright() as p:
     expect(findings.get_by_role('row').filter(has_text='photo-005.jpg')).to_contain_text('no copy was found')
     sixth = findings.get_by_role('row').filter(has_text='photo-006.jpg')
     expect(sixth).to_have_count(1)
-    expect(sixth).to_contain_text('Found at a different place in the Library: sorted/photo-006.jpg')
+    # A photo in another folder is said as the date mismatch it is (webui-spec 7.6).
+    expect(sixth).to_contain_text(re.compile(r"(Its date is \d{1,2} \w+ \d{4}|It has no date, so it belongs in Undated/\d{4}), "
+                                             r"but it's at sorted/photo-006\.jpg\."))
     expect(sixth).to_contain_text('Moved')
     expect(findings).to_contain_text('1 .txt file')
     expect(findings).to_contain_text('from other programs: Mac system files')
@@ -138,7 +140,16 @@ with sync_playwright() as p:
     expect(note.get_by_role('button', name='Repair…')).to_have_count(0)
     six = request.get('/api/v1/photos', params={'view': 'review', 'reason': 'library', 'q': 'photo-006'}).json()['items'][0]['id']
     page.goto(BASE + f'/?view=review&reason=library&photo={six}')
-    expect(page.get_by_role('region', name='Photo review', exact=True).get_by_role('button', name='Repair…')).to_be_visible()
+    six_note = page.get_by_role('region', name='Photo review', exact=True)
+    expect(six_note.get_by_role('button', name='Repair…')).to_be_visible()
+    # Fixing its date is the other way out: the editor opens on the file where the check found it.
+    six_note.get_by_role('button', name='Edit metadata date…', exact=True).click()
+    editor = page.get_by_role('dialog', name='Edit Date taken', exact=True)
+    expect(editor).to_contain_text('This photo is outside the folder for its date.')
+    expect(editor).to_contain_text('library/sorted/photo-006.jpg')
+    shot(page, 'date-fix')
+    editor.get_by_role('button', name='Cancel', exact=True).click()
+    expect(editor).to_have_count(0)
     # From a selection of every photo under the reason: two fixes, one it can't make.
     page.goto(BASE + '/?view=review&reason=library')
     page.get_by_role('button', name='Select', exact=True).click()

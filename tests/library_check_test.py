@@ -175,5 +175,29 @@ class Repair(ApiCase):
         edits = self.client.get("/api/v1/operations", params={"metadata_edits": "true", "photo": one_id}).json()
         self.assertEqual(edits["items"], [])            # a kept version is not a metadata edit
 
+    def test_a_photo_in_another_folder_is_a_date_mismatch_its_date_fixes(self):
+        one_id, one = self.placed["one"]
+        library = ns_db.library_root(self.cfg.dest.resolve())
+        found = library / "2005" / "06" / "07" / "one.jpg"
+        found.parent.mkdir(parents=True)
+        one.rename(found)                               # moved by hand into another day's folder
+        self.check()
+        reason = self.client.get(f"/api/v1/photos/{one_id}/review").json()["reasons"][0]
+        self.assertEqual((reason["message"], reason["date_fix"]),
+                         ("Its date is 3 February 2001, but it's at 2005/06/07/one.jpg.", True))
+        self.assertIn("Edit metadata date…", reason["todo"])
+        context = self.client.get(f"/api/v1/photos/{one_id}/date-edit").json()
+        self.assertEqual(context["found"], {"path": "library/2005/06/07/one.jpg", "folder_date": "2005-06-07"})
+        preview = self.client.post(f"/api/v1/photos/{one_id}/date-preview",
+                                   json={"capture_id": context["capture_id"], "value": "2005-06-07T04:05:06"}).json()
+        self.assertEqual((preview["filing"]["current"], preview["filing"]["change"]), ("library/2005/06/07/one.jpg", False))
+        started = self.client.post(f"/api/v1/photos/{one_id}/date-save",
+                                   json={"edit": preview["edit"], "token": preview["token"], "request_id": "date-fix"})
+        self.assertEqual(started.status_code, 202, started.text)
+        self.assertEqual(self.wait_for(started.json()["id"])["status"], "Completed")
+        self.assertTrue(found.is_file())
+        self.assertEqual(self.client.get("/api/v1/photos", params={"view": "review", "reason": "library"}).json()["items"], [])
+        self.assertEqual(self.client.post("/api/v1/repair/preview", json={}).json()["fixes"], 0)
+
 if __name__ == "__main__":
     unittest.main()

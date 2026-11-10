@@ -7,6 +7,16 @@ import { Field } from "./ui/Field";
 
 const targetName = (kind: string) => kind === "sidecar_xmp" ? "XMP Sidecar" : kind === "embedded_xmp" ? "Embedded XMP" : "EXIF";
 const recorded = (date: DateEditContext["date"]) => !date.present ? "Not recorded" : date.value === "" ? "Empty" : date.value;
+const dayWords = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+// For a photo outside its date folder, the day its folder names, keeping any recorded time;
+// a target that needs a time gets 00:00:00 when none was recorded (webui-spec 7.6).
+function suggested(context: DateEditContext): string | null {
+  const day = context.found?.folder_date;
+  if (!day) return null;
+  const time = context.date.value?.includes("T") ? context.date.value.slice(context.date.value.indexOf("T")) : context.can_clear ? "" : "T00:00:00";
+  return day + time;
+}
 
 // Validate recorded calendar components without converting them to a browser timezone.
 function validDate(value: string, xmp: boolean) {
@@ -36,12 +46,14 @@ export function DateEditor({ photoId, donor, onClose, onSaved }: {
   const bypass = useRef(false);
   const leaving = useRef<string | null>(null);
   const submitted = useRef(false);
-  const dirty = !!context && !submitted.current && (copy || clear || value !== (context.date.value ?? ""));
+  const [initial, setInitial] = useState("");
+  const dirty = !!context && !submitted.current && (copy || clear || value !== initial);
   useEffect(() => {
     let live = true;
     api.dateContext(photoId).then(data => {
       if (!live) return;
-      setContext(data); setValue(donor ? String(donor.fields.date_taken ?? "") : data.date.value ?? "");
+      const start = donor ? String(donor.fields.date_taken ?? "") : suggested(data) ?? data.date.value ?? "";
+      setContext(data); setValue(start); setInitial(start);
       setClear(!!donor && donor.fields.date_taken === ""); setError("");
     }, e => { if (live) setError(e.message); });
     return () => { live = false; };
@@ -100,6 +112,9 @@ export function DateEditor({ photoId, donor, onClose, onSaved }: {
       {context && !run && <>
         <p>Write to <strong>{targetName(context.target.kind)}</strong>{context.target.create ? " — create a new sidecar containing only this date." : "."}</p>
         <p className="section-note">Current date in this source: {recorded(context.date)}. Other metadata stays unchanged.</p>
+        {context.found && <p className="warning" role="status"><strong>This photo is outside the folder for its date.</strong> It's
+          at <code>{context.found.path}</code>. Saving a date files it by that date{context.found.folder_date ? <>; the date below is
+          suggested from the folder it's in, {dayWords(context.found.folder_date)}{!context.date.value?.includes("T") && !context.can_clear ? ", at 00:00:00 since no time was recorded" : ""}</> : ""}.</p>}
         {donor && <p className="section-note">{copy ? `Copying Date taken from ${donor.label}. This source will not become primary.` : `Started from ${donor.label}; the date below has been adjusted.`}</p>}
         <Field fullWidth type="date" label="Calendar date" min="0001-01-01" max="9999-12-31"
           value={!clear && /^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value) ? value.slice(0, 10) : ""} disabled={busy || clear || !!preview}

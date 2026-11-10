@@ -79,8 +79,10 @@ export function ReviewNote({ id, refreshKey, disabled = false, reason = "all", o
           <button disabled={busy || disabled || !!pending.current} onClick={() => void decide("date", "correct")}>This date is correct</button>
         </div><p className="section-note">Confirming keeps this date and clears only its review reminder. Saving a date you choose also confirms it.</p></>}
         {n.reason === "library" && <>{n.todo && <p>{n.todo}</p>}
-          {repairable && <div className="photo-actions" role="group" aria-label="Library check"><RepairButton ids={[id]} /></div>}
-          <p className="section-note">Found by <a href={`/logs?run=${n.run_id}`} onClick={follow}>Job #{n.run_id}</a>. This clears itself when Repair fixes it or a later check finds the photo as recorded.</p></>}
+          {(repairable || (n.date_fix && onEditDate)) && <div className="photo-actions" role="group" aria-label="Library check">
+            {n.date_fix && onEditDate && <button disabled={busy || disabled} title={disabled ? "Wait for the running job to finish." : undefined} onClick={onEditDate}>Edit metadata date…</button>}
+            {repairable && <RepairButton ids={[id]} />}</div>}
+          <p className="section-note">Found by <a href={`/logs?run=${n.run_id}`} onClick={follow}>Job #{n.run_id}</a>. This clears itself when {n.date_fix ? "its date is saved, " : ""}Repair fixes it or a later check finds the photo as recorded.</p></>}
 
       </div>)}
       {detail.date_warning && detail.date_confirmed && <div className="review-reason"><strong>Date confirmed</strong>

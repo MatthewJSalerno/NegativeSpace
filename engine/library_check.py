@@ -3,6 +3,7 @@ is from its content, where a missing photo's content still is, and the report th
 reads. Reads only; maintenance.check_destination runs it as a job."""
 
 import collections
+import datetime
 import hashlib
 import json
 import os
@@ -316,6 +317,55 @@ def shown_path(path: Optional[str], library: Path) -> Optional[str]:
     return path
 
 
+def folder_date(folder: str) -> Optional[datetime.date]:
+    """The day a Library date folder names (2023/05/05, relative to the library), or None
+    for any other folder (Undated/2021, sorted)."""
+    parts = Path(folder).parts
+    if len(parts) != 3 or not all(p.isdigit() for p in parts) or [len(p) for p in parts] != [4, 2, 2]:
+        return None
+    try:
+        return datetime.date(*map(int, parts))
+    except ValueError:
+        return None
+
+
+def _date_mismatch(f: dict, rel) -> dict:
+    """A photo in another Library folder, said as the date mismatch it is (webui-spec 7.6):
+    its date, which its recorded folder names, against where it is. Never a question of
+    whether it belongs there."""
+    folder = rel(os.path.dirname(f["path"]))
+    day = folder_date(folder)
+    if day:
+        what = f"Its date is {day.day} {day:%B %Y}, but it's at {rel(f['found_path'])}."
+        todo = ("If the date is wrong, fix it with Edit metadata date…: the photo is filed by the date you save. "
+                f"If the date is right, Repair moves it back to {folder}, keeping its name.")
+    else:
+        what = f"It has no date, so it belongs in {folder}, but it's at {rel(f['found_path'])}."
+        todo = ("Give it a date with Edit metadata date…: the photo is filed by the date you save. Or Repair moves "
+                f"it back to {folder}, keeping its name.")
+    return {"finding": "moved", "tone": "warn", "what": what, "todo": todo, "date_fix": True}
+
+
+def found_elsewhere(conn, photo_id: int) -> Optional[dict]:
+    """The latest check's open finding that this photo is in another Library folder, while
+    the photo is still what and where the check saw: {'run_id', 'recorded', 'found'}, or
+    None. Fixing its date files it (engine-spec 9.2); a rename in its own folder is not one."""
+    row = conn.execute(f"SELECT f.run_id, f.path, f.found_path FROM destination_findings f JOIN photos p "
+                       f"ON p.id=f.photo_id WHERE f.run_id=({LATEST_COMPLETED_SQL}) AND f.photo_id=? "
+                       f"AND f.kind='missing' AND f.found_in='library' AND f.path=p.dest_path "
+                       f"AND f.expected_sha1 IS p.sha1_hash AND f.settled_by IS NULL", (photo_id,)).fetchone()
+    if row is None or os.path.dirname(row[2]) == os.path.dirname(row[1]):
+        return None
+    return {"run_id": row[0], "recorded": row[1], "found": row[2]}
+
+
+def settle(conn, check_run: int, operation_id: int, *paths) -> None:
+    """Marks the check's findings at these recorded paths fixed by the operation, in the
+    caller's transaction."""
+    conn.execute(f"UPDATE destination_findings SET settled_by=? WHERE run_id=? AND path IN ({','.join('?' * len(paths))})",
+                 (operation_id, check_run, *paths))
+
+
 def describe(f: dict, library: Path, catalogued: dict, moved_here: Optional[dict] = None) -> dict:
     moved_here = moved_here or {}
     rel = lambda p: shown_path(p, library)
@@ -325,14 +375,14 @@ def describe(f: dict, library: Path, catalogued: dict, moved_here: Optional[dict
         return {"finding": "moved", "tone": "warn", "what": f"Found under a new name in its own folder: {rel(f['found_path'])}.",
                 "todo": "If it has an .xmp sidecar, rename that to match; if its content is in two files, keep one. "
                         "Then check the library again."}
+    if kind == "missing" and where == "library":
+        return _date_mismatch(f, rel)
     if kind == "missing" and where:
-        what = {"library": f"Found at a different place in the Library: {rel(f['found_path'])}.",
-                "rejects": f"Its file is in Rejects: {rel(f['found_path'])}.",
+        what = {"rejects": f"Its file is in Rejects: {rel(f['found_path'])}.",
                 "source": "Missing from the Library. A copy is still in the source."}[where]
-        todo = {"library": "Repair moves it back to its date folder, keeping its name.",
-                "rejects": "Repair moves it back from Rejects.",
+        todo = {"rejects": "Repair moves it back from Rejects.",
                 "source": "Repair copies it back from the source."}[where]
-        return {"finding": "moved" if where == "library" else "missing", "tone": "warn", "what": what, "todo": todo}
+        return {"finding": "missing", "tone": "warn", "what": what, "todo": todo}
     if kind == "missing":
         return {"finding": "missing", "tone": "bad",
                 "what": "Missing from the Library, and no copy was found in the Library, Rejects or the source.",
