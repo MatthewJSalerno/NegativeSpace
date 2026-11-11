@@ -2960,9 +2960,10 @@ date is always shown.
 
 * **Library photos with a finding** (moved or renamed, missing, changed, unreadable) get
   a **Library check** reason in Needs review (§7.9). The Inspector says in plain words
-  what was found and what to do, with a link to the check's job, and **Repair…** when
-  Repair can fix it. The reason clears itself when a later check finds the photo as
-  recorded or Repair fixes it. A fixed finding stays in the check's Logs entry, marked
+  what was found and what to do, with a link to the check's job, **Repair…** when
+  Repair can fix it, and **Index source** when that is the advice (no copy anywhere). The
+  reason clears itself when a later check finds the photo as recorded or Repair fixes it;
+  its note names Repair only when Repair can fix it. A fixed finding stays in the check's Logs entry, marked
   "Repaired by Job #N", and no longer counts in the sidebar's result.
 * **Every finding, unknown files included,** is listed in the check job's entry in Logs,
   most serious first, with what it means and what to do; the job heading counts findings,

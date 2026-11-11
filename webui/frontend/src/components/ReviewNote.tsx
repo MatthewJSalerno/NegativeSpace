@@ -24,6 +24,8 @@ export function ReviewNote({ id, refreshKey, disabled = false, reason = "all", o
   const [reload, setReload] = useState(0);
   // Whether Repair can fix this photo's Library check finding: no Repair… when it can't.
   const [repairable, setRepairable] = useState(false);
+  // Whether the finding's advice is Index source (no copy anywhere): its button sits in the note.
+  const [indexSource, setIndexSource] = useState(false);
   const pending = useRef<{ detail: ReviewDetail; reason: string; action: string; note: string; request: string; preset?: string } | null>(null);
   useEffect(() => {
     let live = true;
@@ -34,8 +36,10 @@ export function ReviewNote({ id, refreshKey, disabled = false, reason = "all", o
   const hasLibrary = !!detail?.reasons.some(n => n.reason === "library");
   useEffect(() => {
     let live = true;
-    setRepairable(false);
-    if (hasLibrary) api.repairPreview([id]).then(p => { if (live) setRepairable(p.fixes > 0); }, () => undefined);
+    setRepairable(false); setIndexSource(false);
+    if (hasLibrary) api.repairPreview([id]).then(p => {
+      if (live) { setRepairable(p.fixes > 0); setIndexSource(p.cannot.some(i => i.index_source)); }
+    }, () => undefined);
     return () => { live = false; };
   }, [id, hasLibrary, refreshKey]);
   const decide = async (why: string, action: string) => {
@@ -79,10 +83,16 @@ export function ReviewNote({ id, refreshKey, disabled = false, reason = "all", o
           <button disabled={busy || disabled || !!pending.current} onClick={() => void decide("date", "correct")}>This date is correct</button>
         </div><p className="section-note">Confirming keeps this date and clears only its review reminder. Saving a date you choose also confirms it.</p></>}
         {n.reason === "library" && <>{n.todo && <p>{n.todo}</p>}
-          {(repairable || (n.date_fix && onEditDate)) && <div className="photo-actions" role="group" aria-label="Library check">
+          {(repairable || indexSource || (n.date_fix && onEditDate)) && <div className="photo-actions" role="group" aria-label="Library check">
             {n.date_fix && onEditDate && <button disabled={busy || disabled} title={disabled ? "Wait for the running job to finish." : undefined} onClick={onEditDate}>Edit metadata date…</button>}
-            {repairable && <RepairButton ids={[id]} />}</div>}
-          <p className="section-note">Found by <a href={`/logs?run=${n.run_id}`} onClick={follow}>Job #{n.run_id}</a>. This clears itself when {n.date_fix ? "its date is saved, " : ""}Repair fixes it or a later check finds the photo as recorded.</p></>}
+            {repairable && <RepairButton ids={[id]} />}
+            {indexSource && <button disabled={busy || disabled} title={disabled ? "Wait for the running job to finish." : undefined} onClick={async () => {
+              setBusy(true); setError("");
+              try { await api.startJob({ mode: "index" }); setMessage("Index source started. Check the library again when it finishes."); }
+              catch (e) { setError(e instanceof Error ? e.message : "The Index could not be started. Check its status before trying again."); }
+              finally { setBusy(false); }
+            }}>Index source</button>}</div>}
+          <p className="section-note">Found by <a href={`/logs?run=${n.run_id}`} onClick={follow}>Job #{n.run_id}</a>. This clears itself when {[n.date_fix && "its date is saved", repairable && "Repair fixes it", "a later check finds the photo as recorded"].filter(Boolean).join(", ").replace(/, (?=[^,]*$)/, " or ")}.</p></>}
 
       </div>)}
       {detail.date_warning && detail.date_confirmed && <div className="review-reason"><strong>Date confirmed</strong>

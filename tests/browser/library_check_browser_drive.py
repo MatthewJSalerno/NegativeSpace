@@ -138,6 +138,9 @@ with sync_playwright() as p:
     shot(page, 'inspector')
     # Repair (webui-spec 7.6): never offered for a photo it can't fix, offered for one it can.
     expect(note.get_by_role('button', name='Repair…')).to_have_count(0)
+    # Its advice names Index source, so the note offers it, and never says Repair fixes it.
+    expect(note.get_by_role('group', name='Library check').get_by_role('button', name='Index source', exact=True)).to_be_visible()
+    expect(note).to_contain_text('This clears itself when a later check finds the photo as recorded.')
     six = request.get('/api/v1/photos', params={'view': 'review', 'reason': 'library', 'q': 'photo-006'}).json()['items'][0]['id']
     page.goto(BASE + f'/?view=review&reason=library&photo={six}')
     six_note = page.get_by_role('region', name='Photo review', exact=True)

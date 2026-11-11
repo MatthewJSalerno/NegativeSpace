@@ -134,7 +134,9 @@ the source. Then, by hand:
   - Expected: "Missing from the Library, and no copy was found in the Library, Rejects or the
     source." and "If the original is still somewhere in your source, Index source finds it;
     then check the library again. If a backup has it, restore it to 2024/05/06/lily-01.jpg."
-    There is **no Repair… button**, because Repair has no copy to put back.
+    There is **no Repair… button**, because Repair has no copy to put back; there is an
+    **Index source** button, and the note under it reads "This clears itself when a later
+    check finds the photo as recorded." (Don't choose it: RP1d expects the check unchanged.)
 - **RP1c — Select all five.**
   - Do: choose **Select ▾** above the photos, then **Select all in this view (5)**.
   - Expected: the bar at the top of the page now reads **5 photos selected** and offers
