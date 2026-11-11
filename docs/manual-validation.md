@@ -104,7 +104,7 @@ walked on a copy of the instance; no check has run on the instance itself.
   check (5)**, and open `tulip-01.jpg`. Expected: under **Library check**, "Its date is 3 May
   2024, but it's at sorted/tulip.jpg." and "If the date is wrong, fix it with Edit metadata date…:
   the photo is filed by the date you save. If the date is right, Repair moves it back to
-  2024/05/03, keeping its name.", with **Edit metadata date…** and **Repair…** buttons. Open `lily-01.jpg`. Expected:
+  2024/05/03/tulip.jpg.", with **Edit metadata date…** and **Repair…** buttons. Open `lily-01.jpg`. Expected:
   the **Index source** advice and no **Repair…**.
 - **RP1c — Choose them all.** Choose **Select ▾ › Select all in this view (5)**. Expected: the
   selection bar offers **Repair (5)…**.
@@ -199,7 +199,11 @@ walked on a copy of the instance; no check has run on the instance itself.
   (3)**, and open `tulip-01.jpg`. Expected: under **Library check**, "Its date is 3 May 2024, but
   it's at 2024/06/15/tulip-01.jpg." and "If the date is wrong, fix it with Edit metadata date…:
   the photo is filed by the date you save. If the date is right, Repair moves it back to
-  2024/05/03, keeping its name.", then the buttons **Edit metadata date…** and **Repair…**.
+  2024/05/03/tulip-01.jpg.", then the buttons **Edit metadata date…** and **Repair…**. Below,
+  in **Destination**: **Destination path** `/data/dest/library/2024/05/03/tulip-01.jpg` in
+  amber, under "Not here when Job #3 checked: it's at 2024/06/15/tulip-01.jpg. See Library check
+  above." Both **Rename…** links are greyed; pointing at one says "The latest library check
+  didn't find this file as recorded. Fix that first, under Library check."
 - **RP3c — Fix the date; it stays.** Choose **Edit metadata date…**. Expected: "This photo is
   outside the folder for its date. It's at library/2024/06/15/tulip-01.jpg. Saving a date files
   it by that date; the date below is suggested from the folder it's in, 15 June 2024.", and
@@ -222,7 +226,8 @@ walked on a copy of the instance; no check has run on the instance itself.
   photos.
 - **RP3f — The history.** In **Library**, open `tulip-01.jpg` and choose **View lineage tree**.
   Expected: **Metadata #4 · Date saved**, and the destination path ends
-  `library/2024/06/15/tulip-01.jpg`. `rose-01.jpg` shows **Metadata #5 · Date saved**, ending
+  `library/2024/06/15/tulip-01.jpg`. Close it: Photo information's **Destination path** is that
+  path, with no amber line, and **Rename…** can be chosen. `rose-01.jpg` shows **Metadata #5 · Date saved**, ending
   `library/2024/07/01/rose-01.jpg`; `daisy-01.jpg` shows **Repair #6 · Moved back to its date
   folder**, ending `library/2024/05/05/daisy-01.jpg`.
 - **RP3g — Check again.** Choose **Jobs › Check library… › Thorough check**. Expected: **Job

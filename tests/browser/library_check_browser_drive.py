@@ -142,6 +142,16 @@ with sync_playwright() as p:
     page.goto(BASE + f'/?view=review&reason=library&photo={six}')
     six_note = page.get_by_role('region', name='Photo review', exact=True)
     expect(six_note.get_by_role('button', name='Repair…')).to_be_visible()
+    # The recorded path says the file isn't there, and nothing offers to rename a file that isn't there.
+    details = page.get_by_role('region', name='Photo details', exact=True)
+    expect(details.locator('.file-location-value code.warning')).to_have_count(1)
+    details.locator('.file-location-value code.warning').scroll_into_view_if_needed()
+    expect(details).to_contain_text(re.compile(r"Not here when Job #\d+ checked: it's at sorted/photo-006\.jpg\. See Library check above\."))
+    renames = details.get_by_role('button', name='Rename…', exact=True)
+    expect(renames).to_have_count(2)
+    for i in range(2):
+        expect(renames.nth(i)).to_be_disabled()
+    shot(page, 'inspector-moved')
     # Fixing its date is the other way out: the editor opens on the file where the check found it.
     six_note.get_by_role('button', name='Edit metadata date…', exact=True).click()
     editor = page.get_by_role('dialog', name='Edit Date taken', exact=True)

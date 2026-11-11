@@ -3021,8 +3021,9 @@ no date, so it belongs in Undated/2021, but it's at sorted/IMG_1.jpg". It never 
 the photo belongs where it is. The Library's folders are NegativeSpace's date layout, so
 there are two ways out, both buttons in the finding: fix the date with **Edit metadata
 date…**, which opens the existing date editor (§7.5) on the file where the check found it;
-or **Repair…**, which moves it back into the folder for its date (**Move it back**). The
-editor says "This photo is outside the folder for its date", names where it is, and
+or **Repair…**, which moves it back into the folder for its date (**Move it back**), under
+the name it has now; the finding names that whole path ("Repair moves it back to
+2023/05/05/IMG_1.jpg"). The editor says "This photo is outside the folder for its date", names where it is, and
 suggests the day the folder names when it names one, keeping any recorded time (00:00:00
 for an EXIF date that had none), marked as suggested from the folder. Its verified save
 writes the date into the file and files the photo by it (it stays when the new date names
@@ -3036,6 +3037,19 @@ the new place is recorded:* a failed save would then leave the photo in a folder
 disagrees with, and nothing would say so. *Why no "keep it here":* a photo parked in a
 folder of its own breaks the layout that filing, Rename and the date tree rely on. Folders
 for the user's own groupings (a trip, an album) are a separate idea (`TODO.md`).
+
+**The recorded path says what the check saw there** (decided 2026-11-11; built). The
+catalog keeps a photo's destination path until a repair, a date fix or a later check
+settles the finding, so while the latest check's finding is open, Photo information's
+**Destination path** carries an amber status in the shared file-location style
+(`ui-design.md`): "Not here when Job #3 checked: it's at sorted/IMG_1.jpg." ("Not here
+when Job #3 checked." when the copy is in the source or nowhere), "Job #3 found a different
+picture here.", "found this file changed since it was filed." or "couldn't read this file.",
+each ending "See Library check above." **Rename…** beside the filename and the path, and
+**Use this name** under **Also arrived as**, stay visible but disabled, saying to fix the
+finding first: a rename needs the file at its recorded path with its recorded content.
+*Why not show the found path as the destination:* the catalog has not recorded it, and the
+finding's own buttons are what record it.
 
 **A file that is not a photo may stay** (confirmed 2026-11-04, under the stricter folder
 rule): it does not break the date layout, NegativeSpace never moves or deletes what it did

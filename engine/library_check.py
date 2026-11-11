@@ -334,15 +334,17 @@ def _date_mismatch(f: dict, rel) -> dict:
     its date, which its recorded folder names, against where it is. Never a question of
     whether it belongs there."""
     folder = rel(os.path.dirname(f["path"]))
+    # Repair's target (repair.classify): the date folder, under the name the file has now.
+    back = os.path.join(folder, os.path.basename(f["found_path"]))
     day = folder_date(folder)
     if day:
         what = f"Its date is {day.day} {day:%B %Y}, but it's at {rel(f['found_path'])}."
         todo = ("If the date is wrong, fix it with Edit metadata date…: the photo is filed by the date you save. "
-                f"If the date is right, Repair moves it back to {folder}, keeping its name.")
+                f"If the date is right, Repair moves it back to {back}.")
     else:
         what = f"It has no date, so it belongs in {folder}, but it's at {rel(f['found_path'])}."
         todo = ("Give it a date with Edit metadata date…: the photo is filed by the date you save. Or Repair moves "
-                f"it back to {folder}, keeping its name.")
+                f"it back to {back}.")
     return {"finding": "moved", "tone": "warn", "what": what, "todo": todo, "date_fix": True}
 
 
@@ -542,7 +544,23 @@ def photo_reason(conn, photo_id: int) -> Optional[dict]:
         return None
     f = dict(zip([d[0] for d in conn.execute("SELECT * FROM destination_findings LIMIT 0").description], row))
     library = Path(conn.execute("SELECT library FROM library_checks WHERE run_id=?", (f["run_id"],)).fetchone()[0])
-    return {"run_id": f["run_id"], **describe(f, library, {})}
+    return {"run_id": f["run_id"], **describe(f, library, {}), "at_path": _at_path(f, library)}
+
+
+def _at_path(f: dict, library: Path) -> str:
+    """What the check saw at the photo's recorded path, for the Inspector's Destination
+    row (webui-spec 7.6): the catalog keeps that path until a repair or a date fix moves
+    the file, so the row says the file isn't as recorded there."""
+    job = f"Job #{f['run_id']}"
+    if f["kind"] == "missing":
+        found = f.get("found_in") in ("library", "rejects")
+        return (f"Not here when {job} checked" + (f": it's at {shown_path(f['found_path'], library)}." if found else ".")
+                + " See Library check above.")
+    if f["kind"] == "changed" and f.get("look") == "different":
+        return f"{job} found a different picture here. See Library check above."
+    if f["kind"] == "changed":
+        return f"{job} found this file changed since it was filed. See Library check above."
+    return f"{job} couldn't read this file. See Library check above."
 
 
 LATEST_COMPLETED_SQL = (f"SELECT MAX(c.run_id) FROM library_checks c JOIN runs r ON r.id=c.run_id "

@@ -333,6 +333,8 @@ export interface PhotoDetail {
   dest_path: string | null;
   dest_path_is_projection: boolean;
   has_collision_rename: boolean;
+  /** What the latest library check found at dest_path, while its finding is open. */
+  dest_finding: string | null;
   file_size: number | null;
   file_modified: number | null;
   date_taken: string | null;

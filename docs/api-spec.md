@@ -410,6 +410,8 @@ Failed files expose this field's message.
     {"id", "status", "failure", "filename", "source_path", "dest_path",
      "dest_path_is_projection": true,     // not delivered: where it would go
      "has_collision_rename", "file_size", "width", "height",
+     "dest_finding": "Not here when Job #3 checked: it's at sorted/IMG_1.jpg. See Library check above." | null,
+                                          // the latest library check's open finding at dest_path (webui-spec 7.6)
      "file_modified": 1686000000.0,       // as the first scan observed it
      "date_taken", "date_source", "date_offset",
      "exif_dates": [{"field": "taken" | "digitized" | "modified",

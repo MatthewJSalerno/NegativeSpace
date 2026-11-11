@@ -60,6 +60,8 @@ class LibraryCheck(ApiCase):
         self.assertEqual(listed["reasons"]["library"], 1)
         reasons = self.client.get(f"/api/v1/photos/{pid}/review").json()["reasons"]
         self.assertEqual([(r["reason"], r["tone"], r["run_id"]) for r in reasons], [("library", "bad", run["id"])])
+        self.assertEqual(self.client.get(f"/api/v1/photos/{pid}/inspect").json()["dest_finding"],
+                         f"Not here when Job #{run['id']} checked. See Library check above.")
 
         exported = self.client.get(f"/api/v1/library-check/{run['id']}/export", params={"format": "csv"})
         self.assertEqual(exported.status_code, 200)
@@ -73,6 +75,7 @@ class LibraryCheck(ApiCase):
         os.utime(path, (self.mtime_of("one"),) * 2)
         self.check()
         self.assertEqual(self.client.get("/api/v1/photos", params={"view": "review", "reason": "library"}).json()["items"], [])
+        self.assertIsNone(self.client.get(f"/api/v1/photos/{pid}/inspect").json()["dest_finding"])
 
     def mtime_of(self, stem):
         with ns_db.connect(self.cfg.db_path) as conn:
@@ -181,11 +184,14 @@ class Repair(ApiCase):
         found = library / "2005" / "06" / "07" / "one.jpg"
         found.parent.mkdir(parents=True)
         one.rename(found)                               # moved by hand into another day's folder
-        self.check()
+        run = self.check()
         reason = self.client.get(f"/api/v1/photos/{one_id}/review").json()["reasons"][0]
         self.assertEqual((reason["message"], reason["date_fix"]),
                          ("Its date is 3 February 2001, but it's at 2005/06/07/one.jpg.", True))
         self.assertIn("Edit metadata date…", reason["todo"])
+        self.assertIn(f"Repair moves it back to {os.path.relpath(one, library)}.", reason["todo"])
+        self.assertEqual(self.client.get(f"/api/v1/photos/{one_id}/inspect").json()["dest_finding"],
+                         f"Not here when Job #{run['id']} checked: it's at 2005/06/07/one.jpg. See Library check above.")
         context = self.client.get(f"/api/v1/photos/{one_id}/date-edit").json()
         self.assertEqual(context["found"], {"path": "library/2005/06/07/one.jpg", "folder_date": "2005-06-07"})
         preview = self.client.post(f"/api/v1/photos/{one_id}/date-preview",
@@ -197,7 +203,25 @@ class Repair(ApiCase):
         self.assertEqual(self.wait_for(started.json()["id"])["status"], "Completed")
         self.assertTrue(found.is_file())
         self.assertEqual(self.client.get("/api/v1/photos", params={"view": "review", "reason": "library"}).json()["items"], [])
+        self.assertIsNone(self.client.get(f"/api/v1/photos/{one_id}/inspect").json()["dest_finding"])
         self.assertEqual(self.client.post("/api/v1/repair/preview", json={}).json()["fixes"], 0)
+
+
+class AtPath(unittest.TestCase):
+    """What the Inspector's Destination row says for each open finding (webui-spec 7.6)."""
+
+    def test_each_finding_says_what_the_check_saw_at_the_recorded_path(self):
+        from engine import library_check
+        library = Path("/dest/library")
+        said = lambda **f: library_check._at_path({"run_id": 3, "path": str(library / "2024/05/03/a.jpg"), **f}, library)
+        self.assertEqual(said(kind="missing", found_in="rejects", found_path="/dest/rejects/by hand/a.jpg"),
+                         "Not here when Job #3 checked: it's at Rejects/by hand/a.jpg. See Library check above.")
+        self.assertEqual(said(kind="missing", found_in="source", found_path="/src/a.jpg"),
+                         "Not here when Job #3 checked. See Library check above.")
+        self.assertEqual(said(kind="changed", look="different"), "Job #3 found a different picture here. See Library check above.")
+        self.assertEqual(said(kind="changed", look="alike"),
+                         "Job #3 found this file changed since it was filed. See Library check above.")
+        self.assertEqual(said(kind="unreadable"), "Job #3 couldn't read this file. See Library check above.")
 
 if __name__ == "__main__":
     unittest.main()

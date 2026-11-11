@@ -721,6 +721,8 @@ def inspect_photo(db_path: Path, photo_id: int, *, source_root=None, destination
         issues = attention.for_photo(conn, photo_id)
         metadata_attention = metadata_view.source_attention(conn, [photo_id]).get(photo_id)
         version = earlier_versions.badges(conn, [photo_id]).get(photo_id)
+        # The latest check's open finding: the file isn't as recorded at dest_path.
+        finding = library_check.photo_reason(conn, photo_id) if p["status"] in catalog.AT_DESTINATION else None
         failure = None
         if p["status"] == PhotoStatus.FAILED:
             last = conn.execute("SELECT error_message FROM operations WHERE photo_id = ? AND status = ? ORDER BY id DESC LIMIT 1",
@@ -739,6 +741,7 @@ def inspect_photo(db_path: Path, photo_id: int, *, source_root=None, destination
         "source_path": p["source_path"], "dest_path": destination,
         "dest_path_is_projection": p["status"] not in catalog.AT_DESTINATION,
         "has_collision_rename": bool(p["has_name_collision"]),
+        "dest_finding": finding and finding["at_path"],
         "file_size": p["file_size"],
         "file_modified": snapshot["file_mtime"] if snapshot else p["file_mtime"],
         "date_taken": meta.get("date_taken"), "date_source": meta.get("date_source"),

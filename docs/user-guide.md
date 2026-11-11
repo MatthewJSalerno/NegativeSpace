@@ -293,6 +293,10 @@ date is 5 May 2023, but it's at 2021/06/14/IMG_1.jpg." If the date is wrong, cho
 date…** in the finding: the editor suggests the date the folder names, and saving the date files the photo
 by it and clears the finding. If the date is right, **Repair…** moves the photo back.
 
+Until a finding is fixed, the photo's **Destination path** still shows where NegativeSpace filed it, marked
+in amber with what the check saw there, such as "Not here when Job #3 checked: it's at sorted/IMG_1.jpg."
+**Rename…** waits until the finding is fixed.
+
 **Repair…** puts photos back where the library keeps them: one found in another folder
 moves back to its date folder and keeps any new name you gave it, one found in Rejects
 moves back, and a missing one whose original is still in your source is copied back and

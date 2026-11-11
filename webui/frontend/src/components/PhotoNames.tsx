@@ -5,7 +5,7 @@ import { Modal } from "./ui/Modal";
 import { Field } from "./ui/Field";
 
 export function OtherNames({ id, refreshKey, disabled, onChoose }: {
-  id: number; refreshKey: number; disabled: boolean; onChoose: (name: string) => void;
+  id: number; refreshKey: number; disabled?: string; onChoose: (name: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<PhotoNames | null>(null);
@@ -23,7 +23,7 @@ export function OtherNames({ id, refreshKey, disabled, onChoose }: {
     {error && <p className="error">{error} <button className="link" onClick={() => setRetry(n => n+1)}>Retry</button></p>}
     {data?.candidates.length === 0 && <p>No other recorded names.</p>}
     {data && <ul>{data.candidates.map(x => <li key={x.name}>
-      <div className="history-links"><strong>{x.name}</strong><button className="link" disabled={disabled} title={disabled ? "Wait for the running job to finish." : undefined} onClick={() => onChoose(x.name)}>Use this name</button></div>
+      <div className="history-links"><strong>{x.name}</strong><button className="link" disabled={!!disabled} title={disabled} onClick={() => onChoose(x.name)}>Use this name</button></div>
       {x.seen_at.map(path => <div className="section-note" key={path}><code>{path}</code></div>)}
     </li>)}</ul>}
   </details>;
