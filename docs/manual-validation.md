@@ -267,8 +267,8 @@ the source. Then each file was changed in the library, as another program would 
 
 ### Test RP3 — A photo in the wrong folder, fixed by its date
 
-**Where:** the third review instance. Its address will be given when it is ready. No check
-had run on it before RP3a. Verified: every step was walked on a copy of the instance.
+**Where:** the third review instance, at `http://localhost:8084`. No check had run on it
+before RP3a. Verified: every step was walked on a copy of the instance.
 
 Five generated photos were indexed and copied (Jobs #1 and #2), with the originals kept in
 the source. Then, in the library, by hand:
@@ -312,7 +312,8 @@ the source. Then, in the library, by hand:
   - Do: open `rose-01.jpg` and choose **Edit metadata date…** in its warning.
   - Expected: "This photo is outside the folder for its date. It's at
     library/sorted/rose-01.jpg. Saving a date files it by that date." with no suggested date,
-    since `sorted` names no date.
+    since `sorted` names no date: the **Date taken** box holds its current date,
+    `2024-05-04T10:00:00`.
   - Do: replace what's in the **Date taken** box with `2024-07-01T10:00:00`, then choose
     **Preview change**.
   - Expected: **Resulting location** `library/2024/07/01/rose-01.jpg`, and the button **Save
