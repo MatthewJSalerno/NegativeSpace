@@ -224,8 +224,8 @@ class MetadataViewTests(ApiCase):
                 (str(self.cfg.source/'samples/failed.png'),)).lastrowid
             ready=conn.execute("INSERT INTO photos(source_path,status) VALUES(?,'Pending')",
                 (str(self.cfg.source/'ready.jpg'),)).lastrowid
-            copied=conn.execute("INSERT INTO photos(source_path,status) VALUES(?,'Copied')",
-                (str(self.cfg.source/'copied.jpg'),)).lastrowid
+            conn.execute("INSERT INTO photos(source_path,status) VALUES(?,'Copied')",
+                (str(self.cfg.source/'copied.jpg'),))
         scope={'view':'unorganized','reason':'attention'}
         page=self.client.get('/api/v1/photos',params={**scope,'page_size':1}).json()
         self.assertEqual(page['total'],2)

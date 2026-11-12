@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 from playwright.sync_api import expect, sync_playwright
-from ui_browser_checks import finished_notice, close_notifications
+from ui_browser_checks import finished_notice
 
 with sync_playwright() as p:
     browser = p.chromium.launch()

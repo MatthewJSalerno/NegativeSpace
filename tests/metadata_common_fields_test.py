@@ -6,7 +6,6 @@ import tempfile
 import unittest
 
 from engine import metadata_adapter, metadata_capture, metadata_edits, metadata_gps, metadata_writer, xmp
-from engine.metadata import MetadataSource
 
 
 class CommonFields(unittest.TestCase):

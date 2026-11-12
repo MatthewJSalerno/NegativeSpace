@@ -1,7 +1,6 @@
 """Generated normal-job XMP activation, safety gates and retry integration."""
 from datetime import datetime
 import json
-import os
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -9,7 +8,7 @@ from unittest import mock
 
 from PIL import Image
 import metadata_index_test
-from engine import durable, metadata_decisions, metadata_import, metadata_transfer, ns_db, runtime, transfer
+from engine import durable, metadata_decisions, metadata_transfer, ns_db, runtime, transfer
 
 
 class Imports(unittest.TestCase):
@@ -201,7 +200,7 @@ class Imports(unittest.TestCase):
         self.assertEqual(self.photo_row()[1:],original[1:]); self.assertTrue(self.photo.exists())
 
     def test_failed_retry_verification_does_not_leave_processing_in_finished_job(self):
-        self.run_engine(); actual=durable._remove_verified_source
+        self.run_engine()
         with mock.patch.object(durable,'_remove_verified_source',side_effect=OSError('generated cleanup failure')):
             self.job(True)
         row=self.photo_row(); Path(row[1]+'.xmp').write_bytes(b'changed destination fixture')

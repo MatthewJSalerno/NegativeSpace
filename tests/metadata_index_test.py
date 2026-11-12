@@ -1,5 +1,4 @@
 """Generated Index provenance integration, read safety and source-priority regressions."""
-import hashlib
 import json
 import os
 from pathlib import Path
