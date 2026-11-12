@@ -182,6 +182,7 @@ def finish(conn,op,expected,kind,photo_id,*,recovery=False,reconciles=None):
     event=relocate._record_relocation(conn,op,expected['old_path'],expected['new_path'],expected['file_id'],
         step='recovery' if recovery else kind,operation_status=expected.get('operation_status','Renamed'),
         photo_id=photo_id if kind!='rename' else None,status_after=expected.get('status_after'),
+        recorded=expected.get('recorded_path'),
         detail={'sidecar':expected['sidecar'],'status_before':expected.get('status_before'),'recovered':recovery})
     prior=reconciles or op
     while prior:

@@ -7,13 +7,13 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from engine import library_check
+from engine import repair, library_check
 
 from . import catalog
 
 # Fields each exported finding carries (webui-spec 7.6).
 EXPORT_COLUMNS = ("finding", "tone", "relative", "path", "folder", "found_in", "found_path", "size", "checksum",
-                  "photo_id", "what", "todo")
+                  "photo_id", "what", "todo", "repaired_by")
 
 
 def _last_index(conn, source: Path) -> Optional[dict]:
@@ -73,3 +73,18 @@ def export(db_path: Path, run_id: int, form: str):
 def is_library_check(conn, run_id: int) -> bool:
     return conn.execute("SELECT 1 FROM library_checks WHERE run_id=?", (run_id,)).fetchone() is not None
 
+
+
+# What the Repair preview shows of each planned change (webui-spec 7.6): paths from the
+# Library or the destination folder, never the app's own paths inside its container.
+_REPAIR_ITEM = ("photo_id", "relative", "finding", "what", "todo", "repair", "from_relative", "to_relative",
+                "folder", "index_source")
+
+
+def repair_preview(db_path: Path, dest: Path, photo_ids) -> dict:
+    """Repair's preview for the given photos, or every photo the latest check found."""
+    with catalog.connect(db_path) as conn:
+        found = repair.plan(conn, dest, photo_ids)
+    keep = lambda item: {k: item[k] for k in _REPAIR_ITEM if k in item}
+    return {**found, "groups": [{**g, "items": [keep(i) for i in g["items"]]} for g in found["groups"]],
+            "cannot": [keep(i) for i in found["cannot"]]}

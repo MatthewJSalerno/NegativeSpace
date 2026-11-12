@@ -9,12 +9,17 @@ const LABELS: Record<string, string> = {
   Failed: "Failed", Removed_Duplicate: "Identical source removed; existing destination retained",
   Found_At_Destination: "Existing destination retained", Skipped: "Skipped", Cancelled: "Cancelled",
   Renamed: "Renamed", Rejected: "Moved to Rejects", Rejected_Copied: "Moved to Rejects; original kept",
-  Returned: "Returned to Library",
+  Returned: "Returned to Library", Repaired: "Repaired",
+};
+// What a Repair did (webui-spec 7.6), from its recorded intent (webui/operation_actions.py).
+const REPAIRS: Record<string, string> = {
+  move_back: "Moved back to its date folder", from_rejects: "Moved back from Rejects", copy_back: "Copied back from the source",
 };
 // A rename a library check found and recorded was made outside NegativeSpace (webui-spec 7.6).
 export const actionLabel = (op: LineageOperation) => op.mode === "CHECK" && op.status === "Renamed"
-  ? "Renamed outside NegativeSpace" : operationLabel(op, LABELS[op.status] ?? op.status);
-export const shortJob = (op: LineageOperation) => `${({ INDEX: "Index", COPY: "Copy", MOVE: "Move", REJECT: "Reject", RETURN: "Return", RENAME: "Rename", METADATA: "Metadata", CHECK: "Check" } as Record<string, string>)[op.mode ?? ""] ?? op.mode ?? "Job"} #${op.run_id}`;
+  ? "Renamed outside NegativeSpace" : op.status === "Repaired" && op.action && REPAIRS[op.action] ? REPAIRS[op.action]
+  : operationLabel(op, LABELS[op.status] ?? op.status);
+export const shortJob = (op: LineageOperation) => `${({ INDEX: "Index", COPY: "Copy", MOVE: "Move", REJECT: "Reject", RETURN: "Return", RENAME: "Rename", METADATA: "Metadata", CHECK: "Check", REPAIR: "Repair" } as Record<string, string>)[op.mode ?? ""] ?? op.mode ?? "Job"} #${op.run_id}`;
 // Compare immutable discovery evidence, never the current photo's edited hash.
 export function sourceLanes(tree: Lineage): Map<number, number> {
   const original = tree.files.find(file => file.photo_id === tree.photo_id)?.indexed_sha1;

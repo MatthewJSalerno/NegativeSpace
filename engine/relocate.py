@@ -269,12 +269,13 @@ def _record_rename(conn, operation_id, old: str, new: str, file_id, detail=None,
 
 
 def _record_relocation(conn, operation_id, old: str, new: str, file_id, *, detail=None, step: str,
-                       operation_status: str, photo_id=None, status_after=None):
+                       operation_status: str, photo_id=None, status_after=None, recorded=None):
     """Points the catalog at a file moved within the destination (a rename, a reject, a
-    return), in the caller's transaction: every row naming the old path, the file
+    return, a repair), in the caller's transaction: every row naming the old path, the file
     identity's current path, the photo's new status when it has one, and the operation
-    settled with both paths. Historical operations keep their paths."""
-    conn.execute("UPDATE photos SET dest_path = ? WHERE dest_path = ?", (new, old))
+    settled with both paths. Historical operations keep their paths. `recorded` is the
+    path the catalog named when the file was found elsewhere (Repair's Move it back)."""
+    conn.execute("UPDATE photos SET dest_path = ? WHERE dest_path IN (?, ?)", (new, old, recorded or old))
     if photo_id is not None and status_after:
         conn.execute("UPDATE photos SET status = ? WHERE id = ?", (status_after, photo_id))
     if file_id is not None:
@@ -286,7 +287,7 @@ def _record_relocation(conn, operation_id, old: str, new: str, file_id, *, detai
 
 
 # What an interrupted move within the destination was, in recovery's messages.
-_RELOCATION_NOUNS = {"rename": "rename", "reject": "reject", "return": "return to the library"}
+_RELOCATION_NOUNS = {"rename": "rename", "reject": "reject", "return": "return to the library", "repair": "repair"}
 
 
 def _record_relocation_failure(conn, operation_id, kind, phase, old, new, file_id, exc):

@@ -17,7 +17,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 35
+SCHEMA_VERSION = 36
 
 # --- Status vocabularies -----------------------------------------------------
 #
@@ -128,6 +128,8 @@ OPERATION_RENAMED = "Renamed"
 OPERATION_RETURNED = "Returned"
 # A rejected photo's file found gone from Rejects: the user emptied it. Recorded, never done.
 OPERATION_EMPTIED = "Emptied"
+# A library check's finding fixed by Repair: a photo moved or copied back (engine-spec 9.2).
+OPERATION_REPAIRED = "Repaired"
 
 # How a Move records a file whose verified copy was delivered but whose original could
 # not be deleted (a read-only source, a permission): the photo is Copied, and the
@@ -143,7 +145,7 @@ PHOTO_STATUSES = (
     PhotoStatus.REJECTED, PhotoStatus.REJECTED_COPIED, PhotoStatus.REJECTED_EMPTIED,
 )
 OPERATION_STATUSES = PHOTO_STATUSES + (OPERATION_CANCELLED, OPERATION_SKIPPED, OPERATION_RENAMED,
-                                       OPERATION_RETURNED, OPERATION_EMPTIED)
+                                       OPERATION_RETURNED, OPERATION_EMPTIED, OPERATION_REPAIRED)
 RUN_STATUSES = (
     RunStatus.PREPARING, RunStatus.RUNNING, RunStatus.CANCELLING, RunStatus.COMPLETED,
     RunStatus.CANCELLED, RunStatus.FAILED, RunStatus.INTERRUPTED,
@@ -795,7 +797,8 @@ FOUNDATION_DDL = (
     # file_kind names an unknown file by its content, signature by the format its
     # leading bytes show; found_in/found_path say where a missing photo's content
     # still is; gone_folder is the outermost folder of a missing photo that is
-    # itself gone; look tells an edit from a different picture (engine-spec 9.2).
+    # itself gone; look tells an edit from a different picture (engine-spec 9.2);
+    # settled_by is the Repair operation that fixed it.
     """CREATE TABLE destination_findings (
         run_id INTEGER NOT NULL REFERENCES runs(id),
         path TEXT NOT NULL,
@@ -808,6 +811,7 @@ FOUNDATION_DDL = (
         found_in TEXT CHECK(found_in IN ('library','rejects','source')), found_path TEXT,
         gone_folder TEXT,
         look TEXT CHECK(look IN ('alike','different')),
+        settled_by INTEGER REFERENCES operations(id),
         PRIMARY KEY(run_id, path),
         CHECK((kind = 'unknown') = (photo_id IS NULL)),
         CHECK((kind = 'unknown') = (file_kind IS NOT NULL)),
@@ -1369,8 +1373,8 @@ def read_destination_check(conn, run_id):
     group is one content held by more than one file outside the catalog's knowledge, or
     by an unknown file and a catalogued photo: {'sha1', 'paths', 'catalogued_photo_ids'}.
     Intact counts are in read_progress (phase checking_destination)."""
-    findings = [dict(zip(FINDING_COLUMNS, row)) for row in conn.execute(
-        f"SELECT {', '.join(FINDING_COLUMNS)} "
+    findings = [dict(zip(FINDING_COLUMNS + ('settled_by',), row)) for row in conn.execute(
+        f"SELECT {', '.join(FINDING_COLUMNS)}, settled_by "
         "FROM destination_findings WHERE run_id = ? ORDER BY kind, path", (run_id,))]
     groups = {}
     for f in findings:

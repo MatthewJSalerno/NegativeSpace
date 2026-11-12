@@ -1,4 +1,5 @@
 import { PairRetryButton } from "./PairRetry";
+import { RepairButton } from "./Repair";
 import type { ReactNode } from "react";
 import type { ActionMode, Place } from "../api";
 import { count, plural } from "../format";
@@ -14,7 +15,9 @@ export type SelectionCounts = Record<ActionMode, number>;
 // the actions wait, saying why. A selection in Rejects offers Return to library first,
 // and its Move says what it deletes.
 export function SelectionBar({ selected, capacity, outside, focused, reviewing, counts, place, jobRunning, search, onAction, onShowSelected,
-                               onBack, onClear, onRotate, reviewActions, pairRetryIds, pairRetryCount = 0 }: {
+                               onBack, onClear, onRotate, reviewActions, pairRetryIds, pairRetryCount = 0, repairCount = 0 }: {
+  // Selected photos with a Library check finding (webui-spec 7.6).
+  repairCount?: number;
   pairRetryIds?: number[];
   pairRetryCount?: number;
   selected: number;
@@ -77,6 +80,7 @@ export function SelectionBar({ selected, capacity, outside, focused, reviewing, 
       {!reviewing && reviewActions}
       {!reviewing && onRotate && <button className="photo-action" disabled={jobRunning} title={busy} onClick={onRotate}>Rotate…</button>}
       {!reviewing && pairRetryIds && pairRetryCount > 0 && <PairRetryButton ids={pairRetryIds} count={pairRetryCount} />}
+      {!reviewing && pairRetryIds && repairCount > 0 && <RepairButton ids={pairRetryIds} count={repairCount} />}
       {search && <div className="topbar-search">{search}</div>}
     </div>
   );

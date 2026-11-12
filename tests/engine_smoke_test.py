@@ -4877,6 +4877,159 @@ def check_library_records_a_rename_in_its_own_folder_and_nothing_else():
                (later, a_id))[0]["n"] == 0, "the next check did not find the renamed photo as recorded")
 
 
+@test
+def repair_moves_and_copies_back_what_the_check_found_and_nothing_else():
+    """
+    webui-spec 7.6, Repair: a photo found in another Library folder is moved back to its
+    date folder keeping its new name, one found in Rejects is moved back, and a missing one
+    whose original is still in the source is copied back and verified. A photo with no
+    copy, and a file that changed since the check, are left alone with their reasons. The
+    catalog is backed up before and after, each fix is in the photo's lineage, the findings
+    it fixed stop counting, and the next check finds the photos as recorded. A Repair from
+    an older check is refused.
+    """
+    import hashlib
+    from engine import library_check, repair
+    case = new_case("repair_move_copy")
+    for name, day in (("a", "01"), ("b", "02"), ("c", "03"), ("d", "04"), ("e", "05"), ("f", "06")):
+        make_photo(case / "src" / f"{name}.jpg", f"repair-{name}", date=f"2021:06:{day} 10:00:00")
+    run_engine(case)
+    run_engine(case, "--copy")
+    placed = {Path(r["source_path"]).stem: (r["id"], Path(r["dest_path"]))
+              for r in rows(case, "SELECT id, source_path, dest_path FROM photos")}
+    sha = lambda p: hashlib.sha1(Path(p).read_bytes()).hexdigest()
+    library = case / "dest" / "library"
+    (library / "sorted").mkdir()
+    a_id, a = placed["a"]
+    a.rename(library / "sorted" / "a moved.jpg")                          # another folder, renamed
+    b_id, b = placed["b"]
+    in_rejects = case / "dest" / "rejects" / "by hand" / "b.jpg"
+    in_rejects.parent.mkdir(parents=True)
+    b.rename(in_rejects)                                                    # put in Rejects by hand
+    c_id, c = placed["c"]
+    c_sha = sha(c)
+    c.unlink()                                                              # missing; the source has it
+    d_id, d = placed["d"]
+    d.unlink()
+    (case / "src" / "d.jpg").unlink()                                       # missing everywhere
+    e_id, e = placed["e"]
+    e.rename(library / "sorted" / "e.jpg")                                  # moved, then changed below
+    f_id, f_path = placed["f"]
+    f_path.chmod(0)                                                         # can't be read
+    run_engine(case, "--check-destination", "full")
+    check_run = rows(case, "SELECT MAX(run_id) m FROM library_checks")[0]["m"]
+
+    conn = db(case)
+    try:
+        planned = repair.plan(conn, case / "dest")
+    finally:
+        conn.close()
+    fixes = {i["photo_id"]: (g["repair"], i["to_relative"]) for g in planned["groups"] for i in g["items"]}
+    check(fixes == {a_id: ("move_back", (a.parent / "a moved.jpg").relative_to(library).as_posix()),
+                    b_id: ("from_rejects", b.relative_to(library).as_posix()),
+                    c_id: ("copy_back", c.relative_to(library).as_posix()),
+                    e_id: ("move_back", (e.parent / "e.jpg").relative_to(library).as_posix())},
+          f"Repair's plan: {fixes}")
+    check([(i["photo_id"], i["todo"]) for i in planned["cannot"]]
+          == [(d_id, repair.NO_COPY_TODO),
+              (f_id, repair.UNREADABLE_TODO + " A copy is in the source, so the photo isn't lost.")],
+          f"what Repair can't fix: {planned['cannot']}")
+    check(planned["unreadable"] == [{"path": f_path.relative_to(case / "dest").as_posix(), "reason": "permission denied"}],
+          f"the unreadable files Repair lists: {planned['unreadable']}")
+    f_path.chmod(0o644)
+
+    with open(library / "sorted" / "e.jpg", "ab") as f:
+        f.write(b"changed since the check")
+    backups = len(backups_of(case))
+    ids = ",".join(str(i) for i in (a_id, b_id, c_id, d_id, e_id, f_id))
+    run_engine(case, "--repair-library", check_run, "--file-ids", ids)
+    run_id = rows(case, "SELECT MAX(id) m FROM runs")[0]["m"]
+    check(rows(case, "SELECT mode FROM runs WHERE id=?", (run_id,))[0]["mode"] == "REPAIR", "Repair ran as another mode")
+    moved = a.parent / "a moved.jpg"
+    check(moved.is_file() and not (library / "sorted" / "a moved.jpg").exists(), "the moved photo was not moved back")
+    check(rows(case, "SELECT dest_path FROM photos WHERE id=?", (a_id,))[0]["dest_path"] == str(moved),
+          "the moved-back photo's new name was not recorded")
+    check(b.is_file() and not in_rejects.exists(), "the photo in Rejects was not moved back")
+    check(c.is_file() and sha(c) == c_sha and (case / "src" / "c.jpg").is_file(),
+          "the missing photo was not copied back from the source, or the source was touched")
+    check(not d.exists() and (library / "sorted" / "e.jpg").is_file() and not e.exists(),
+          "Repair touched a photo it could not fix, or a file that changed since the check")
+    ops = {r["photo_id"]: r for r in rows(case, "SELECT photo_id, status, error_message FROM operations WHERE run_id=?",
+                                          (run_id,))}
+    check({p: ops[p]["status"] for p in ops} == {a_id: "Repaired", b_id: "Repaired", c_id: "Repaired",
+                                                d_id: "Skipped", e_id: "Skipped", f_id: "Skipped"},
+          f"Repair's outcomes: {ops}")
+    check(repair.NO_COPY_TODO in ops[d_id]["error_message"] and "changed since" in ops[e_id]["error_message"],
+          f"the skipped photos' reasons: {ops[d_id]['error_message']} / {ops[e_id]['error_message']}")
+    check([x["trigger_kind"] for x in backups_of(case)[backups:]] == ["pre_action", "post_job"],
+          "Repair was not between a catalog backup before and one after")
+    kinds = {r["photo_id"]: r["kind"] for r in rows(case,
+             "SELECT o.photo_id, json_extract(e.detail_json, '$.expected.repair') kind FROM operations o "
+             "JOIN operation_events e ON e.operation_id=o.id AND e.step='intent' WHERE o.run_id=?", (run_id,))}
+    check(kinds == {a_id: "move_back", b_id: "from_rejects", c_id: "copy_back"}, f"Repair's recorded intents: {kinds}")
+    pending = {r["id"] for r in rows(case, f"SELECT p.id FROM photos p WHERE {library_check.pending_sql()}")}
+    check(pending == {d_id, e_id, f_id}, f"the Library check reason after Repair: {pending}")
+    conn = db(case)
+    try:
+        report = library_check.report(conn, check_run)
+    finally:
+        conn.close()
+    check(report["repaired"] == 3, f"the check's report counts {report['repaired']} repaired")
+    _assert_lineage_complete(case, "after Repair")
+
+    # A Repair previewed from this check is refused once a newer check has run.
+    run_engine(case, "--check-destination", "quick")
+    later = rows(case, "SELECT MAX(run_id) m FROM library_checks")[0]["m"]
+    found = {r["photo_id"] for r in rows(case, "SELECT photo_id FROM destination_findings WHERE run_id=? "
+                                               "AND photo_id IS NOT NULL", (later,))}
+    check(found == {d_id, e_id}, f"the next check did not find the repaired photos as recorded: {found}")
+    run_engine(case, "--repair-library", check_run, "--file-ids", str(e_id), expect_rc=1)
+    stale = rows(case, "SELECT status, error_message FROM operations WHERE run_id=(SELECT MAX(id) FROM runs)")
+    check([r["status"] for r in stale] == ["Skipped"] and "newer library check" in stale[0]["error_message"],
+          f"a Repair from an older check was not refused: {stale}")
+
+
+@test
+def repair_recovers_an_interrupted_move_back():
+    """
+    engine-spec 9.2: a Move it back interrupted after the file moved, before the catalog
+    recorded it, is finished by recovery at the next job, pointing the photo from the path
+    the catalog named to where the file now is.
+    """
+    from engine import ns_db, repair
+    case = new_case("repair_recovery")
+    make_photo(case / "src" / "a.jpg", "repair-recover", date="2021:07:01 10:00:00")
+    run_engine(case)
+    run_engine(case, "--copy")
+    photo = rows(case, "SELECT id, dest_path, sha1_hash FROM photos")[0]
+    recorded = Path(photo["dest_path"])
+    library = case / "dest" / "library"
+    (library / "sorted").mkdir()
+    found = library / "sorted" / "a new.jpg"
+    recorded.rename(found)
+    run_engine(case, "--check-destination", "quick")
+    check_run = rows(case, "SELECT MAX(run_id) m FROM library_checks")[0]["m"]
+    target = recorded.parent / "a new.jpg"
+    conn = db(case)
+    try:
+        run_id = conn.execute("INSERT INTO runs(mode, status, started_at) VALUES ('REPAIR', 'Interrupted', '2026-01-01')").lastrowid
+        file_id = conn.execute("SELECT file_id FROM file_states WHERE current_path=?", (str(recorded),)).fetchone()[0]
+        ns_db.begin_operation(conn, run_id=run_id, photo_id=photo["id"], source_path=str(found), dest_path=str(target),
+                              kind="repair", expected={"old_path": str(found), "new_path": str(target),
+                                                       "recorded_path": str(recorded), "file_id": file_id,
+                                                       "sha1_hash": photo["sha1_hash"], "operation_status": "Repaired",
+                                                       "repair": "move_back", "check_run": check_run})
+        conn.commit()
+    finally:
+        conn.close()
+    found.rename(target)                                                    # the move happened; the record did not
+    run_engine(case)
+    check(rows(case, "SELECT dest_path FROM photos WHERE id=?", (photo["id"],))[0]["dest_path"] == str(target),
+          "recovery did not point the photo at where the interrupted Repair moved it")
+    check(rows(case, "SELECT current_path FROM file_states WHERE file_id=?", (file_id,))[0]["current_path"] == str(target),
+          "recovery did not move the Library file's identity")
+
+
 def _engine_json(case, *args, expect_rc=0):
     proc = run_engine(case, *args, expect_rc=expect_rc)
     lines = [l for l in proc.stdout.splitlines() if l.strip()]

@@ -284,9 +284,19 @@ changes nothing. The foot of the sidebar shows when your source was last indexed
 the library was last checked, with what it found. Choose it to see each finding in
 **Logs**, with what it means and what you can do, and **Export findings** as CSV or JSON.
 Library photos with a finding appear under **Needs review** with the reason **Library
-check** until a later check finds them as recorded. If you renamed a photo in its own
+check** until a later check finds them as recorded or Repair fixes them. If you renamed a photo in its own
 folder, the check keeps your name and records it in the photo's history. Files other programs keep beside
 your photos, such as NAS thumbnails and Mac system files, are only counted.
+
+**Repair…** puts photos back where the library keeps them: one found in another folder
+moves back to its date folder and keeps any new name you gave it, one found in Rejects
+moves back, and a missing one whose original is still in your source is copied back and
+checked. Choose it on a photo with a Library check finding, or tick photos under that reason
+(**Select ▾ › Select all in this view** takes them all) and choose **Repair (n)…**. It shows
+every change first, grouped, and you can untick any group. What it can't fix is listed with
+what you can do, such as **Index source** for a photo with no copy found, or a list of files
+it can't read that you can copy. Each file is checked again just before it moves, nothing is
+deleted, and each fix is in the photo's history.
 
 ![The lineage timeline follows a photo from Index through Copy, Reject and Return](images/photo-history-timeline.png)
 

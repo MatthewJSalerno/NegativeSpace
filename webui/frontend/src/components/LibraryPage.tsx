@@ -319,6 +319,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   }, [refreshKey]);
   // What each action would take of the selection, for the selection bar.
   const [pairRetryCount, setPairRetryCount] = useState(0);
+  const [repairCount, setRepairCount] = useState(0);
   const [reviewCounts, setReviewCounts] = useState<BulkReviewCounts | null>(null);
   const [selectionActions, setSelectionActions] = useState<SelectionCounts>(NO_ACTIONS);
   const [dismissedId, dismissRun, dismissal] = useDismissedRun();
@@ -425,9 +426,9 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     let live = true;
     const ids = [...selected];
     setReviewCounts(null);
-    if (ids.length === 0) { setSelectionActions(NO_ACTIONS); setPairRetryCount(0); }
+    if (ids.length === 0) { setSelectionActions(NO_ACTIONS); setPairRetryCount(0); setRepairCount(0); }
     else api.selection(ids, "newest", 1, 1, galleryMinimum, undefined, bulkReason !== null && ["small", "date", "later"].includes(bulkReason))
-      .then((s) => { if(live) { setReviewCounts(s.review_actions ?? null); setSelectionActions(s.actions ?? NO_ACTIONS); setPairRetryCount(s.pair_retries ?? 0); } }, () => { if(live) { setSelectionActions(NO_ACTIONS); setPairRetryCount(0); } });
+      .then((s) => { if(live) { setReviewCounts(s.review_actions ?? null); setSelectionActions(s.actions ?? NO_ACTIONS); setPairRetryCount(s.pair_retries ?? 0); setRepairCount(s.repair_findings ?? 0); } }, () => { if(live) { setSelectionActions(NO_ACTIONS); setPairRetryCount(0); setRepairCount(0); } });
     return () => { live = false; };
   }, [selected, galleryMinimum, refreshKey, bulkReason]);
   useEffect(() => {
@@ -998,7 +999,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
       selection={selected.size > 0 ? (
         <SelectionBar reviewActions={<BulkReviewActions ids={[...selected]} counts={reviewCounts} disabled={jobRunning}
                       reason={bulkReason}
-                      onSaved={ids => { const saved = new Set(ids); setSelected(current => new Set([...current].filter(id => !saved.has(id)))); }} />} pairRetryIds={[...selected]} pairRetryCount={pairRetryCount} capacity={status.photos} selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
+                      onSaved={ids => { const saved = new Set(ids); setSelected(current => new Set([...current].filter(id => !saved.has(id)))); }} />} pairRetryIds={[...selected]} pairRetryCount={pairRetryCount} repairCount={repairCount} capacity={status.photos} selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
                       onRotate={selectionActions.reject > 0 ? () => setRotationIds([...selected]) : undefined} counts={selectionActions} place={place} jobRunning={jobRunning} search={searchField} onAction={transferSelected}
                       onShowSelected={showSelected} onBack={backToResults} onClear={clearSelection} />
       ) : undefined}

@@ -384,7 +384,9 @@ the engine's own rule (`ns_db.TRANSFER_ELIGIBLE`, as `eligible` in `GET /status`
 (photos in the library) and Return to library (photos in Rejects).
 `pair_retries` separately counts selected incomplete photo/XMP imports eligible for
 confirmed same-mode retry at the configured roots. Failed pairs do not enter the
-ordinary Copy/Move action counts.
+ordinary Copy/Move action counts. `repair_findings` counts the selected photos with a
+finding from the latest completed library check that no Repair has fixed, which the
+selection bar's **Repair…** opens on (`POST /api/v1/repair/preview`).
 
 **READ — `webui/gallery.py:photos_by_ids`, `webui/app.py:get_selection`:**
 `include_review_actions: true` adds the whole-selection `review_actions` counts for
@@ -945,7 +947,8 @@ One page, newest first (`page`, and `page_size` from 1 to 500, default 100):
      "run_counts": {"1": 2, "2": 2}}
 
 *   **`action`** identifies recorded metadata intent: `rotation`, `date`,
-    `metadata_source` or `metadata`; other operations return null. Lineage and exports
+    `metadata_source` or `metadata`, or what a Repair did: `move_back`, `from_rejects` or
+    `copy_back`; other operations return null. Lineage and exports
     carry the same value. This does not change stored outcomes or status filters.
 *   **`date_change`** is null without a verified date write; otherwise it contains
     `target` (metadata kind), `before` and `after` (each `{present, value}`). It reads
@@ -1151,16 +1154,18 @@ A **check summary** (also a run's `library_check`, section 6) is `{run_id, depth
 "full", stopped: "library_missing" | null, status, started_at, ended_at, intact, progress:
 {done, total} | null, lost, damaged, attention, found, tone: "plain" | "warn" | "bad",
 folders: [{folder, photos, moved_to, tone, lost}], housekeeping: {program: count},
-sidecars, other_types: {extension: count}, renamed: [{photo_id, old, new}]}`; `renamed` lists the
+sidecars, other_types: {extension: count}, renamed: [{photo_id, old, new}], repaired}`; `renamed` lists the
 renames the check recorded, paths relative to the library. `lost` counts photos missing with no copy
 anywhere, `damaged` unreadable ones, `attention` the findings to fix or decide (a whole
-folder counts once), `found` every finding.
+folder counts once), `found` every finding. `lost`, `damaged`, `attention` and `tone` leave
+out findings Repair has fixed since; `repaired` counts those.
 
 ### `GET /api/v1/library-check/{run_id}`
 
 Query: `page` (from 1), `page_size` (1–500, default 100). The check summary plus `total` and
 one page of `findings`, most serious first: `{path, relative, kind, finding, tone: "bad" |
-"warn" | "quiet", what, todo, photo_id, folder, size, checksum, found_in, found_path}`.
+"warn" | "quiet", what, todo, photo_id, folder, size, checksum, found_in, found_path,
+repaired_by}`; `repaired_by` is the Repair job that fixed it, or `null`.
 `finding` names it (`missing`, `moved`, `replaced`, `changed`, `unreadable`, `extra_copy`,
 `moved_here`, `unknown_photo`, `wrong_extension`, `other_type`, `unrecognised`, `empty`,
 `damaged`, `unopenable`); `what` and `todo` are the words the screens show. `404` when no
@@ -1170,11 +1175,35 @@ library check has this job number.
 
 Query: `format=csv|json` (default `csv`). Every finding of one check as a download, with
 `finding, tone, relative, path, folder, found_in, found_path, size, checksum, photo_id,
-what, todo`. `400` for another format, `404` for an unknown check.
+what, todo, repaired_by`. `400` for another format, `404` for an unknown check.
+
+### `POST /api/v1/repair/preview`
+
+Body: `{file_ids?: [photo id]}`. What Repair (`webui-spec.md` §7.6) would do for these
+photos, or for every photo the latest completed library check found, from the catalog
+alone: `{check_run, fixes, groups: [{repair: "move_back" | "from_rejects" | "copy_back",
+folder, items}], cannot: [item], unreadable: [{path, reason}]}`. Each item is `{photo_id,
+relative, finding, what}` with, for a fix, `repair, from_relative` (`null` for a copy from
+the source), `to_relative` and `folder`, and for what Repair can't fix, `todo` and
+`index_source: true` when **Index source** is the advice. Paths are relative to the
+library; `unreadable` paths are relative to the destination folder. `check_run` is `null`
+and the lists empty when no check has completed. A POST only because a selection's ids are
+too long for a URL; it reads. Unknown fields or ids that are not positive 64-bit integers
+return `400`.
+
+### `POST /api/v1/jobs/repair`
+
+Body: `{file_ids: [photo id], check_run, request_id?: string}`. Starts Repair as
+`--repair-library CHECK_RUN` for the photos ticked in its preview and returns `202` with the
+accepted `REPAIR` run. `409 repair_preview_changed` when `check_run` is no longer the
+latest completed check, or a chosen photo is no longer one Repair would fix; `400` for
+unknown fields, a missing `check_run` or invalid ids. Its operations read `Repaired`,
+`Skipped` (with the reason) or `Failed`; the job backs up the catalog before and after.
+Locking, replay and cancellation use the existing job protocol.
 
 ## 6. The run object and its outcome
 
-    {"id": 47, "mode": "INDEX" | "COPY" | "MOVE" | "REBUILD" | "CHECK" | "RENAME" | "SIMILARITY",
+    {"id": 47, "mode": "INDEX" | "COPY" | "MOVE" | "REBUILD" | "CHECK" | "RENAME" | "SIMILARITY" | "REPAIR",
      "status": "Preparing" | "Running" | "Cancelling" | "Completed" | "Cancelled" |
                "Failed" | "Interrupted",
      "started_at", "ended_at", "reconciled_by_run_id",

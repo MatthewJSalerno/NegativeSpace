@@ -2323,3 +2323,14 @@ the check run carries its note, catalog backups come before and after, and a fil
 another folder or content found twice stays a finding. The Check library browser driver
 renames a photo in place and finds the rename in the Logs entry and the photo's lineage.
 Manual acceptance is [RN1](../docs/manual-validation.md#renames-recorded-by-the-check).
+
+`repair_moves_and_copies_back_what_the_check_found_and_nothing_else` (smoke) covers Repair: a
+photo moved to another Library folder goes back to its date folder keeping its name, one put in
+Rejects goes back, and a missing one is copied back from the source and verified; a photo with no
+copy, an unreadable one and a file changed since the check are left alone with their reasons;
+backups come before and after; the fixed findings stop holding the reason; and a Repair from an
+older check is refused. `repair_recovers_an_interrupted_move_back` covers recovery pointing the
+photo from its recorded path to where an interrupted Repair moved it. The `Repair` class in
+`library_check_test.py` covers the preview, the selection's count, the job's refusals and the
+lineage action; the Check library browser driver repairs from a selection and checks the
+Inspector and the lineage. Manual acceptance is [RP1](../docs/manual-validation.md#repair).

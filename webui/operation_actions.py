@@ -44,6 +44,12 @@ def annotate(conn, items):
                     by_id[operation_id]['date_change'] = dict(target=target['kind'],
                         before=dict(present='date_taken' in before, value=before.get('date_taken')),
                         after=dict(present='date_taken' in after, value=after.get('date_taken')))
+        # What a Repair did (webui-spec 7.6), from its recorded intent.
+        for operation_id, kind in conn.execute(
+                "SELECT operation_id, json_extract(detail_json, '$.expected.repair') FROM operation_events "
+                "WHERE operation_id IN (" + ','.join('?' * len(batch)) + ") AND step='intent' "
+                "AND json_extract(detail_json, '$.kind')='repair'", batch):
+            by_id[operation_id]['action'] = kind
         for operation_id, survivor in conn.execute(
                 "SELECT operation_id,json_extract(detail_json,'$.survivor_photo_id') FROM operation_events "
                 "WHERE operation_id IN (" + ','.join('?' * len(batch)) + ") AND step='metadata_consolidated'",batch):

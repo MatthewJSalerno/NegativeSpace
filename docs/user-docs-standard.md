@@ -64,6 +64,7 @@ changes. Current claims and their sources:
 | Existing files are never replaced; a taken name gets a numbered suffix | engine-spec §4.2, Unique Filename Enforcement |
 | The app container runs as `PUID`/`PGID`; neither container is privileged | `docker/entrypoint.sh`, `docker/compose.yml` |
 | Check library never touches a file; the catalog records what it found, and renames the user made in a photo's own folder | engine-spec §9.1 |
+| Repair checks each file again just before it moves and deletes nothing; it copies from the source without changing it | engine-spec §9.2, Guards and the Repair table; `engine/repair.py` |
 
 Do not claim the containers never run as root: the app container's entrypoint starts as
 root to set folder ownership before dropping to `PUID`/`PGID`, and the web container uses

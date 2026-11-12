@@ -152,6 +152,7 @@ const MODE_NAME: Record<string, string> = {
   METADATA: "Metadata",
   INDEX: "Index", COPY: "Copy", MOVE: "Move", REBUILD: "Thumbnail rebuild", CHECK: "File issue check",
   SIMILARITY: "Similarity recovery", RENAME: "Rename", REJECT: "Reject", RETURN: "Return to library",
+  REPAIR: "Repair",
 };
 const PHASE: Record<string, string> = {
   discovering: "Looking for photos", scanning: "Reading photos", transferring: "Transferring",
@@ -167,6 +168,7 @@ const OUTCOME: Record<string, string> = {
   Compared: "hashes compared", already: "already present", kept: "kept", ok: "intact", missing: "missing", changed: "changed",
   unreadable: "unreadable", unknown: "not put there by NegativeSpace", Renamed: "renamed",
   Rejected: "in Rejects", Rejected_Copied: "in Rejects, original kept", Returned: "returned to the library",
+  Repaired: "repaired",
 };
 
 export function activeTitle(run: Run): string {
@@ -176,7 +178,7 @@ export function activeTitle(run: Run): string {
 
 // Jobs that act on photos, whose photos the Library can show (webui-spec 2, after a job).
 export function showsPhotos(run: Run): boolean {
-  return ["COPY", "MOVE", "REJECT", "RETURN", "RENAME"].includes(run.mode ?? "") && (run.outcome?.total ?? 0) > 0;
+  return ["COPY", "MOVE", "REJECT", "RETURN", "RENAME", "REPAIR"].includes(run.mode ?? "") && (run.outcome?.total ?? 0) > 0;
 }
 
 export function jobLabel(id: number | null | undefined, mode: string | null): string {
@@ -198,7 +200,7 @@ export function phaseLabel(phase: Phase): string {
 
 // Successes first, then non-actions, then problems.
 const ORDER = ["eligible", "excluded", "indexed", "unchanged", "Copied", "Completed", "Removed_Duplicate",
-  "Found_At_Destination", "Rejected", "Rejected_Copied", "Returned", "made", "ok", "Renamed", "already", "kept", "Skipped", "Already_Gone", "unknown",
+  "Found_At_Destination", "Rejected", "Rejected_Copied", "Returned", "Repaired", "made", "ok", "Renamed", "already", "kept", "Skipped", "Already_Gone", "unknown",
   "Cancelled", "missing", "changed", "unreadable", "failed", "Failed"];
 
 export function countsLine(counts: Record<string, number>, mode?: string | null): string {
@@ -277,12 +279,15 @@ export function summary(run: Run, numbered = true): { headline: string; detail: 
           ? `${count(outcome.counts.Rejected ?? 0)} of ${plural(outcome.total, "photo")} moved to Rejects`
           : run.mode === "RETURN" && outcome.total != null
             ? `${count(outcome.counts.Returned ?? 0)} of ${plural(outcome.total, "photo")} returned to the library`
-            : "";
+            : run.mode === "REPAIR" && outcome.total != null
+              ? `${count(outcome.counts.Repaired ?? 0)} of ${plural(outcome.total, "photo")} repaired`
+              : "";
   const reasons = outcome.skip_reasons ? skipReasons(outcome.skip_reasons) : "";
   const rest = countsLine(
     Object.fromEntries(Object.entries(outcome.counts).filter(([k]) =>
       !(run.mode === "COPY" && k === "Copied") && !(run.mode === "MOVE" && (k === "Completed" || k === "Copied"))
       && !(run.mode === "REJECT" && k === "Rejected") && !(run.mode === "RETURN" && k === "Returned")
+      && !(run.mode === "REPAIR" && k === "Repaired")
       && !(run.mode === "MOVE" && k === "Rejected_Copied")
       && !(run.mode === "METADATA" && k === "Metadata_Saved")
       && !(reasons && k === "Skipped"))),
