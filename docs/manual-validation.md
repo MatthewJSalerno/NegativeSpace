@@ -9,7 +9,7 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Repair:** [RP1a–RP1i and RP2a–RP2i](#repair) passed, including all lettered steps, on 2026-11-11; [RP3a–RP3g](#repair) pending.
+**Repair:** [RP1a–RP1i, RP2a–RP2i and RP3a–RP3g](#repair) passed, including all lettered steps, on 2026-11-11.
 
 **Menu descriptions:** [MN1a–MN1e](#menu-descriptions) passed, including all lettered steps,
 on 2026-11-05.
@@ -84,7 +84,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Repair
 
-**Status:** the maintainer passed RP1a–RP1i and RP2a–RP2i on 2026-11-11; RP3a–RP3g pending. Read: `engine/repair.py`,
+**Status:** the maintainer passed RP1a–RP1i, RP2a–RP2i and RP3a–RP3g on 2026-11-11. Read: `engine/repair.py`,
 `webui/frontend/src/components/Repair.tsx` (`docs/webui-spec.md` §7.6, `docs/engine-spec.md`
 §9.2).
 

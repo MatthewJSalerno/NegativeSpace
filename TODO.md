@@ -56,7 +56,7 @@ development until the maintainer decides.
 - 💬 The user's own groupings of Library photos (a trip, an album) without breaking the date folders (`docs/webui-spec.md` §7.6)
 - Repair: Move it back, back from Rejects and Copy it back — built, RP1 passed 2026-11-11 (`docs/manual-validation.md`, Repair; `docs/webui-spec.md` §7.6)
 - Repair: Keep the new version and It's an edit of this photo — built, RP2 passed 2026-11-11 (`docs/manual-validation.md`, Repair; `docs/engine-spec.md` §9.2)
-- A photo in the wrong folder: the finding states the date mismatch, and fixing the date in the date editor files it and clears the finding; while any finding is open, the Destination path says what the check saw there and Rename waits — built, RP3 acceptance pending (`docs/manual-validation.md`, Repair; `docs/webui-spec.md` §7.6)
+- A photo in the wrong folder: the finding states the date mismatch, and fixing the date in the date editor files it and clears the finding; while any finding is open, the Destination path says what the check saw there and Rename waits — built, RP3 passed 2026-11-11 (`docs/manual-validation.md`, Repair; `docs/webui-spec.md` §7.6)
 - Repair of a photo with a delivered XMP sidecar (the pair moves together), the catalog-only answers (Stop warning about this among them), Add to catalog and Rebuild from the earlier version — decided, not built (`docs/engine-spec.md` §9.2, `docs/webui-spec.md` §7.6)
 - Import summary, and a filter for files that could not be previewed
 - Skip unreadable files at Index, counted by kind — decided, not built (`docs/engine-spec.md` §4.1)
