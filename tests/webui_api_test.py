@@ -846,6 +846,19 @@ class JobsAndCatalog(ApiCase):
         self.assertTrue(detail["dest_path_is_projection"])
         self.assertEqual(self.client.get("/api/v1/photos/999999/inspect").status_code, 404)
 
+    def test_a_name_with_a_line_break_is_left_out_and_the_source_still_counts_as_indexed(self):
+        make_photo(self.cfg.source / "two\nlines.jpg", "c")
+        run = self.index_library()
+        self.assertEqual(run["outcome"]["counts"].get("Skipped"), 1, run["outcome"])
+        self.assertEqual(run["outcome"]["skip_reasons"], {"invalid_name": 1},
+                         "the left-out name's reason was not recognised; did the engine's wording change?")
+        self.assertEqual((run["outcome"]["failed"], run["outcome"]["run_level_issues"]), (0, 0))
+        self.assertEqual(self.client.get("/api/v1/photos", params={"view": "unorganized"}).json()["total"], 2)
+        self.assertEqual(self.client.get("/api/v1/library-check").json()["source"]["run_id"], run["id"],
+                         "a name left out on purpose made the Index count as incomplete")
+        entry = self.client.get("/api/v1/operations", params={"run": run["id"], "status": "Skipped"}).json()["items"][0]
+        self.assertEqual((entry["photo_id"], entry["source_path"]), (None, str(self.cfg.source / "two\nlines.jpg")))
+
     def test_a_copy_through_the_api_counts_the_requested_work_only(self):
         self.index_library()
         run = self.wait_for(self.start(mode="copy"))

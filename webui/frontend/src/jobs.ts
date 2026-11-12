@@ -233,6 +233,7 @@ const SKIP_REASON: Record<string, string> = {
   already_in_library: "already in the library",
   not_in_rejects: "not in Rejects",
   rejects_emptied: "emptied from Rejects",
+  invalid_name: "left out: invalid name",
   network_share_unconfirmed: "not attempted: a Move to a network share needs confirming",
   source_looked_empty: "not attempted: the source looked empty",
   other: "other reasons",

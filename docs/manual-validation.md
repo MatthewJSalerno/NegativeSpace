@@ -9,6 +9,9 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Invalid names:** [LB1a–LB1c](#invalid-names) passed on 2026-11-12. The messages were then reworded at the
+maintainer's request to say only that the name is invalid; LB1a and LB1c show the reworded text.
+
 **Repair:** [RP1a–RP1i, RP2a–RP2i and RP3a–RP3g](#repair) passed, including all lettered steps, on 2026-11-11.
 
 **Menu descriptions:** [MN1a–MN1e](#menu-descriptions) passed, including all lettered steps,
@@ -81,6 +84,50 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Invalid names
+
+**Status:** the maintainer passed LB1a–LB1c on 2026-11-12 and asked that the messages say only
+that a name is invalid, with the characters listed in the user guide instead of in each
+message. The expected text below is the reworded text. Read: `engine/fileinfo.py` (`control_character_in`),
+`engine/scan.py` (`discover_source_files`), `engine/library_check.py` (`describe`)
+(`docs/engine-spec.md` §4.2, `docs/webui-spec.md` §7.6).
+
+### Test LB1 — Index leaves an invalid name out, and the check lists it
+
+**Where:** the review instance at `http://localhost:8092`. Verified: every step was walked on
+a copy of the instance, with the results shown.
+
+The source holds six generated photos. Three have ordinary names: `garden-01.jpg`,
+`garden-02.jpg`, `garden-03.jpg`. One file's name has a line break in the middle (`line`,
+a line break, `break.jpg`), and two photos are in a folder whose name has one (`odd`, a line
+break, `folder`). The Library folder holds one photo NegativeSpace did not put there,
+`2024/05/03/stray`, a line break, `file.jpg`. A screen shows a line break in a name as a
+space. The source was indexed once (Job #1); nothing was copied.
+
+- **LB1a — Index leaves them out and says so.**
+  - Do: choose **Jobs › Index**, wait for it to finish, then choose **Logs** in the sidebar.
+  - Expected: the first entry reads **Job #2 · Index had nothing to do**, with "3 unchanged ·
+    2 skipped (2 left out: invalid name)". **Not organized** in the sidebar
+    reads **3**.
+  - Do: choose that entry to open it.
+  - Expected: two rows with the status **Skipped**. One names `/data/source/odd folder` and
+    says "Invalid folder name: Index left this folder and everything inside it out. Make sure
+    its name has no invalid characters, then run Index again. The user guide lists them under
+    Index." The other names `/data/source/line break.jpg` and says "Invalid file name: Index
+    left this file out. Make sure its name has no invalid characters, then run Index again.
+    The user guide lists them under Index."
+- **LB1b — The source still counts as indexed.**
+  - Do: look at **Status** at the foot of the sidebar.
+  - Expected: the **Source** row reads **indexed** with today's date, not "not indexed yet".
+- **LB1c — Check library names the one in the Library.**
+  - Do: choose **Jobs › Check library…**, then **Quick check**, and wait for it to finish.
+  - Expected: the **Library** row under **Status** reads **1 needs attention**.
+  - Do: choose that **Library** row.
+  - Expected: Logs opens on **Job #3 · Library check finished**, "Quick · 0 as recorded · 1
+    needs attention", with one finding: **Invalid name**, `2024/05/03/stray file.jpg`,
+    "Invalid path or file name." and "Make sure the name and its folders have no invalid
+    characters, then check the library again. The user guide lists them under Index."
 
 ## Repair
 

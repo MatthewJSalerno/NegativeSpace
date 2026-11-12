@@ -36,6 +36,7 @@ export const FINDING_LABEL: Record<string, string> = {
   moved: "Moved", missing: "Missing", replaced: "Replaced", changed: "Changed", unreadable: "Unreadable",
   extra_copy: "Extra copy", moved_here: "Moved here", unknown_photo: "Not catalogued", wrong_extension: "Wrong name",
   other_type: "Other type", unrecognised: "Unknown kind", empty: "Empty", damaged: "Damaged", unopenable: "Can't open",
+  invalid_name: "Invalid name",
 };
 
 // Other programs' housekeeping, by program (engine/library_check.py).

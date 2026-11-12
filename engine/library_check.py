@@ -256,6 +256,7 @@ def renames(conn, findings: list) -> list:
     for f in findings:
         if (f["kind"] == "missing" and f.get("found_in") == "library" and holders[f["expected_sha1"]] == 1
                 and os.path.dirname(f["found_path"]) == os.path.dirname(f["path"])
+                and not fileinfo.control_character_in(os.path.basename(f["found_path"]))   # never adopted as a name
                 and metadata_relocate.current(conn, f["path"]) is None):
             found.append(f)
     return found
@@ -409,6 +410,11 @@ def describe(f: dict, library: Path, catalogued: dict, moved_here: Optional[dict
                 else f" A copy is at {rel(f['found_path'])}, so the photo isn't lost.")
         return {"finding": "unreadable", "tone": "bad", "what": f"Can't be read: {f.get('detail') or 'no reason given'}."
                 + copy, "todo": "Check the file's permissions and the disk, then check the library again."}
+    if fileinfo.control_character_in(os.path.relpath(f["path"], library)):
+        # Not offered to Repair or as a photo to add: no reader is given such a name.
+        return {"finding": "invalid_name", "tone": "warn", "what": "Invalid path or file name.",
+                "todo": "Make sure the name and its folders have no invalid characters, then check the library "
+                        f"again. {fileinfo.INVALID_NAME_HELP}"}
     ext = os.path.splitext(f["path"])[1]
     if f["path"] in moved_here:
         source = moved_here[f["path"]]

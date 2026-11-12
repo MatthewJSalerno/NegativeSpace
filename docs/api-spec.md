@@ -1176,7 +1176,7 @@ one page of `findings`, most serious first: `{path, relative, kind, finding, ton
 repaired_by}`; `repaired_by` is the Repair job that fixed it, or `null`.
 `finding` names it (`missing`, `moved`, `replaced`, `changed`, `unreadable`, `extra_copy`,
 `moved_here`, `unknown_photo`, `wrong_extension`, `other_type`, `unrecognised`, `empty`,
-`damaged`, `unopenable`); `what` and `todo` are the words the screens show. `404` when no
+`damaged`, `unopenable`, `invalid_name`); `what` and `todo` are the words the screens show. `404` when no
 library check has this job number.
 
 ### `GET /api/v1/library-check/{run_id}/export`

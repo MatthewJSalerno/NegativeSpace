@@ -701,8 +701,10 @@ def main():
                 runtime.run_progress.set_count("eligible", eligible)
                 runtime.run_progress.set_count("excluded", excluded)
                 runtime.run_progress.maybe_write_now()
+            unread_names = []
             candidates = scan.discover_source_files(source_path, active_extensions, errors=discovery_errors,
-                                               excluded=excluded_by_ext, on_directory=discovered)
+                                               excluded=excluded_by_ext, skipped=unread_names,
+                                               on_directory=discovered)
             runtime.run_progress.write_now()
             with contextlib.closing(store.get_db_connection(str(db_path))) as conn:
                 ns_db.record_discovery(conn, run_id, eligible_by_extension=Counter(Path(path).suffix.lower() for path in candidates),
@@ -719,6 +721,8 @@ def main():
                 + (". Counts are PARTIAL: some folders could not be read." if discovery_errors else ".")
                 + f" Eligible extensions: {', '.join(sorted(active_extensions))}."
             )
+            if unread_names:
+                record_run_failures(str(db_path), run_id, unread_names, status=ns_db.OPERATION_SKIPPED)
             if discovery_errors:
                 record_run_failures(str(db_path), run_id, discovery_errors)
                 runtime.logger.warning(
@@ -942,12 +946,13 @@ def main():
         sys.exit(1)
 
 
-def record_run_failures(db_path: str, run_id: int, failures: List[tuple]):
-    """Records (path, reason) failures that belong to the run rather than to any catalogued photo."""
+def record_run_failures(db_path: str, run_id: int, failures: List[tuple], status=PhotoStatus.FAILED):
+    """Records (path, reason) entries that belong to the run rather than to any catalogued
+    photo: failures, or with `status` Skipped, names the walk left out on purpose."""
     conn = store.get_db_connection(db_path)
     try:
         for path, reason in failures:
-            store.log_operation(conn, run_id, None, path, None, PhotoStatus.FAILED, reason, commit=False)
+            store.log_operation(conn, run_id, None, path, None, status, reason, commit=False)
         conn.commit()
     finally:
         conn.close()

@@ -108,6 +108,8 @@ def _new_name_stem(name: str, current_suffix: str) -> str:
         raise RenameRefused("The new name is empty.")
     if "/" in stem or "\0" in stem:
         raise RenameRefused("A name cannot contain '/'; the date folder is kept as it is.")
+    if fileinfo.control_character_in(stem):
+        raise RenameRefused(f"A name cannot contain invalid characters. {fileinfo.INVALID_NAME_HELP}")
     if stem.startswith("."):
         raise RenameRefused("A name starting with '.' would be hidden, and hidden files are skipped.")
     if len(os.fsencode(stem + current_suffix)) > 255:

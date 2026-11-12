@@ -76,6 +76,13 @@ shows at the top of the page; closing the browser does not stop it.
 
 ![The Jobs menu explains Index without moving or copying photos](images/jobs-index-menu.png)
 
+**File and folder names.** A name can hold any characters except control characters: a line
+break, a tab, or anything else that takes no space on screen and cannot be typed as a
+letter. Spaces, accents, punctuation and emoji are all fine. Index leaves out a file or
+folder with an invalid name and lists it in its **Logs** entry as **Skipped**; **Check
+library…** lists one it finds in your library as **Invalid name**. Rename it in your file
+manager, then run Index or the check again.
+
 ## 3. Look around
 
 When Index finishes, **Not organized** shows the source photos and an Index summary.

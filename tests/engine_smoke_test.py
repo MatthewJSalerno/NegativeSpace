@@ -445,6 +445,66 @@ def a_file_that_is_not_an_image_is_logged_and_left_alone():
 
 
 @test
+def a_name_with_a_line_break_is_never_read_or_catalogued():
+    """
+    ExifTool takes its arguments one per line, so a file name holding line breaks
+    would reach it as several arguments, and its -if argument evaluates Perl. Index
+    skips a file or folder whose name holds a control character: nothing reads it, it
+    is not catalogued, and the run's log names it as Skipped with the reason. The photo beside it
+    is indexed as usual. Rename refuses to give a Library photo such a name.
+    """
+    case = new_case("control_character_names")
+    marker = case / "expression-ran"
+    # A name cannot hold "/", so the marker's path is spelled in hex.
+    expression = f'(open(F,">".pack("H*","{str(marker).encode().hex()}"))&&close(F));1'
+    make_photo(case / "src" / "ok.jpg", "ok")
+    # The file the split arguments would name, so ExifTool has something to test -if on.
+    make_photo(case / "src" / "a", "decoy")
+    hostile = f"a\n-if\n{expression}\nb.jpg"
+    make_photo(case / "src" / hostile, "hostile")
+    (case / "src" / "fol\rder").mkdir()
+    make_photo(case / "src" / "fol\rder" / "inside.jpg", "inside")
+    out = run_engine(case)
+    check(not marker.exists(), "an expression in a file name was evaluated")
+    names = [Path(r["source_path"]).name for r in rows(case, "SELECT source_path FROM photos")]
+    check(names == ["ok.jpg"], f"only the ordinary photo is catalogued, got {names}")
+    skipped = {r["source_path"]: r["error_message"] for r in rows(
+        case, "SELECT source_path, error_message FROM operations WHERE status = 'Skipped' AND photo_id IS NULL")}
+    check(set(skipped) == {str(case / "src" / hostile), str(case / "src" / "fol\rder")},
+          f"the run's log names the skipped file and folder: {skipped}")
+    check(all(m.startswith("Invalid f") and "invalid characters" in m for m in skipped.values()), f"reasons: {skipped}")
+    # Left out on purpose, so the walk is whole: the source still counts as indexed.
+    check(rows(case, "SELECT unreadable FROM run_discovery")[0]["unreadable"] == 0, "the walk was recorded as partial")
+    check(not rows(case, "SELECT 1 FROM operations WHERE status = 'Failed'"), "a skipped name was recorded as a failure")
+    check("\n-if\n" not in out.stdout + out.stderr, "the name broke a log line apart")
+    # A catalogued path that holds one (ids given by hand) is refused unread.
+    from engine import fileinfo, scan
+    check(fileinfo.get_full_exif_via_exiftool(case / "src" / hostile) is None, "the reader took the name")
+    refused = scan.process_file_task(str(case / "src" / hostile), str(case / "dest"), 1)
+    check(refused.status == "Failed" and refused.error_message.startswith("Invalid file name"), f"{refused}")
+    check(not marker.exists(), "an expression in a file name was evaluated on the targeted path")
+    run_engine(case, "--copy")
+    photo_id = rows(case, "SELECT id FROM photos")[0]["id"]
+    run_engine(case, "--rename", photo_id, "--name=two\nlines", expect_rc=None)
+    check([Path(f).name for f in dest_files(case)] == ["ok.jpg"],
+          f"a control character was accepted in a new name: {dest_files(case)}")
+    # In the Library, Check library names such a file and adopts nothing: a stray one is a
+    # finding of its own, and a photo renamed to such a name is not recorded as renamed.
+    from engine import library_check
+    filed = Path(rows(case, "SELECT dest_path FROM photos")[0]["dest_path"])
+    make_photo(filed.with_name("stray\nfile.jpg"), "stray")
+    filed.rename(filed.with_name("re\tnamed.jpg"))
+    run_engine(case, "--check-destination", "quick")
+    check(rows(case, "SELECT dest_path FROM photos")[0]["dest_path"] == str(filed), "a control-character name was adopted")
+    with contextlib.closing(db(case)) as conn:
+        report = library_check.report(conn, rows(case, "SELECT MAX(run_id) m FROM library_checks")[0]["m"])
+    found = {f["relative"].rsplit("/", 1)[-1]: f["finding"] for f in report["findings"]}
+    check(found.get("stray\nfile.jpg") == "invalid_name" and found.get("re\tnamed.jpg") == "invalid_name",
+          f"the check did not name them: {found}")
+    check(report["attention"] >= 1, f"they are not counted as needing attention: {report['attention']}")
+
+
+@test
 def a_file_returning_after_a_move_is_a_duplicate_of_the_moved_photo():
     """
     Maintainer's rule: a file that arrives after an Index with content already catalogued

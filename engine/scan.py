@@ -51,6 +51,11 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int,
     """
     file_path = Path(file_path_str)
 
+    # A full Index never lists such a file (discover_source_files); this covers a path
+    # reached by its catalogued id.
+    if fileinfo.control_character_in(file_path_str):
+        return _failed_result(file_path_str, run_id, fileinfo.CONTROL_CHARACTER_FILE)
+
     # Checked explicitly, before any attempt to open the file, so a stale
     # selection surfaces as a specific reason in the Error Center rather than
     # a raw FileNotFoundError traceback (docs/engine-spec.md 4.2).
@@ -171,7 +176,7 @@ def describe_root_overlap(source: Path, dest: Path) -> Optional[str]:
 
 
 def discover_source_files(root: Path, extensions: set, errors: Optional[list] = None,
-                          excluded: Optional[dict] = None,
+                          excluded: Optional[dict] = None, skipped: Optional[list] = None,
                           on_directory: Optional[Callable[[int, int], None]] = None) -> List[str]:
     """
     Walks `root` and returns the files worth scanning.
@@ -201,6 +206,13 @@ def discover_source_files(root: Path, extensions: set, errors: Optional[list] = 
     """
     found: List[str] = []
     stack = [str(root)]
+
+    def skip_named(path, reason):
+        # Never read and never catalogued (fileinfo.control_character_in). `skipped` lets the
+        # caller record it; it is not an error of the walk, which still covered the source.
+        runtime.logger.warning(f"Skipped {path!r}: its name contains a control character.")
+        if skipped is not None:
+            skipped.append((path, reason))
     while stack:
         current = stack.pop()
         try:
@@ -213,8 +225,12 @@ def discover_source_files(root: Path, extensions: set, errors: Optional[list] = 
                     if entry.name.startswith('.'):
                         continue
                     try:
+                        invalid_name = fileinfo.control_character_in(entry.name)
                         if entry.is_dir(follow_symlinks=False):
-                            stack.append(entry.path)
+                            if invalid_name:
+                                skip_named(entry.path, fileinfo.CONTROL_CHARACTER_FOLDER)
+                            else:
+                                stack.append(entry.path)
                             continue
                         ext = os.path.splitext(entry.name)[1].lower()
                         if ext not in extensions:
@@ -222,7 +238,10 @@ def discover_source_files(root: Path, extensions: set, errors: Optional[list] = 
                                 excluded[ext] = excluded.get(ext, 0) + 1
                             continue
                         if entry.is_file(follow_symlinks=False):
-                            found.append(entry.path)
+                            if invalid_name:
+                                skip_named(entry.path, fileinfo.CONTROL_CHARACTER_FILE)
+                            else:
+                                found.append(entry.path)
                     except OSError as e:
                         runtime.logger.warning(f"Could not inspect {entry.path}: {e}")
                         if errors is not None:
