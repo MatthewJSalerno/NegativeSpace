@@ -239,7 +239,7 @@ const SKIP_REASON: Record<string, string> = {
   other: "other reasons",
 };
 
-export function skipReasons(reasons: Record<string, number>): string {
+function skipReasons(reasons: Record<string, number>): string {
   return Object.entries(reasons).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1])
     .map(([key, n]) => `${count(n)} ${SKIP_REASON[key] ?? key}`).join(", ");
 }
