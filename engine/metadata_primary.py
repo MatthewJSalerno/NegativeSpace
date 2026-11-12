@@ -1,7 +1,6 @@
 """Verified embedded-primary activation. Metadata bytes and alternatives stay intact."""
 from datetime import datetime
 import json
-from pathlib import Path
 
 from engine import constants, metadata_photo_save, metadata_save, ns_db
 
