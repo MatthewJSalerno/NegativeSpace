@@ -37,7 +37,7 @@ _SKIP_REASONS = (("Duplicate", "duplicate"), ("Already copied", "already_copied"
                  ("Already rejected", "already_rejected"), ("Already in Rejects", "already_in_rejects"),
                  ("Not organized yet", "not_organized"), ("A copy of another photo", "copy_follows_original"),
                  ("Already in the library", "already_in_library"), ("Not in Rejects", "not_in_rejects"),
-                 ("Rejects has been emptied", "rejects_emptied"),
+                 ("Rejects has been emptied", "rejects_emptied"), ("Name not read", "unreadable_name"),
                  ("Not attempted: the destination is a network share", "network_share_unconfirmed"),
                  ("Not attempted: the source folder is empty", "source_looked_empty"))
 
@@ -101,6 +101,13 @@ def _outcome(conn, run: dict, progress: list) -> dict:
         scan_failed = phases.get("scanning", {}).get("counts", {}).get("failed", 0)
         if scan_failed:
             counts["failed"] = counts.get("failed", 0) + scan_failed
+    # Names a walk left out on purpose (engine-spec 4.2): skipped entries of the run itself,
+    # which no progress phase counts.
+    left_out = conn.execute(
+        "SELECT COUNT(*) FROM operations WHERE run_id = ? AND photo_id IS NULL AND status = ? "
+        "AND reconciles_operation_id IS NULL", (run["id"], OPERATION_SKIPPED)).fetchone()[0]
+    if left_out:
+        counts[OPERATION_SKIPPED] = counts.get(OPERATION_SKIPPED, 0) + left_out
     # In a Move, Copied means the original could not be deleted: not the Move asked for,
     # and not a failure either. Counted apart, with its reasons.
     # A rejected photo whose original could not be deleted is the same, its copy in Rejects.

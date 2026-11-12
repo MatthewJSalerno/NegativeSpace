@@ -3015,6 +3015,11 @@ changes only the catalog and is recorded in the photo's history (`engine-spec.md
 Rejects), **It's an edit of this photo** (a change too heavy to match as a look-alike), and
 **Stop warning about this** (an unknown file or folder, until it changes).
 
+**A file whose name holds a line break or another control character** is listed as **Unreadable
+name**, needing attention, with one piece of advice: rename it in the Library folder, then
+check again. NegativeSpace reads nothing from such a name (`engine-spec.md` §4.2), so Repair
+and **Add to catalog…** are never offered on it; **Stop warning about this** is.
+
 **A photo in the wrong folder is a date mismatch, stated, never a question** (decided
 2026-11-09; built). The finding says what disagrees, the date its recorded folder names
 against where it is: "Its date is 5 May 2023, but it's at 2021/06/14/IMG_1.jpg", or "It has
@@ -3142,7 +3147,7 @@ that no longer decodes) has no Repair: it may be damaged.
 that left the picture alone grouped with the fields they touched, and format conversions
 linked to their original (`engine-spec.md` §9.2).
 
-**Add to catalog…** is offered on an unknown file that is a photo. It records the file as a
+**Add to catalog…** is offered on an unknown file that is a photo, unless its name is unreadable (above). It records the file as a
 Library photo, reading it as Index reads a source file, and files it by its date like Copy
 (`engine-spec.md` §9.2): into its date folder, or it stays when it is already there. The
 preview names where it goes. It never stays outside its date folder (2026-11-04 rule above).

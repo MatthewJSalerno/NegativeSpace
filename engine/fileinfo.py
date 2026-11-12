@@ -35,6 +35,25 @@ def require_plain_path(path):
         raise SymlinkPathError(errno.EPERM, "Symbolic links in a photo or cache path are not followed", str(path))
 
 
+def control_character_in(path) -> bool:
+    """Whether a path holds a line break or another control character.
+
+    Such a name is never handed to ExifTool, whose persistent process takes its
+    arguments one per line: the name would arrive as several arguments, and one of
+    ExifTool's arguments (-if) evaluates Perl. No camera or phone writes such a name,
+    so Index skips the file, and Rename refuses to create one (engine-spec 4.2).
+    """
+    return any(ord(c) < 32 or ord(c) == 127 for c in str(path))
+
+
+# Why Index leaves such a file or folder out, as its Skipped log entry says it. The API
+# groups skip reasons by how they start (webui/outcomes.py, _SKIP_REASONS).
+CONTROL_CHARACTER_FILE = ("Name not read: this file's name contains a line break or another control "
+                          "character, so Index left it out. Rename it, then run Index again.")
+CONTROL_CHARACTER_FOLDER = ("Name not read: this folder's name contains a line break or another control "
+                            "character, so Index left out everything inside it. Rename it, then run Index again.")
+
+
 # --- Dates ---
 def parse_exif_date(value: str) -> Optional[datetime]:
     try:
@@ -133,7 +152,7 @@ def get_full_exif_via_exiftool(file_path: Path) -> Optional[dict]:
     _init_worker_process) instead of spawning a subprocess per file.
     """
     global _worker_exiftool, _worker_exiftool_failures
-    if _worker_exiftool is None:
+    if _worker_exiftool is None or control_character_in(file_path):
         return None
     try:
         result = _worker_exiftool.get_metadata([str(file_path)])
