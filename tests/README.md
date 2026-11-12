@@ -2339,6 +2339,12 @@ released and linked, the date editor's preview binds the new checksum, and the n
 each photo as recorded. `repair_recovers_an_interrupted_keep_and_move` covers recovery recording
 the kept version when its move was interrupted. The `Repair` class in `library_check_test.py`
 covers the preview (no container paths), the selection's count, the job's refusals, the lineage
-action, and a kept version left out of Logs' metadata edits; the Check library browser driver
-repairs from a selection and checks the Inspector and the lineage. Manual acceptance is
-[RP1 and RP2](../docs/manual-validation.md#repair).
+action, a kept version left out of Logs' metadata edits, and a photo moved into another day's
+folder: its finding states the date mismatch with `date_fix`, the date editor's context names
+where it is and the day its folder names, and saving that date keeps it there and clears the
+reason. The `found` tests in `metadata_photo_save_test.py` cover the save itself: a new date
+naming the folder it was found in keeps it there, another date files it from where it was found,
+only a new date is accepted, and a move that fails after the date is written keeps the finding
+open and a retry, which files it. The Check library browser driver repairs from a selection,
+checks the Inspector, the date mismatch wording, **Edit metadata date…** and the editor's note,
+and the lineage. Manual acceptance is [RP1, RP2 and RP3](../docs/manual-validation.md#repair).

@@ -102,7 +102,9 @@ with sync_playwright() as p:
     expect(findings.get_by_role('row').filter(has_text='photo-005.jpg')).to_contain_text('no copy was found')
     sixth = findings.get_by_role('row').filter(has_text='photo-006.jpg')
     expect(sixth).to_have_count(1)
-    expect(sixth).to_contain_text('Found at a different place in the Library: sorted/photo-006.jpg')
+    # A photo in another folder is said as the date mismatch it is (webui-spec 7.6).
+    expect(sixth).to_contain_text(re.compile(r"(Its date is \d{1,2} \w+ \d{4}|It has no date, so it belongs in Undated/\d{4}), "
+                                             r"but it's at sorted/photo-006\.jpg\."))
     expect(sixth).to_contain_text('Moved')
     expect(findings).to_contain_text('1 .txt file')
     expect(findings).to_contain_text('from other programs: Mac system files')
@@ -136,9 +138,31 @@ with sync_playwright() as p:
     shot(page, 'inspector')
     # Repair (webui-spec 7.6): never offered for a photo it can't fix, offered for one it can.
     expect(note.get_by_role('button', name='Repair…')).to_have_count(0)
+    # Its advice names Index source, so the note offers it, and never says Repair fixes it.
+    expect(note.get_by_role('group', name='Library check').get_by_role('button', name='Index source', exact=True)).to_be_visible()
+    expect(note).to_contain_text('This clears itself when a later check finds the photo as recorded.')
     six = request.get('/api/v1/photos', params={'view': 'review', 'reason': 'library', 'q': 'photo-006'}).json()['items'][0]['id']
     page.goto(BASE + f'/?view=review&reason=library&photo={six}')
-    expect(page.get_by_role('region', name='Photo review', exact=True).get_by_role('button', name='Repair…')).to_be_visible()
+    six_note = page.get_by_role('region', name='Photo review', exact=True)
+    expect(six_note.get_by_role('button', name='Repair…')).to_be_visible()
+    # The recorded path says the file isn't there, and nothing offers to rename a file that isn't there.
+    details = page.get_by_role('region', name='Photo details', exact=True)
+    expect(details.locator('.file-location-value code.warning')).to_have_count(1)
+    details.locator('.file-location-value code.warning').scroll_into_view_if_needed()
+    expect(details).to_contain_text(re.compile(r"Not here when Job #\d+ checked: it's at sorted/photo-006\.jpg\. See Library check above\."))
+    renames = details.get_by_role('button', name='Rename…', exact=True)
+    expect(renames).to_have_count(2)
+    for i in range(2):
+        expect(renames.nth(i)).to_be_disabled()
+    shot(page, 'inspector-moved')
+    # Fixing its date is the other way out: the editor opens on the file where the check found it.
+    six_note.get_by_role('button', name='Edit metadata date…', exact=True).click()
+    editor = page.get_by_role('dialog', name='Edit Date taken', exact=True)
+    expect(editor).to_contain_text('This photo is outside the folder for its date.')
+    expect(editor).to_contain_text('library/sorted/photo-006.jpg')
+    shot(page, 'date-fix')
+    editor.get_by_role('button', name='Cancel', exact=True).click()
+    expect(editor).to_have_count(0)
     # From a selection of every photo under the reason: two fixes, one it can't make.
     page.goto(BASE + '/?view=review&reason=library')
     page.get_by_role('button', name='Select', exact=True).click()

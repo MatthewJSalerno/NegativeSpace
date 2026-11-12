@@ -9,7 +9,7 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Repair:** [RP1a–RP1i and RP2a–RP2i](#repair) passed, including all lettered steps, on 2026-11-11.
+**Repair:** [RP1a–RP1i, RP2a–RP2i and RP3a–RP3g](#repair) passed, including all lettered steps, on 2026-11-11.
 
 **Menu descriptions:** [MN1a–MN1e](#menu-descriptions) passed, including all lettered steps,
 on 2026-11-05.
@@ -84,104 +84,269 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Repair
 
-**Status:** the maintainer passed RP1a–RP1i and RP2a–RP2i on 2026-11-11. Read: `engine/repair.py`,
+**Status:** the maintainer passed RP1a–RP1i, RP2a–RP2i and RP3a–RP3g on 2026-11-11. Read: `engine/repair.py`,
 `webui/frontend/src/components/Repair.tsx` (`docs/webui-spec.md` §7.6, `docs/engine-spec.md`
 §9.2).
 
-Verified: the review instance holds six generated photos, indexed and copied, the originals
-kept in the source. Then, by hand: `tulip-01.jpg` was moved to a folder `sorted` and renamed
-`tulip.jpg`; `rose-01.jpg` was moved into `rejects/by hand`; `daisy-01.jpg` was deleted from
-the library (its original is in the source); `lily-01.jpg` was deleted from the library and
-the source; `iris-01.jpg` was made unreadable; `poppy-01.jpg` is untouched. Every step was
-walked on a copy of the instance; no check has run on the instance itself.
+**Getting around.** These words mean the same thing in every step below.
+
+- **To review** is under **Library** in the sidebar. It opens the Library's **Needs review** tab.
+- **Reason** is the drop-down beside the **Needs review** tab.
+- To **open** a photo, click its picture. Its details open on the right, on the **Photo
+  information** tab. If that panel shows another tab, choose **Photo information**. A photo's
+  **Library check** warning is near the top of that tab.
+- The **Library status row** is the **Library** row under **Status**, at the bottom left of the
+  sidebar, not the **Library** at the top. Choosing it opens the latest check's results in
+  **Logs**.
+- To **find** a photo, type part of its name in **Search filenames** at the top of the page.
+- Job numbers assume that no other job ran on the instance. If one did, every later number
+  is higher by one.
 
 ### Test RP1 — Repair moves and copies photos back
 
-- **RP1a — A thorough check.** Choose **Jobs › Check library…**, then **Thorough check** (a
-  quick check trusts the unreadable file, whose size and date are unchanged). Expected: the
-  sidebar's **Library** row reads **1 missing, 1 damaged · 3 need attention** in red.
-- **RP1b — Offered only where it helps.** Choose **Needs review**, set **Reason** to **Library
-  check (5)**, and open `tulip-01.jpg`. Expected: under **Library check**, "Repair moves it back
-  to its date folder, keeping its name." and a **Repair…** button. Open `lily-01.jpg`. Expected:
-  the **Index source** advice and no **Repair…**.
-- **RP1c — Choose them all.** Choose **Select ▾ › Select all in this view (5)**. Expected: the
-  selection bar offers **Repair (5)…**.
-- **RP1d — The preview.** Choose **Repair (5)…**. Expected: **Repair 5 photos?**, with
-  **Will be fixed** listing three ticked groups: "1 photo in the wrong folder → move back to
-  2024/05/03", "1 photo in Rejects → move back to 2024/05/04" and "1 photo missing, a copy is in
-  the source → copy back to 2024/05/05". Their **Show the file** lines read
-  `sorted/tulip.jpg → 2024/05/03/tulip.jpg`, `Rejects/by hand/rose-01.jpg → 2024/05/04/rose-01.jpg`
-  and `From the source → 2024/05/05/daisy-01.jpg`. Under **Can't be fixed here (nothing will be
-  done)**: one photo with the **Index source** advice and button, and one with "Fix its
-  permissions, then check the library again. A copy is in the source, so the photo isn't
-  lost." The button reads **Repair 3**.
-- **RP1e — Untick a group.** Untick "1 photo in Rejects…". Expected: the button reads
-  **Repair 2**. Tick it again: **Repair 3**.
-- **RP1f — The unreadable file.** Open **Show these files (1)**. Expected:
-  `library/2024/05/07/iris-01.jpg (permission denied)`. Choose **Copy list**. Expected: "The list
-  is copied, one file per line." when the page is opened from this computer, or, from another
-  computer over plain HTTP, "The browser didn't allow copying. Select the list and copy it:"
-  above a box holding that path.
-- **RP1g — Repair.** Choose **Repair 3**. Expected: the dialog closes and **Job #4** runs. The
-  sidebar's **Library** row then reads **1 missing, 1 damaged**, and **Library check** under
-  Needs review holds only `iris-01.jpg` and `lily-01.jpg`.
-- **RP1h — The history and the check's entry.** In **Library**, search `tulip`, open
-  `tulip.jpg` and choose **View lineage tree**. Expected: **Repair #4 · Moved back to its date
-  folder**. Close it, then choose the sidebar's **Library** row. Expected: Job #3's entry says
-  "3 findings repaired since this check, marked below.", and the rows for `tulip-01.jpg`,
-  `rose-01.jpg` and `daisy-01.jpg` read "Repaired by Job #4."
-- **RP1i — Check again.** In **Library**, choose **Jobs › Check library… › Thorough check**.
-  Expected: **Job #5 · Library check finished**, "4 as recorded · 1 missing, 1 damaged", **2
-  findings**: `lily-01.jpg` missing and `iris-01.jpg` unreadable.
+**Where:** the review instance at `http://localhost:8084`. No check had run on it before
+RP1a. Verified: every step was walked on a copy of the instance.
+
+Six generated photos were indexed and copied (Jobs #1 and #2), with the originals kept in
+the source. Then, by hand:
+
+| Photo | What was done | What Repair can do |
+|---|---|---|
+| `tulip-01.jpg` | moved to a folder `sorted` and renamed `tulip.jpg` | move it back to its date folder |
+| `rose-01.jpg` | moved into `rejects/by hand` | move it back from Rejects |
+| `daisy-01.jpg` | deleted from the library; the original is still in the source | copy it back from the source |
+| `lily-01.jpg` | deleted from the library **and** the source | nothing: no copy exists |
+| `iris-01.jpg` | made unreadable (permissions removed) | nothing: the file must be fixed by hand |
+| `poppy-01.jpg` | untouched | — |
+
+- **RP1a — A thorough check.**
+  - Do: choose **Jobs › Check library…**, then **Thorough check**. A quick check would miss
+    `iris-01.jpg`, whose size and date are unchanged.
+  - Expected: when it finishes, the Library status row reads **1 missing, 1 damaged · 3
+    need attention** in red.
+- **RP1b — Repair is offered only where it can help.**
+  - Do: choose **To review**, set **Reason** to **Library check (5)**, and open `tulip-01.jpg`.
+  - Expected: under **Library check**, "Its date is 3 May 2024, but it's at sorted/tulip.jpg."
+    and "If the date is wrong, fix it with Edit metadata date…: the photo is filed by the date
+    you save. If the date is right, Repair moves it back to 2024/05/03/tulip.jpg.", then the
+    buttons **Edit metadata date…** and **Repair…**.
+  - Do: open `lily-01.jpg`.
+  - Expected: "Missing from the Library, and no copy was found in the Library, Rejects or the
+    source." and "If the original is still somewhere in your source, Index source finds it;
+    then check the library again. If a backup has it, restore it to 2024/05/06/lily-01.jpg."
+    There is **no Repair… button**, because Repair has no copy to put back; there is an
+    **Index source** button, and the note under it reads "This clears itself when a later
+    check finds the photo as recorded." (Don't choose it: RP1d expects the check unchanged.)
+- **RP1c — Select all five.**
+  - Do: choose **Select ▾** above the photos, then **Select all in this view (5)**.
+  - Expected: the bar at the top of the page now reads **5 photos selected** and offers
+    **Repair (5)…**.
+- **RP1d — The preview.**
+  - Do: choose **Repair (5)…**.
+  - Expected: a dialog, **Repair 5 photos?**. Under **Will be fixed**, three ticked groups:
+    - "1 photo in the wrong folder → move back to 2024/05/03"
+    - "1 photo in Rejects → move back to 2024/05/04"
+    - "1 photo missing, a copy is in the source → copy back to 2024/05/05"
+  - Do: open the **Show the file** under each group.
+  - Expected, in order: `sorted/tulip.jpg → 2024/05/03/tulip.jpg`,
+    `Rejects/by hand/rose-01.jpg → 2024/05/04/rose-01.jpg` and
+    `From the source → 2024/05/05/daisy-01.jpg`.
+  - Expected, under **Can't be fixed here (nothing will be done)**: one photo with "If the
+    original is still somewhere in your source, Index source finds it; then check the library
+    again." and an **Index source** button (lily), and one photo with "Fix its permissions,
+    then check the library again. A copy is in the source, so the photo isn't lost." (iris).
+    The dialog's main button reads **Repair 3**.
+- **RP1e — Untick a group.**
+  - Do: untick "1 photo in Rejects…".
+  - Expected: the button reads **Repair 2**.
+  - Do: tick it again.
+  - Expected: **Repair 3**.
+- **RP1f — The unreadable file.**
+  - Do: under iris's advice, open **Show these files (1)**.
+  - Expected: `library/2024/05/07/iris-01.jpg (permission denied)`.
+  - Do: choose **Copy list**.
+  - Expected: "The list is copied, one file per line." when the page is open on the computer
+    running NegativeSpace. From another computer over plain HTTP the browser blocks copying,
+    so you'll see "The browser didn't allow copying. Select the list and copy it:" above a box
+    holding that path.
+- **RP1g — Repair.**
+  - Do: choose **Repair 3**.
+  - Expected: the dialog closes and **Job #4** runs. When it finishes, the Library status row
+    reads **1 missing, 1 damaged**. With **Reason** still **Library check**, only `iris-01.jpg`
+    and `lily-01.jpg` are left.
+- **RP1h — The history, and the check's results.**
+  - Do: find `tulip`, open `tulip.jpg`, and choose **View lineage tree**.
+  - Expected: an event **Repair #4 · Moved back to its date folder**.
+  - Do: close the lineage tree, then choose the Library status row.
+  - Expected: Job #3's results say "3 findings repaired since this check, marked below.", and
+    the rows for `tulip-01.jpg`, `rose-01.jpg` and `daisy-01.jpg` read "Repaired by Job #4."
+- **RP1i — Check again.**
+  - Do: choose **Library** at the top of the sidebar, then **Jobs › Check library…** and
+    **Thorough check**. When it finishes, choose the Library status row.
+  - Expected: **Job #5 · Library check finished**, "4 as recorded · 1 missing, 1 damaged", and
+    **2 findings**: `lily-01.jpg` missing and `iris-01.jpg` unreadable.
 
 ### Test RP2 — Repair keeps a changed version
 
-Verified: a second review instance holds five generated photos, indexed and copied, the
-originals kept in the source. Then, in the library, as another program would: `tulip-01.jpg`
-was given a new tag, keeping its date; `rose-01.jpg` was given the date 15 June 2024;
-`daisy-01.jpg` had its date removed; `lily-01.jpg` was replaced by a different picture with
-its date; `poppy-01.jpg` is untouched. Every step was walked on a copy of the instance; no
-check has run on the instance itself.
+**Where:** the second review instance, at `http://localhost:8085`. No check had run on it
+before RP2a. Verified: every step was walked on a copy of the instance.
 
-- **RP2a — A thorough check.** Choose **Jobs › Check library…**, then **Thorough check**.
-  Expected: the sidebar's **Library** row reads **4 need attention**.
-- **RP2b — The advice.** Choose **Needs review**, set **Reason** to **Library check (4)**, and
-  open `rose-01.jpg`. Expected: "Changed by another program since NegativeSpace filed it; it
-  still looks like the same photo." and "Repair keeps the new version as a later version of the
-  photo, filed by the date in the file. If the change wasn't intended, restore the file from a
-  backup instead.", with **Repair…**. Open `lily-01.jpg`. Expected: "A different picture is
-  saved under this name. The photo NegativeSpace filed here is missing; a copy is in the
-  source." and "If it's an edit of this photo, Repair can keep it as a later version of the
-  photo. If not, restore the photo from a copy or backup, and keep the other picture under
-  another name.", with **Repair…**.
-- **RP2c — The preview.** Choose **Select ▾ › Select all in this view (4)**, then **Repair
-  (4)…**. Expected: **Repair 4 photos?** with four groups. Ticked: "1 photo changed, looks the
-  same → keep the new version (stays in 2024/05/03)", "… (moves to 2024/06/15)" and "… (moves to
-  Undated/2026)", the last with "No date in the file, so it's filed by its original file time.
-  Once it's kept, Edit metadata date… in its Inspector gives it a date." Unticked: "1 photo
-  replaced by a different picture → It's an edit of this photo: keep the new version (stays in
-  2024/05/06)", with "The check found a different picture, so this is unticked. Tick it only if
-  the file is an edit of the photo." The button reads **Repair 3**.
-- **RP2d — The files.** Open each **Show the file**. Expected: `2024/05/03/tulip-01.jpg
-  (stays)`, `2024/05/04/rose-01.jpg → 2024/06/15/rose-01.jpg`, `2024/05/05/daisy-01.jpg →
-  Undated/2026/daisy-01.jpg` and `2024/05/06/lily-01.jpg (stays)`.
-- **RP2e — Say it's an edit.** Tick "1 photo replaced by a different picture…". Expected: the
-  button reads **Repair 4**.
-- **RP2f — Repair.** Choose **Repair 4**. Expected: **Job #4** runs; the **Library** row then
-  reads **all as recorded**, and **Library check** under Needs review holds no photos.
-- **RP2g — The kept version.** In **Library**, search `rose` and open `rose-01.jpg`. Expected:
-  **Date taken** 2024-06-15 10:00:00 and a destination path ending `library/2024/06/15/rose-01.jpg`.
-  Choose **View lineage tree**. Expected: **Repair #4 · Kept the new version**.
-- **RP2h — Give the undated one a date.** Search `daisy` and open `daisy-01.jpg`. Expected:
-  **Needs review** with **No usable capture date**, and a destination path ending
-  `library/Undated/2026/daisy-01.jpg`. Choose **Edit metadata date…**, enter `2024-05-05T10:00:00`
-  in **Date taken**, and choose **Preview change**. Expected: **Current location**
-  `library/Undated/2026/daisy-01.jpg`, **Resulting location** `library/2024/05/05/daisy-01.jpg`.
-  Choose **Save date and move file**. Expected: **Job #5** saves it, and the photo's destination
-  path ends `library/2024/05/05/daisy-01.jpg`.
-- **RP2i — Check again.** In **Library**, choose **Jobs › Check library… › Thorough check**.
-  Expected: **Job #6 · Library check finished**, "Thorough · 5 as recorded · all as recorded",
-  **0 findings**.
+Five generated photos were indexed and copied (Jobs #1 and #2), with the originals kept in
+the source. Then each file was changed in the library, as another program would change it:
+
+| Photo | What was changed | What Repair can do |
+|---|---|---|
+| `tulip-01.jpg` | given a new tag; its date unchanged | keep the new version where it is |
+| `rose-01.jpg` | its date changed to 15 June 2024 | keep the new version, moved to 2024/06/15 |
+| `daisy-01.jpg` | its date removed | keep the new version, moved to the Undated folder |
+| `lily-01.jpg` | replaced by a different picture with the same date | keep it only if you say it's an edit |
+| `poppy-01.jpg` | untouched | — |
+
+- **RP2a — A thorough check.**
+  - Do: choose **Jobs › Check library…**, then **Thorough check**.
+  - Expected: when it finishes, the Library status row reads **4 need attention**.
+- **RP2b — The advice.**
+  - Do: choose **To review**, set **Reason** to **Library check (4)**, and open `rose-01.jpg`.
+  - Expected: "Changed by another program since NegativeSpace filed it; it still looks like
+    the same photo." and "Repair keeps the new version as a later version of the photo, filed
+    by the date in the file. If the change wasn't intended, restore the file from a backup
+    instead.", with a **Repair…** button.
+  - Do: open `lily-01.jpg`.
+  - Expected: "A different picture is saved under this name. The photo NegativeSpace filed here
+    is missing; a copy is in the source." and "If it's an edit of this photo, Repair can keep
+    it as a later version of the photo. If not, restore the photo from a copy or backup, and
+    keep the other picture under another name.", with a **Repair…** button.
+- **RP2c — The preview.**
+  - Do: choose **Select ▾ › Select all in this view (4)**, then **Repair (4)…** in the bar at
+    the top.
+  - Expected: **Repair 4 photos?** with four groups. Three are ticked, each starting "1 photo
+    changed, looks the same → keep the new version":
+    - "… (stays in 2024/05/03)" (tulip)
+    - "… (moves to 2024/06/15)" (rose)
+    - "… (moves to Undated/2026)" (daisy), with the note "No date in the file, so it's filed
+      by its original file time. Once it's kept, Edit metadata date… in its Inspector gives it
+      a date."
+  - Expected, unticked: "1 photo replaced by a different picture → It's an edit of this photo:
+    keep the new version (stays in 2024/05/06)" (lily), with "The check found a different
+    picture, so this is unticked. Tick it only if the file is an edit of the photo." The main
+    button reads **Repair 3**.
+- **RP2d — The files.**
+  - Do: open the **Show the file** under each group.
+  - Expected: `2024/05/03/tulip-01.jpg (stays)`, `2024/05/04/rose-01.jpg →
+    2024/06/15/rose-01.jpg`, `2024/05/05/daisy-01.jpg → Undated/2026/daisy-01.jpg` and
+    `2024/05/06/lily-01.jpg (stays)`.
+- **RP2e — Say it's an edit.**
+  - Do: tick "1 photo replaced by a different picture…".
+  - Expected: the button reads **Repair 4**.
+- **RP2f — Repair.**
+  - Do: choose **Repair 4**.
+  - Expected: **Job #4** runs. When it finishes, the Library status row reads **all as
+    recorded**, and **Library check** under **Reason** shows no photos.
+- **RP2g — The kept version.**
+  - Do: choose **Library** at the top of the sidebar, find `rose`, and open `rose-01.jpg`.
+  - Expected: **Date taken** 2024-06-15 10:00:00, and a **Destination path** ending
+    `library/2024/06/15/rose-01.jpg`.
+  - Do: choose **View lineage tree**.
+  - Expected: an event **Repair #4 · Kept the new version**.
+- **RP2h — Give the undated one a date.**
+  - Do: close the lineage tree, find `daisy`, and open `daisy-01.jpg`.
+  - Expected: **Needs review** with **No usable capture date**, and a **Destination path**
+    ending `library/Undated/2026/daisy-01.jpg`.
+  - Do: choose **Edit metadata date…**. In the dialog, replace what's in the **Date taken**
+    box with `2024-05-05T10:00:00`, then choose **Preview change**.
+  - Expected: **Current location** `library/Undated/2026/daisy-01.jpg` and **Resulting
+    location** `library/2024/05/05/daisy-01.jpg`.
+  - Do: choose **Save date and move file**.
+  - Expected: **Job #5** saves it, and the photo's **Destination path** now ends
+    `library/2024/05/05/daisy-01.jpg`.
+- **RP2i — Check again.**
+  - Do: choose **Jobs › Check library…**, then **Thorough check**. When it finishes, choose the
+    Library status row.
+  - Expected: **Job #6 · Library check finished**, "Thorough · 5 as recorded · all as
+    recorded", **0 findings**.
+
+### Test RP3 — A photo in the wrong folder, fixed by its date
+
+**Where:** the third review instance, at `http://localhost:8084`. No check had run on it
+before RP3a. Verified: every step was walked on a copy of the instance.
+
+Five generated photos were indexed and copied (Jobs #1 and #2), with the originals kept in
+the source. Then, in the library, by hand:
+
+| Photo | What was done | The way out |
+|---|---|---|
+| `tulip-01.jpg` | moved from 2024/05/03 into 2024/06/15 | its real date is 15 June: fix the date, and it stays put |
+| `rose-01.jpg` | moved from 2024/05/04 into a folder `sorted` | its real date is 1 July: fix the date, and it moves to 2024/07/01 |
+| `daisy-01.jpg` | moved from 2024/05/05 into 2024/05/09 | its date is right: Repair moves it back |
+| `lily-01.jpg`, `poppy-01.jpg` | untouched | — |
+
+- **RP3a — A thorough check.**
+  - Do: choose **Jobs › Check library…**, then **Thorough check**.
+  - Expected: when it finishes, the Library status row reads **3 need attention**.
+- **RP3b — The mismatch, stated.**
+  - Do: choose **To review**, set **Reason** to **Library check (3)**, and open `tulip-01.jpg`.
+  - Expected: under **Library check**, "Its date is 3 May 2024, but it's at
+    2024/06/15/tulip-01.jpg." and "If the date is wrong, fix it with Edit metadata date…: the
+    photo is filed by the date you save. If the date is right, Repair moves it back to
+    2024/05/03/tulip-01.jpg.", then the buttons **Edit metadata date…** and **Repair…**.
+  - Do: scroll down to **Destination**.
+  - Expected: "Not here when Job #3 checked: it's at 2024/06/15/tulip-01.jpg. See Library check
+    above." in amber, above the **Destination path**
+    `/data/dest/library/2024/05/03/tulip-01.jpg`, also in amber. Both **Rename…** links (beside
+    the name at the top and beside the path) are greyed out. Pointing at one shows "The latest
+    library check didn't find this file as recorded. Fix that first, under Library check."
+- **RP3c — Fix the date: the photo stays.**
+  - Do: scroll back up and choose **Edit metadata date…** in the **Library check** warning.
+  - Expected: "This photo is outside the folder for its date. It's at
+    library/2024/06/15/tulip-01.jpg. Saving a date files it by that date; the date below is
+    suggested from the folder it's in, 15 June 2024.", and the **Date taken** box already holds
+    `2024-06-15T10:00:00`.
+  - Do: choose **Preview change**.
+  - Expected: **Current location** and **Resulting location** both
+    `library/2024/06/15/tulip-01.jpg`, and the button **Save date**.
+  - Do: choose **Save date**.
+  - Expected: the dialog's heading changes to **Date saved**.
+  - Do: choose **Close**.
+  - Expected: the Library status row reads **2 need attention**.
+- **RP3d — Fix the date: the photo moves.**
+  - Do: open `rose-01.jpg` and choose **Edit metadata date…** in its warning.
+  - Expected: "This photo is outside the folder for its date. It's at
+    library/sorted/rose-01.jpg. Saving a date files it by that date." with no suggested date,
+    since `sorted` names no date: the **Date taken** box holds its current date,
+    `2024-05-04T10:00:00`.
+  - Do: replace what's in the **Date taken** box with `2024-07-01T10:00:00`, then choose
+    **Preview change**.
+  - Expected: **Resulting location** `library/2024/07/01/rose-01.jpg`, and the button **Save
+    date and move file**.
+  - Do: choose **Save date and move file**. When the heading reads **Date saved**, choose
+    **Close**.
+- **RP3e — The date was right all along.**
+  - Do: open `daisy-01.jpg` and choose **Edit metadata date…** in its warning.
+  - Expected: the **Date taken** box suggests `2024-05-09T10:00:00`, the date its folder names.
+  - Do: replace it with its real date, `2024-05-05T10:00:00`, and choose **Preview change**.
+  - Expected: "That's the date it already has. If the date is right, Repair moves the photo
+    back to its date folder."
+  - Do: choose **Cancel**, then **Discard**. Choosing **Edit metadata date…** switched the panel
+    to its **Metadata** tab, so choose **Photo information**. Then choose **Repair…** in the
+    warning, and **Repair 1** in the dialog.
+  - Expected: when the job finishes, the Library status row reads **all as recorded**, and
+    **Library check** under **Reason** shows no photos.
+- **RP3f — The history.**
+  - Do: choose **Library** at the top of the sidebar, find `tulip`, open `tulip-01.jpg`, and
+    choose **View lineage tree**.
+  - Expected: an event **Metadata #4 · Date saved**, and a destination path ending
+    `library/2024/06/15/tulip-01.jpg`.
+  - Do: close the lineage tree.
+  - Expected: the **Destination path** is that path, with no amber line, and **Rename…** can be
+    chosen.
+  - Do: the same for `rose-01.jpg`, then `daisy-01.jpg`.
+  - Expected: rose shows **Metadata #5 · Date saved**, ending `library/2024/07/01/rose-01.jpg`.
+    daisy shows **Repair #6 · Moved back to its date folder**, ending
+    `library/2024/05/05/daisy-01.jpg`.
+- **RP3g — Check again.**
+  - Do: choose **Jobs › Check library…**, then **Thorough check**. When it finishes, choose the
+    Library status row.
+  - Expected: **Job #7 · Library check finished**, all as recorded, **0 findings**.
 
 ## Menu descriptions
 

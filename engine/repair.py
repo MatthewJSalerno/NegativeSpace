@@ -225,11 +225,6 @@ def plan(conn, dest_root: Path, photo_ids=None) -> dict:
             "fixes": sum(len(g["items"]) for g in fix_groups)}
 
 
-def _settle_findings(conn, check_run: int, operation_id: int, *paths) -> None:
-    conn.execute(f"UPDATE destination_findings SET settled_by=? WHERE run_id=? AND path IN ({','.join('?' * len(paths))})",
-                 (operation_id, check_run, *paths))
-
-
 def _rename(conn, op: int, old: str, new: str, file_id) -> tuple:
     """The no-overwrite rename of a recorded move, made durable. Returns (method, False),
     or (None, whether recovery is needed) after recording why it failed."""
@@ -269,7 +264,7 @@ def _move(conn, run_id: int, check_run: int, dest_root: Path, item: dict, sha1: 
         relocate._record_relocation(conn, op, old, new, file_id, step="repair", operation_status=OPERATION_REPAIRED,
                                     photo_id=item["photo_id"], recorded=recorded,
                                     detail={"method": method, "repair": kind, "check_run": check_run})
-        _settle_findings(conn, check_run, op, recorded, old)
+        library_check.settle(conn, check_run, op, recorded, old)
     runtime.logger.info(f"Repaired photo #{item['photo_id']}: {old} -> {new}.")
     return OPERATION_REPAIRED, False
 
@@ -301,7 +296,7 @@ def _copy(conn, run_id: int, check_run: int, item: dict, sha1: str) -> tuple:
         ns_db.settle_operation(conn, op, status=OPERATION_REPAIRED, step="repair", outcome="completed",
                                detail={"repair": "copy_back", "check_run": check_run, "source": source,
                                        "new_path": str(recorded)})
-        _settle_findings(conn, check_run, op, str(recorded))
+        library_check.settle(conn, check_run, op, str(recorded))
     runtime.logger.info(f"Repaired photo #{item['photo_id']}: copied {source} back to {recorded}.")
     return OPERATION_REPAIRED, False
 
@@ -405,7 +400,7 @@ def _keep(conn, run_id: int, check_run: int, dest_root: Path, item: dict, sha1: 
             record_kept(conn, op, photo_id, expected)
             ns_db.settle_operation(conn, op, status=OPERATION_REPAIRED, step="repair", outcome="completed",
                                    detail={**detail, "new_path": path})
-            _settle_findings(conn, check_run, op, path)
+            library_check.settle(conn, check_run, op, path)
         runtime.logger.info(f"Repaired photo #{photo_id}: kept the new version of {path}.")
         return OPERATION_REPAIRED, False
     with ns_db.transaction(conn):
@@ -418,7 +413,7 @@ def _keep(conn, run_id: int, check_run: int, dest_root: Path, item: dict, sha1: 
         record_kept(conn, op, photo_id, expected)
         relocate._record_relocation(conn, op, path, new, retained[0], step="repair", operation_status=OPERATION_REPAIRED,
                                     photo_id=photo_id, recorded=path, detail={**detail, "method": method})
-        _settle_findings(conn, check_run, op, path)
+        library_check.settle(conn, check_run, op, path)
     runtime.logger.info(f"Repaired photo #{photo_id}: kept the new version of {path} and filed it at {new}.")
     return OPERATION_REPAIRED, False
 

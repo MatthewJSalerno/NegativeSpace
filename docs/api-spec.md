@@ -410,6 +410,8 @@ Failed files expose this field's message.
     {"id", "status", "failure", "filename", "source_path", "dest_path",
      "dest_path_is_projection": true,     // not delivered: where it would go
      "has_collision_rename", "file_size", "width", "height",
+     "dest_finding": "Not here when Job #3 checked: it's at sorted/IMG_1.jpg. See Library check above." | null,
+                                          // the latest library check's open finding at dest_path (webui-spec 7.6)
      "file_modified": 1686000000.0,       // as the first scan observed it
      "date_taken", "date_source", "date_offset",
      "exif_dates": [{"field": "taken" | "digitized" | "modified",
@@ -539,7 +541,11 @@ current applied primary before reporting completion.
 
 Read the organized Library photo's current date write target. Returns `capture_id`,
 `target` (`source_id`, `kind`, `create`), `date` (`present`, `value`),
-`current_path` and `can_clear`. The date belongs to the target itself, never a fallback.
+`current_path`, `can_clear` and `found`: null, or for a photo the latest library check
+found in another Library folder, `{path, folder_date}`, where it is (relative to the
+destination, also `current_path`) and the ISO day its folder names (null for a folder
+that names none), which the editor suggests (webui-spec 7.6). The preview and save then
+work on the file there, accept only a new date, and the save settles the finding. The date belongs to the target itself, never a fallback.
 First-sidecar creation starts with an absent date. Verified primary/source receipts win
 over later source observations. Unknown/ineligible photos or unresolved state return
 409 `metadata_unavailable`; noninteger IDs return 422. Reads do not verify live files.
@@ -1468,7 +1474,10 @@ it does not accidentally drop the reference through the Has similar photos filte
 ### `GET /api/v1/photos/{photo_id}/review`
 
 Returns current `reasons` (reason, label, message), location, content SHA-1,
-`revision` and descending review `history`. Reasons currently implemented: `small`, `later` and `date`.
+`revision` and descending review `history`. Reasons: `small`, `later`, `date` and
+`library`. A `library` reason (the latest library check's finding, webui-spec 7.6) adds
+`tone`, `todo`, `run_id` and `date_fix`, true when the photo is in another Library folder
+and a new date fixes it, so the screen offers **Edit metadata date…**.
 Date details include `date_taken`, `date_confirmed`, `date_warning` and `date_message`.
 History can include `cause`, the confirmed `date_taken`, and `run_id` for explicit date
 saves. `cleared` records an automatic resolution; `date_saved` records a verified chosen date. A missing photo returns 404 `unknown_photo`. This endpoint only reads.

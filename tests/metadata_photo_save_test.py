@@ -275,6 +275,67 @@ class PhotoSaves(unittest.TestCase):
             self.execute(op)
         self.assertEqual(Path(self.current()[1]).read_bytes(),edited)
 
+    def found_in(self, folder):
+        """The photo moved by another program into another Library folder, and a check
+        finding it there (engine-spec 9.2)."""
+        self.setup_catalog()
+        found=self.root/'dest/library'/folder/self.dest.name
+        found.parent.mkdir(parents=True,exist_ok=True)
+        self.dest.rename(found)
+        self.run_engine('--check-destination','quick')
+        self.assertEqual(self.open_findings(),1)
+        return found
+
+    def open_findings(self):
+        return self.c.execute('SELECT COUNT(*) FROM destination_findings WHERE photo_id=? AND settled_by IS NULL',
+                              (self.pid,)).fetchone()[0]
+
+    def test_date_fix_keeps_a_photo_found_in_the_folder_its_new_date_names(self):
+        found=self.found_in('2015/06/07')
+        preview=self.preview({'date_taken':'2015-06-07T03:04:05'})
+        self.assertEqual((preview['filing']['current'],preview['filing']['change']),
+                         (found.relative_to(self.root/'dest').as_posix(),False))
+        self.execute(self.prepare({'date_taken':'2015-06-07T03:04:05'}))
+        sha,path,metadata,*_=self.current()
+        self.assertEqual((path,metadata['date_taken']),(str(found),'2015-06-07T03:04:05'))
+        self.assertEqual(hashlib.sha1(found.read_bytes()).hexdigest(),sha)
+        self.assertEqual(self.c.execute("SELECT current_path FROM file_states WHERE location_role='destination'").fetchone()[0],
+                         str(found))
+        self.assertEqual(self.open_findings(),0)
+        self.run_engine('--check-destination','quick')
+        latest=self.c.execute('SELECT MAX(run_id) FROM library_checks').fetchone()[0]
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM destination_findings WHERE run_id=? AND photo_id IS NOT NULL',
+                                        (latest,)).fetchone()[0],0)
+
+    def test_date_fix_files_a_photo_found_elsewhere_by_its_new_date(self):
+        found=self.found_in('sorted')
+        self.execute(self.prepare({'date_taken':'2015-06-07T03:04:05'}))
+        path=self.current()[1]
+        self.assertTrue(path.endswith('/library/2015/06/07/photo.jpg'),path)
+        self.assertFalse(found.exists())
+        self.assertEqual(self.open_findings(),0)
+
+    def test_photo_found_elsewhere_takes_only_a_new_date(self):
+        self.found_in('sorted')
+        with self.assertRaisesRegex(ValueError,'in another folder'):
+            self.preview({'title':'Next'})
+        with self.assertRaisesRegex(ValueError,'already has'):
+            self.preview({'date_taken':'1999-01-02T03:04:05'})
+        self.assertEqual(self.open_findings(),1)
+
+    def test_failed_refile_of_a_found_photo_keeps_it_flagged_and_retry_files_it(self):
+        self.found_in('sorted')
+        op=self.prepare({'date_taken':'2015-06-07T03:04:05'})
+        with mock.patch.object(metadata_photo_save,'_refile',side_effect=OSError(5,'fixture move failed')):
+            result=metadata_save.execute(self.c,op)
+        self.assertTrue(result['metadata_saved'])
+        self.assertEqual(self.open_findings(),1)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM attention_issues WHERE operation_id=? AND resolved_at IS NULL',
+                                        (op,)).fetchone()[0],1)
+        self.execute(op)
+        self.assertTrue(self.current()[1].endswith('/library/2015/06/07/photo.jpg'))
+        self.assertEqual(self.open_findings(),0)
+
     def test_unexpected_live_file_is_never_overwritten(self):
         self.setup_catalog();op=self.prepare({'title':'Next'})
         self.dest.write_bytes(b'external file')

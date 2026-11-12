@@ -264,7 +264,7 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
       <header ref={header} className="inspector-head">
         <button onClick={() => step(-1)} aria-label="Previous photo">‹</button>
         <div className="inspector-title"><h2 title={detail?.filename}>{detail?.filename ?? "…"}</h2>
-          {!sourceView && inLibrary && <button className="link" disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined}
+          {!sourceView && inLibrary && <button className="link" disabled={!!renameBlocked(detail, jobRunning)} title={renameBlocked(detail, jobRunning)}
             onClick={() => setRenameName(detail.filename)}>Rename…</button>}
         </div>
         <button onClick={() => step(1)} aria-label="Next photo">›</button>
@@ -318,7 +318,7 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
           </div>
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", activeTab)}>
             {detail && activeTab === "information" && <Details onRename={setRenameName} onImportChoices={() => setImportChoices(true)} onMetadata={openMetadata} onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
-              review={inLibrary ? <ReviewNote key={`review:${id}`} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto ? () => rotationExit.requestLeave(onReviewPhoto) : undefined}
+              review={inLibrary ? <ReviewNote key={`review:${id}`} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onEditDate={() => editDate()} onOpenReview={onReviewPhoto ? () => rotationExit.requestLeave(onReviewPhoto) : undefined}
                 concerns={captureDateMessage(detail) ? [{label:"No usable capture date",message:captureDateMessage(detail)!}] : []}
                 actions={IN_LIBRARY.includes(detail.status) && onReject
                   ? <button onClick={() => rotationExit.requestLeave(() => onReject(detail.filename))} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Move this photo to Rejects. Nothing is deleted."}>Reject…</button>
@@ -358,6 +358,13 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
       initialView={matchView ?? { threshold: 90, page: 1 }} onView={onMatchView}
       onClose={closeComparison} onChanged={() => setComparisonChanges((n) => n + 1)} />}
   </>;
+}
+
+// A rename needs the file at its recorded path with its recorded content, which an open
+// library-check finding says it isn't (webui-spec 7.6).
+function renameBlocked(d: PhotoDetail, jobRunning: boolean): string | undefined {
+  if (jobRunning) return "Wait for the running job to finish.";
+  if (d.dest_finding) return "The latest library check didn't find this file as recorded. Fix that first, under Library check.";
 }
 
 function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
@@ -419,9 +426,10 @@ function Details({ onRename, onImportChoices, detail: d, onLineage, refreshKey, 
           source={[{label:"Source path",path:d.source_path ?? "—"}]}
           destinationLabel={d.dest_path_is_projection ? "Proposed destination" : "Destination"}
           destination={[{label:d.dest_path_is_projection ? "Proposed destination path" : "Destination path",path:d.dest_path ?? "—",
-            actions: IN_LIBRARY.includes(d.status) && !d.dest_path_is_projection ? <button className="link" disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined} onClick={() => onRename(d.filename)}>Rename…</button> : undefined,
+            actions: IN_LIBRARY.includes(d.status) && !d.dest_path_is_projection ? <button className="link" disabled={!!renameBlocked(d, jobRunning)} title={renameBlocked(d, jobRunning)} onClick={() => onRename(d.filename)}>Rename…</button> : undefined,
+            status: d.dest_finding ? { text: d.dest_finding, tone: "warning" } : undefined,
             note:<>{d.dest_path_is_projection && <div>Not written yet.</div>}{d.has_collision_rename && <div>Renamed: another file already had this name.</div>}
-              {IN_LIBRARY.includes(d.status) && !d.dest_path_is_projection && <OtherNames id={d.id} refreshKey={refreshKey} disabled={jobRunning} onChoose={onRename}/>}</>}]} />
+              {IN_LIBRARY.includes(d.status) && !d.dest_path_is_projection && <OtherNames id={d.id} refreshKey={refreshKey} disabled={renameBlocked(d, jobRunning)} onChoose={onRename}/>}</>}]} />
         </td></tr>
         <Row label="Size">{bytes(d.file_size)}{d.width && d.height ? ` · ${d.width} × ${d.height}` : ""}</Row>
         <Row label={<Tip text="As recorded when NegativeSpace first indexed this file.">File modified</Tip>}>

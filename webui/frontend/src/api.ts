@@ -73,6 +73,8 @@ export interface RotationPlan { items: { photo_id: number; filename: string; tur
 export interface DateEditContext {
   capture_id: number; target: { source_id: string; kind: string; create: boolean };
   date: { present: boolean; value: string | null }; current_path: string; can_clear: boolean;
+  // Where the latest check found the photo, outside its date folder, and the day that folder names.
+  found: { path: string; folder_date: string | null } | null;
 }
 export interface DateEditPreview {
   edit: Record<string, unknown>; token: string; target: DateEditContext["target"];
@@ -173,7 +175,9 @@ export interface BulkReviewResult { saved: number[]; skipped: { photo_id: number
 
 export interface ReviewDetail {
   reasons: { reason: string; label: string; message: string; bookmark_reason?: string;
-             tone?: "warn" | "bad"; todo?: string | null; run_id?: number }[];
+             tone?: "warn" | "bad"; todo?: string | null; run_id?: number;
+             // A Library check finding that a new date fixes: the photo is in another folder.
+             date_fix?: boolean }[];
   history: { id: number; reason: string; action: string; note: string; created_at: string; bookmark_reason?: string; cause?: string; date_taken?: string; run_id?: number }[];
   date_taken: string | null; date_confirmed: boolean; date_warning: string | null; date_message: string;
   revision: number; sha1: string | null; location: string;
@@ -329,6 +333,8 @@ export interface PhotoDetail {
   dest_path: string | null;
   dest_path_is_projection: boolean;
   has_collision_rename: boolean;
+  /** What the latest library check found at dest_path, while its finding is open. */
+  dest_finding: string | null;
   file_size: number | null;
   file_modified: number | null;
   date_taken: string | null;
