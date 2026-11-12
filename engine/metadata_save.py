@@ -342,7 +342,7 @@ def _record_saved(conn, op, pid, m):
         ns_db.record_event(conn, operation_id=op, step='pair_complete', outcome='verified', detail=receipt)
 
 
-def _refile(conn, op, pid, m):
+def _refile(conn, op, m):
     if m['photo'] == m['proposed'] or _event(conn, op, 'metadata_refiled'):
         return
     expected = _event(conn, op, 'metadata_refile_intent')
@@ -429,7 +429,7 @@ def execute(conn, op):
             _publish(conn, op, m, replacement)
             _verify_saved(Path(m['photo']), m)
             _record_saved(conn, op, pid, m)
-        _refile(conn, op, pid, m)
+        _refile(conn, op, m)
         photo = _photo(conn, pid, m, saved=True)
         _verify_saved(photo, m)
         _cleanup(conn, op, m)

@@ -64,7 +64,7 @@ class JobRefused(Exception):
         self.status, self.body = status, body
 
 
-def validate_request(cfg: Config, mode: str, file_ids=None, source_subdir=None) -> tuple:
+def validate_request(mode: str, file_ids=None, source_subdir=None) -> tuple:
     """The engine flags for a job request and its selection (ascending photo ids, or
     None), validated here as well as by the engine (webui-spec 5.6): defence in depth,
     and a clean 400 instead of a failed job. A selection reaches the engine in a file
@@ -241,7 +241,7 @@ class JobRunner:
     # -- Starting and stopping ------------------------------------------------
 
     def preview_move(self, file_ids=None, source_subdir=None):
-        _, selection = validate_request(self.cfg, 'move', file_ids, source_subdir)
+        _, selection = validate_request('move', file_ids, source_subdir)
         with self._start_lock:
             if self._probe_lock():
                 raise self._busy()
@@ -257,7 +257,7 @@ class JobRunner:
         mode = body.get('mode')
         if mode not in ('copy','move'):
             raise JobRefused(400, {'error':'invalid_request','message':'Choose Copy or Move.'})
-        _, selection = validate_request(self.cfg, mode, body.get('file_ids'), body.get('source_subdir'))
+        _, selection = validate_request(mode, body.get('file_ids'), body.get('source_subdir'))
         with self._start_lock:
             if self._probe_lock(): raise self._busy()
         with catalog.connect(self.cfg.db_path) as conn:
@@ -274,7 +274,7 @@ class JobRunner:
     def start(self, mode: str, file_ids=None, source_subdir=None, request_id=None,
               confirm_edited_sources=False, move_preview_token=None, transfer_preview_token=None) -> int:
         validate_request_id(request_id)
-        flags, selection = validate_request(self.cfg, mode, file_ids, source_subdir)
+        flags, selection = validate_request(mode, file_ids, source_subdir)
         if type(confirm_edited_sources) is not bool or (confirm_edited_sources and mode != 'move'):
             raise JobRefused(400, {'error':'invalid_request', 'message':'Edited-original consent applies only to Move.'})
         if move_preview_token is not None or confirm_edited_sources:
@@ -439,7 +439,7 @@ class JobRunner:
         validate_request_id(body['request_id'])
         if not body['request_id'] or body['file_ids'] is None:
             raise JobRefused(400, {'error':'invalid_request','message':'A selected retry and request ID are required.'})
-        flags, selection = validate_request(self.cfg,mode,body['file_ids'])
+        flags, selection = validate_request(mode,body['file_ids'])
         flags += ['--pair-retry-token',body['token']]
         with self._start_lock:
             replay = self._replay(flags,body['request_id'],selection)
@@ -588,7 +588,7 @@ class JobRunner:
                 if mode != "move":
                     raise JobRefused(409, {"error": "stale_question", "message": "Network confirmation applies only to Move."})
                 mode = "copy" if answer == "copy" else "move"
-            flags, selection = validate_request(self.cfg, mode, chosen, targeting.get("source_subdir"))
+            flags, selection = validate_request(mode, chosen, targeting.get("source_subdir"))
             # Carry only explicit answers from the preceding request in this chain.
             # New jobs through /start never inherit permission from an earlier run.
             if answer == "confirm_empty" or submitted.get("confirm_source_empty") is True:
