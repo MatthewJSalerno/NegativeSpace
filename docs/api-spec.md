@@ -947,8 +947,8 @@ One page, newest first (`page`, and `page_size` from 1 to 500, default 100):
      "run_counts": {"1": 2, "2": 2}}
 
 *   **`action`** identifies recorded metadata intent: `rotation`, `date`,
-    `metadata_source` or `metadata`, or what a Repair did: `move_back`, `from_rejects` or
-    `copy_back`; other operations return null. Lineage and exports
+    `metadata_source` or `metadata`, or what a Repair did: `move_back`, `from_rejects`,
+    `copy_back`, `keep_new` or `edit`; other operations return null. Lineage and exports
     carry the same value. This does not change stored outcomes or status filters.
 *   **`date_change`** is null without a verified date write; otherwise it contains
     `target` (metadata kind), `before` and `after` (each `{present, value}`). It reads
@@ -1078,7 +1078,9 @@ verified metadata saves, once overall and once per category; categories can over
 Failed writes and no-op saves do not count. A successful save whose later refile fails
 still counts. Transfer counts, bytes and throughput include Copy/Move jobs only;
 metadata jobs are not transfers. `GET /operations`, its export and photo-ID routes accept
-`metadata_edits=true` to show only verified saves, combined with existing log filters.
+`metadata_edits=true` to show only verified metadata saves, combined with existing log
+filters; a Repair that kept a new version records a metadata receipt but is not an edit, so
+it is left out.
 `dates.min_year` is the configured earliest expected year; `max_year` is the current
 UTC year plus one. `per_year` retains all recorded years, including suspicious ones. `rejects` is as in `GET /status`. The duplicate figures follow `webui-spec.md` §5.9:
 `move_would_free` is Reclaimable, `freed_by_moves` Reclaimed, and `saved_at_destination`
@@ -1181,11 +1183,14 @@ what, todo, repaired_by`. `400` for another format, `404` for an unknown check.
 
 Body: `{file_ids?: [photo id]}`. What Repair (`webui-spec.md` §7.6) would do for these
 photos, or for every photo the latest completed library check found, from the catalog
-alone: `{check_run, fixes, groups: [{repair: "move_back" | "from_rejects" | "copy_back",
-folder, items}], cannot: [item], unreadable: [{path, reason}]}`. Each item is `{photo_id,
-relative, finding, what}` with, for a fix, `repair, from_relative` (`null` for a copy from
-the source), `to_relative` and `folder`, and for what Repair can't fix, `todo` and
-`index_source: true` when **Index source** is the advice. Paths are relative to the
+and the metadata of each changed file it would keep: `{check_run, fixes, groups: [{repair:
+"move_back" | "from_rejects" | "copy_back" | "keep_new" | "edit", folder, items}], cannot:
+[item], unreadable: [{path, reason}]}`. Each item is `{photo_id, relative, finding, what}`
+with, for a fix, `repair, from_relative` (`null` for a copy from the source), `to_relative`
+and `folder`, plus `stays` for a kept version (`true` when its date folder is the one it is
+in), and for what Repair can't fix, `todo` and `index_source: true` when **Index source** is
+the advice. `edit` (It's an edit of this photo) overrides the check, and the screen leaves it
+unticked. Paths are relative to the
 library; `unreadable` paths are relative to the destination folder. `check_run` is `null`
 and the lists empty when no check has completed. A POST only because a selection's ids are
 too long for a URL; it reads. Unknown fields or ids that are not positive 64-bit integers

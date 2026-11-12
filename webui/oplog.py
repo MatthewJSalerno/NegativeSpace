@@ -22,8 +22,11 @@ def _operations_where(*, runs=None, statuses=None, photo=None, q=None, since=Non
     """
     clauses, params = [], []
     if metadata_edits:
+        # Repair's Keep the new version records a metadata receipt too; it is not an edit.
         clauses.append("EXISTS (SELECT 1 FROM operation_events e WHERE e.operation_id=o.id "
-                       "AND e.step='metadata_saved' AND e.outcome='verified')")
+                       "AND e.step='metadata_saved' AND e.outcome='verified') AND EXISTS (SELECT 1 FROM "
+                       "operation_events i WHERE i.operation_id=o.id AND i.step='intent' "
+                       "AND json_extract(i.detail_json,'$.kind')='metadata_edit')")
     if runs:
         clauses.append(f"o.run_id IN ({','.join('?' * len(runs))})")
         params += list(runs)

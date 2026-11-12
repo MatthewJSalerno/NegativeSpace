@@ -2330,7 +2330,15 @@ Rejects goes back, and a missing one is copied back from the source and verified
 copy, an unreadable one and a file changed since the check are left alone with their reasons;
 backups come before and after; the fixed findings stop holding the reason; and a Repair from an
 older check is refused. `repair_recovers_an_interrupted_move_back` covers recovery pointing the
-photo from its recorded path to where an interrupted Repair moved it. The `Repair` class in
-`library_check_test.py` covers the preview, the selection's count, the job's refusals and the
-lineage action; the Check library browser driver repairs from a selection and checks the
-Inspector and the lineage. Manual acceptance is [RP1](../docs/manual-validation.md#repair).
+photo from its recorded path to where an interrupted Repair moved it, and settling its findings.
+`repair_keeps_a_changed_version_filed_by_its_date` covers Keep the new version: a version that
+keeps its date stays, one with another date moves to that date's folder, one with no date goes to
+`Undated/<year>` by the original file time, and It's an edit keeps a file the check judged a
+different picture; the old checksum becomes an earlier version, a source duplicate of it is
+released and linked, the date editor's preview binds the new checksum, and the next check finds
+each photo as recorded. `repair_recovers_an_interrupted_keep_and_move` covers recovery recording
+the kept version when its move was interrupted. The `Repair` class in `library_check_test.py`
+covers the preview (no container paths), the selection's count, the job's refusals, the lineage
+action, and a kept version left out of Logs' metadata edits; the Check library browser driver
+repairs from a selection and checks the Inspector and the lineage. Manual acceptance is
+[RP1 and RP2](../docs/manual-validation.md#repair).

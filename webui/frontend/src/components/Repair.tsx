@@ -24,13 +24,21 @@ export function RepairButton({ ids, count }: { ids: number[]; count?: number }) 
     onClick={() => open?.(ids)}>{count != null ? `Repair (${count})…` : "Repair…"}</button>;
 }
 
-// Each kind of fix, as its group reads: what was found and where it goes.
-const FIX: Record<RepairKind, (n: number, folder: string) => string> = {
-  move_back: (n, folder) => `${plural(n, "photo")} in the wrong folder → move back to ${folder}`,
-  from_rejects: (n, folder) => `${plural(n, "photo")} in Rejects → move back to ${folder}`,
-  copy_back: (n, folder) => `${plural(n, "photo")} missing, a copy is in the source → copy back to ${folder}`,
+type Group = RepairPreview["groups"][number];
+// Each kind of fix, as its group reads: what was found and where it goes. A kept version is
+// filed by its date, so its group says whether it stays or moves (webui-spec 7.6).
+const where = (g: Group) => `${g.items.every(i => i.stays) ? "stays in" : "moves to"} ${g.folder}`;
+const FIX: Record<RepairKind, (g: Group) => string> = {
+  move_back: g => `${plural(g.items.length, "photo")} in the wrong folder → move back to ${g.folder}`,
+  from_rejects: g => `${plural(g.items.length, "photo")} in Rejects → move back to ${g.folder}`,
+  copy_back: g => `${plural(g.items.length, "photo")} missing, a copy is in the source → copy back to ${g.folder}`,
+  keep_new: g => `${plural(g.items.length, "photo")} changed, looks the same → keep the new version (${where(g)})`,
+  edit: g => `${plural(g.items.length, "photo")} replaced by a different picture → It's an edit of this photo: keep the new version (${where(g)})`,
 };
+const KEEPS: RepairKind[] = ["keep_new", "edit"];
 const key = (g: { repair: RepairKind; folder: string }) => `${g.repair}:${g.folder}`;
+const fileLine = (g: Group, i: RepairItem) => g.repair === "copy_back" ? `From the source → ${i.to_relative}`
+  : i.stays ? `${i.from_relative} (stays)` : `${i.from_relative} → ${i.to_relative}`;
 
 function RepairDialog({ ids, onClose }: { ids: number[]; onClose: () => void }) {
   const [preview, setPreview] = useState<RepairPreview | null>(null);
@@ -44,7 +52,10 @@ function RepairDialog({ ids, onClose }: { ids: number[]; onClose: () => void }) 
   useEffect(() => {
     let live = true;
     setPreview(null); setError(""); setUnticked(new Set());
-    api.repairPreview(ids).then(p => { if (live) setPreview(p); },
+    // It's an edit overrides what the check found, so the user ticks it (webui-spec 7.6).
+    api.repairPreview(ids).then(p => {
+      if (live) { setPreview(p); setUnticked(new Set(p.groups.filter(g => g.repair === "edit").map(key))); }
+    },
       e => { if (live) setError(e instanceof Error ? e.message : "What Repair would do could not be worked out."); });
     return () => { live = false; };
   }, [JSON.stringify(ids), reload]);
@@ -82,12 +93,14 @@ function RepairDialog({ ids, onClose }: { ids: number[]; onClose: () => void }) 
         <label className="checkbox-row">
           <input type="checkbox" checked={!unticked.has(key(g))} disabled={busy}
             onChange={e => setUnticked(s => { const n = new Set(s); if (e.target.checked) n.delete(key(g)); else n.add(key(g)); return n; })} />
-          {FIX[g.repair](g.items.length, g.folder)}
+          {FIX[g.repair](g)}
         </label>
+        {g.repair === "edit" && <p className="section-note">The check found a different picture, so this is unticked.
+          Tick it only if the file is an edit of the photo.</p>}
+        {KEEPS.includes(g.repair) && g.folder.startsWith("Undated/") && <p className="section-note">No date in the
+          file, so it's filed by its original file time. Once it's kept, Edit metadata date… in its Inspector gives it a date.</p>}
         <details><summary>Show {g.items.length === 1 ? "the file" : "the files"}</summary>
-          <ul className="repair-files">{g.items.map(i => <li key={i.photo_id}>
-            {g.repair === "copy_back" ? <>From the source → {i.to_relative}</> : <>{i.from_relative} → {i.to_relative}</>}
-          </li>)}</ul>
+          <ul className="repair-files">{g.items.map(i => <li key={i.photo_id}>{fileLine(g, i)}</li>)}</ul>
         </details>
       </div>)}
     </section>}

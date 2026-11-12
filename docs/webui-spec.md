@@ -2907,7 +2907,8 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
 check) and `engine-spec.md` §9.2 (Repair in place). Built in four steps, each with its own manual test:
 the check and its results (**built**; `docs/manual-validation.md`, Check library);
 Repair and the catalog-only answers, **Stop warning about this** among them (**Move it
-back**, back from Rejects and **Copy it back** built; `docs/manual-validation.md`, Repair);
+back**, back from Rejects, **Copy it back**, **Keep the new version** and **It's an edit of
+this photo** built; `docs/manual-validation.md`, Repair);
 Add to catalog; Rebuild from the earlier version (not built).
 
 **A finding says what was found and what the user can do now** (decided 2026-11-04), never
@@ -3029,8 +3030,10 @@ not create, and **Stop warning about this** quiets it until it changes.
 **Whatever Repair keeps is filed by its date** (decided 2026-11-04), so no fix leaves the
 Library outside its layout. Each keeping fix names its destination in the preview:
 "Keep the new version: it moves to 2024/03/06" (the edit changed its date), "…to
-Undated/2024" (the edit left no date; **Edit date…** beside it), or "…it stays in
-2024/03/05". **Add to catalog** (step 3) follows the same rule. *Why still ask about an edit
+Undated/2024" (the edit left no date), or "…it stays in 2024/03/05" (built). An undated one's
+group notes that **Edit date…** in its Inspector gives it a date once it is kept: the date
+editor works on the photo's recorded version, so it cannot run before the keep. **Add to
+catalog** (step 3) follows the same rule. *Why still ask about an edit
 that looks alike:* unlike a rename, a change of content can be decay on disk, and
 recording it silently would make the damaged file the photo's record.
 
@@ -3101,7 +3104,10 @@ Repair 9 photos?
 **A different picture under a photo's name** is told apart from an edit by look-alike
 matching (§7.4): *"A different picture is saved under this name. The photo NegativeSpace
 filed here is missing."* Its answers are the missing photo's and the unknown photo's,
-plus **It's an edit of this photo**.
+plus **It's an edit of this photo** (built): a Repair group that starts unticked, since it
+overrides the check, noting "The check found a different picture, so this is unticked. Tick
+it only if the file is an edit of the photo." A changed file that cannot be compared (one
+that no longer decodes) has no Repair: it may be damaged.
 
 **Later refinements**, after the four steps: *restored to an earlier version*, changes
 that left the picture alone grouped with the fields they touched, and format conversions

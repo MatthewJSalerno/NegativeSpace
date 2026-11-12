@@ -291,7 +291,9 @@ your photos, such as NAS thumbnails and Mac system files, are only counted.
 **Repair…** puts photos back where the library keeps them: one found in another folder
 moves back to its date folder and keeps any new name you gave it, one found in Rejects
 moves back, and a missing one whose original is still in your source is copied back and
-checked. Choose it on a photo with a Library check finding, or tick photos under that reason
+checked. A photo another program changed can be kept as its new version, filed by the date
+now in it; if the check thought the file was a different picture, that choice starts
+unticked, for you to tick if it really is your edit. Choose it on a photo with a Library check finding, or tick photos under that reason
 (**Select ▾ › Select all in this view** takes them all) and choose **Repair (n)…**. It shows
 every change first, grouped, and you can untick any group. What it can't fix is listed with
 what you can do, such as **Index source** for a photo with no copy found, or a list of files

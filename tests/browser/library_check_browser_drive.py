@@ -80,6 +80,8 @@ with sync_playwright() as p:
     (LIBRARY / 'sorted' / '.DS_Store').write_bytes(b'\0')
     renamed = next(LIBRARY.rglob('photo-007.jpg'))
     renamed.rename(renamed.with_name('Garden party.jpg'))                  # a rename in its own folder
+    with open(next(LIBRARY.rglob('photo-008.jpg')), 'ab') as edited:      # changed, the same picture
+        edited.write(b'edited elsewhere')
 
     page.get_by_role('button', name='Jobs', exact=True).click()
     page.get_by_role('menu', name='Jobs', exact=True).get_by_role('menuitem', name=re.compile('^Check library…')).click()
@@ -89,7 +91,7 @@ with sync_playwright() as p:
     idle()
     line = status.locator('a.status-bad')
     expect(line).to_contain_text('1 missing', timeout=10000)
-    expect(line).to_contain_text('1 needs attention')
+    expect(line).to_contain_text('2 need attention')
     shot(page, 'sidebar')
 
     # The status opens the check's findings in Logs.
@@ -110,7 +112,7 @@ with sync_playwright() as p:
     assert export.get_by_role('link', name='CSV', exact=True).get_attribute('download') is not None
     assert export.get_by_role('link', name='JSON', exact=True).get_attribute('href').endswith('format=json')
     expect(page.locator('.job-head').first).to_contain_text('Library check finished')
-    expect(page.locator('.job-head').first).to_contain_text('3 findings')
+    expect(page.locator('.job-head').first).to_contain_text('4 findings')
     shot(page, 'logs')
     for width, size in ((1440, '100%'), (720, '200%')):
         page.set_viewport_size({'width': width, 'height': 900})
@@ -119,11 +121,11 @@ with sync_playwright() as p:
     page.set_viewport_size({'width': 1440, 'height': 900})
     page.locator('html').evaluate('(e)=>e.style.fontSize="100%"')
 
-    # The two Library photos with a finding carry the Library check reason.
+    # The three Library photos with a finding carry the Library check reason.
     page.goto(BASE + '/?view=review&reason=library')
     expect(page.get_by_label('Review reason', exact=True)).to_have_value('library')
-    cards = page.get_by_role('checkbox', name=re.compile(r'^Select photo-00[56]\.jpg$'))
-    expect(cards).to_have_count(2)
+    cards = page.get_by_role('checkbox', name=re.compile(r'^Select photo-00[568]\.jpg$'))
+    expect(cards).to_have_count(3)
     pid = request.get('/api/v1/photos', params={'view': 'review', 'reason': 'library', 'q': 'photo-005'}).json()['items'][0]['id']
     page.goto(BASE + f'/?view=review&reason=library&photo={pid}')
     note = page.get_by_role('region', name='Photo review', exact=True)
@@ -137,27 +139,36 @@ with sync_playwright() as p:
     six = request.get('/api/v1/photos', params={'view': 'review', 'reason': 'library', 'q': 'photo-006'}).json()['items'][0]['id']
     page.goto(BASE + f'/?view=review&reason=library&photo={six}')
     expect(page.get_by_role('region', name='Photo review', exact=True).get_by_role('button', name='Repair…')).to_be_visible()
-    # From a selection of every photo under the reason: one fix, one it can't make.
+    # From a selection of every photo under the reason: two fixes, one it can't make.
     page.goto(BASE + '/?view=review&reason=library')
     page.get_by_role('button', name='Select', exact=True).click()
     page.get_by_role('menu', name='Select').get_by_role('menuitem', name=re.compile('^Select all in this view')).click()
-    page.get_by_role('region', name='Selection').get_by_role('button', name='Repair (2)…').click()
-    repair = page.get_by_role('dialog', name='Repair 2 photos?')
+    page.get_by_role('region', name='Selection').get_by_role('button', name='Repair (3)…').click()
+    repair = page.get_by_role('dialog', name='Repair 3 photos?')
     expect(repair).to_contain_text('1 photo in the wrong folder → move back to')
+    # A kept version is filed by its date; undated, it stays in its Undated year (webui-spec 7.6).
+    expect(repair.get_by_role('checkbox', name=re.compile(r'^1 photo changed, looks the same → keep the new version '
+                                                           r'\(stays in Undated\/\d{4}\)$'))).to_be_checked()
+    expect(repair).to_contain_text('Once it\'s kept, Edit metadata date… in its Inspector gives it a date.')
     expect(repair).to_contain_text("Can't be fixed here (nothing will be done)")
     expect(repair.get_by_role('button', name='Index source', exact=True)).to_be_visible()
     shot(page, 'repair')
-    repair.get_by_role('button', name='Repair 1', exact=True).click()
+    repair.get_by_role('button', name='Repair 2', exact=True).click()
     expect(repair).to_have_count(0)
     idle()
     last = request.get('/api/v1/runs').json()['runs'][0]
     assert last['mode'] == 'REPAIR' and next(LIBRARY.rglob('photo-006.jpg')).parent.name != 'sorted', \
         (last, request.get('/api/v1/operations', params={'run': last['id']}).text()[:2000])
     page.goto(BASE + '/?view=review&reason=library')
-    expect(page.get_by_role('checkbox', name=re.compile(r'^Select photo-00[56]\.jpg$'))).to_have_count(1)
+    expect(page.get_by_role('checkbox', name=re.compile(r'^Select photo-00[568]\.jpg$'))).to_have_count(1)
     page.goto(BASE + f'/?view=organized&photo={six}')
     page.get_by_role('button', name='View lineage tree').click()
     expect(page.locator('.lineage-timeline')).to_contain_text('Moved back to its date folder')
+    page.keyboard.press('Escape')
+    eight = request.get('/api/v1/photos', params={'view': 'organized', 'q': 'photo-008'}).json()['items'][0]['id']
+    page.goto(BASE + f'/?view=organized&photo={eight}')
+    page.get_by_role('button', name='View lineage tree').click()
+    expect(page.locator('.lineage-timeline')).to_contain_text('Kept the new version')
     page.keyboard.press('Escape')
 
     # The recorded rename is in the photo's history, saying how it was found.

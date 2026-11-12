@@ -157,8 +157,9 @@ default Index):
 - --check-destination quick|full: Check library, a read-only job that reports what
   under dest/library is missing, changed, unreadable or not put there by NegativeSpace.
 - --repair-library CHECK_RUN, with --file-ids(-from): Repair, moving photos back to their
-  date folders (from another folder or from Rejects) or copying them back from the source,
-  as the named check found them; refused if a newer check has completed. Nothing is deleted.
+  date folders (from another folder or from Rejects), copying them back from the source, or
+  keeping a changed file as the photo's new version filed by its date, as the named check
+  found them; refused if a newer check has completed. Nothing is deleted.
 - --rename PHOTO_ID --name NAME [--dry-run] / --rename-candidates PHOTO_ID: give a
   delivered file a new name, or list the names its duplicate group carried.
   --rename-preview-token TOKEN binds confirmation to the unchanged dry-run result.

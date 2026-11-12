@@ -5028,6 +5028,151 @@ def repair_recovers_an_interrupted_move_back():
           "recovery did not point the photo at where the interrupted Repair moved it")
     check(rows(case, "SELECT current_path FROM file_states WHERE file_id=?", (file_id,))[0]["current_path"] == str(target),
           "recovery did not move the Library file's identity")
+    check(rows(case, "SELECT COUNT(*) n FROM destination_findings WHERE run_id=? AND settled_by IS NULL",
+               (check_run,))[0]["n"] == 0, "recovery did not settle the findings the interrupted Repair fixed")
+
+
+def _changed_versions_case(name):
+    """Four delivered photos, each changed by another program after a Copy: one edited
+    in place, one given another date, one with its date removed, and one replaced by a
+    different picture. The first also has a source duplicate of its original."""
+    case = new_case(name)
+    for stem, day in (("k", "01"), ("m", "02"), ("u", "03"), ("r", "04")):
+        make_photo(case / "src" / f"{stem}.jpg", f"keep-{stem}", date=f"2021:08:{day} 10:00:00")
+    (case / "src" / "elsewhere").mkdir()
+    shutil.copyfile(case / "src" / "k.jpg", case / "src" / "elsewhere" / "k.jpg")
+    run_engine(case)
+    run_engine(case, "--copy")
+    placed = {Path(r["source_path"]).stem: (r["id"], Path(r["dest_path"]), r["sha1_hash"])
+              for r in rows(case, "SELECT id, source_path, dest_path, sha1_hash FROM photos WHERE status='Copied'")}
+    exiftool = lambda path, *tags: subprocess.run(["exiftool", "-overwrite_original", *tags, str(path)],
+                                                  check=True, capture_output=True)
+    exiftool(placed["k"][1], "-Artist=Edited elsewhere")                      # same date, new bytes
+    exiftool(placed["m"][1], "-DateTimeOriginal=2022:01:02 10:00:00")          # another date
+    exiftool(placed["u"][1], "-DateTimeOriginal=", "-CreateDate=")           # no date left
+    make_photo(placed["r"][1], "a different picture", date="2021:08:04 10:00:00", noise=True)  # another picture
+    run_engine(case, "--check-destination", "full")
+    return case, placed, rows(case, "SELECT MAX(run_id) m FROM library_checks")[0]["m"]
+
+
+@test
+def repair_keeps_a_changed_version_filed_by_its_date():
+    """
+    engine-spec 9.2 and 10, webui-spec 7.6: Keep the new version records a file another
+    program changed as a later version of its photo and files it by the date now in it:
+    it stays when the date is unchanged, moves when its date names another folder, and
+    goes to Undated/<year of the original file time> when no date is left. It's an edit
+    of this photo does the same for a file the check judged a different picture. The old
+    checksum is kept as an earlier version, a source duplicate of it is released and
+    linked as an earlier version, the date editor reads the new version, and the next
+    check finds every photo as recorded.
+    """
+    import hashlib
+    from datetime import datetime
+    from engine import library_check, metadata_edits, repair
+    case, placed, check_run = _changed_versions_case("repair_keep")
+    library = case / "dest" / "library"
+    k_id, k, k_old = placed["k"]
+    m_id, m, _ = placed["m"]
+    u_id, u, _ = placed["u"]
+    r_id, r, _ = placed["r"]
+    year = datetime.fromtimestamp(rows(case, "SELECT s.file_mtime FROM source_snapshots s JOIN photo_files pf "
+                                             "ON pf.file_id=s.file_id WHERE pf.photo_id=?", (u_id,))[0]["file_mtime"]).year
+    conn = db(case)
+    try:
+        planned = repair.plan(conn, case / "dest")
+    finally:
+        conn.close()
+    fixes = {i["photo_id"]: (g["repair"], i["to_relative"], i["stays"]) for g in planned["groups"] for i in g["items"]}
+    check(fixes == {k_id: ("keep_new", k.relative_to(library).as_posix(), True),
+                    m_id: ("keep_new", f"2022/01/02/{m.name}", False),
+                    u_id: ("keep_new", f"Undated/{year}/{u.name}", False),
+                    r_id: ("edit", r.relative_to(library).as_posix(), True)} and planned["cannot"] == [],
+          f"Repair's plan for changed files: {fixes}, cannot {planned['cannot']}")
+
+    new_sha = {p: hashlib.sha1(placed[p][1].read_bytes()).hexdigest() for p in "kmur"}
+    run_engine(case, "--repair-library", check_run, "--file-ids", ",".join(str(placed[p][0]) for p in "kmur"))
+    run_id = rows(case, "SELECT MAX(id) m FROM runs")[0]["m"]
+    after = {r_["id"]: r_ for r_ in rows(case, "SELECT id, status, dest_path, sha1_hash, metadata_json FROM photos")}
+    m_new, u_new = library / "2022" / "01" / "02" / m.name, library / "Undated" / str(year) / u.name
+    check({p: (after[placed[p][0]]["dest_path"], after[placed[p][0]]["sha1_hash"]) for p in "kmur"}
+          == {"k": (str(k), new_sha["k"]), "m": (str(m_new), new_sha["m"]), "u": (str(u_new), new_sha["u"]),
+              "r": (str(r), new_sha["r"])} and m_new.is_file() and u_new.is_file() and not m.exists() and not u.exists(),
+          f"kept versions: {[(p, after[placed[p][0]]['dest_path']) for p in 'kmur']}")
+    dates = {p: json.loads(after[placed[p][0]]["metadata_json"]) for p in "mu"}
+    check((dates["m"]["date_taken"][:10], dates["m"]["date_source"], dates["u"]["date_source"]) == ("2022-01-02", "exif", "file_mtime"),
+          f"kept versions' dates: {[(p, d.get('date_taken'), d.get('date_source')) for p, d in dates.items()]}")
+    ops = rows(case, "SELECT o.photo_id, o.status, json_extract(e.detail_json, '$.expected.repair') kind FROM operations o "
+                     "JOIN operation_events e ON e.operation_id=o.id AND e.step='intent' WHERE o.run_id=?", (run_id,))
+    check(sorted((o["photo_id"], o["status"], o["kind"]) for o in ops)
+          == sorted([(k_id, "Repaired", "keep_new"), (m_id, "Repaired", "keep_new"), (u_id, "Repaired", "keep_new"),
+                     (r_id, "Repaired", "edit")]), f"Repair's outcomes: {ops}")
+    changes = rows(case, "SELECT b.digest before_sha1, a.digest after_sha1 FROM file_changes fc "
+                         "JOIN contents b ON b.content_id=fc.before_content_id JOIN contents a ON a.content_id=fc.after_content_id")
+    check({(c["before_sha1"], c["after_sha1"]) for c in changes} == {(placed[p][2], new_sha[p]) for p in "kmur"},
+          f"the content changes recorded: {changes}")
+    copy = rows(case, "SELECT id, status, dest_path FROM photos WHERE id<>? AND source_path LIKE '%/k.jpg'", (k_id,))[0]
+    check((copy["status"], copy["dest_path"]) == ("Pending", None)
+          and rows(case, "SELECT version_of FROM photo_versions WHERE photo_id=?", (copy["id"],)) == [{"version_of": k_id}],
+          f"the source duplicate of the old version: {dict(copy)}")
+    pending = {r_["id"] for r_ in rows(case, f"SELECT p.id FROM photos p WHERE {library_check.pending_sql()}")}
+    check(pending == set(), f"the Library check reason after keeping the versions: {pending}")
+    _assert_lineage_complete(case, "after keeping new versions")
+
+    # The date editor reads the kept version: its preview binds the new checksum.
+    capture = rows(case, "SELECT mc.capture_id FROM metadata_captures mc JOIN photo_files pf ON pf.file_id=mc.file_id "
+                         "WHERE pf.photo_id=? ORDER BY mc.capture_id DESC LIMIT 1", (k_id,))[0]["capture_id"]
+    preview = metadata_edits.preview_catalog(str(case / "appdata" / "db" / "ns_sqlite.db"), photo_id=k_id, capture_id=capture,
+                                             changes={"date_taken": "2021-08-09T10:00:00"},
+                                             destination_root=str((case / "dest").resolve()))
+    check(preview["binding"]["sha1"] == new_sha["k"] and preview["filing"]["proposed"].startswith("library/2021/08/09/"),
+          f"the date editor's preview after keeping: {preview['binding']}, {preview['filing']}")
+
+    run_engine(case, "--check-destination", "quick")
+    later = rows(case, "SELECT MAX(run_id) m FROM library_checks")[0]["m"]
+    found = rows(case, "SELECT photo_id, path FROM destination_findings WHERE run_id=?", (later,))
+    check(found == [], f"the next check did not find the kept versions as recorded: {found}")
+
+
+@test
+def repair_recovers_an_interrupted_keep_and_move():
+    """
+    engine-spec 9.2: Keep the new version, interrupted after its file moved to the folder
+    of its new date and before the catalog recorded it, is finished by recovery: the photo
+    names the new place and the new content, and its finding is settled.
+    """
+    import hashlib
+    from engine import durable, repair, store
+    case, placed, check_run = _changed_versions_case("repair_keep_recovery")
+    m_id, m, m_old = placed["m"]
+    conn = store.get_db_connection(str(case / "appdata" / "db" / "ns_sqlite.db"))
+    real = repair.record_kept
+    try:
+        item = next(i for g in repair.plan(conn, case / "dest", [m_id])["groups"] for i in g["items"])
+        run_id = conn.execute("INSERT INTO runs(mode, status, started_at) VALUES ('REPAIR', 'Interrupted', '2026-01-01')").lastrowid
+        conn.commit()
+        durable._destination_root = (case / "dest").resolve()
+
+        def power_cut(*args):
+            raise RuntimeError("power cut")
+        repair.record_kept = power_cut
+        outcome = None
+        try:
+            outcome = repair._keep(conn, run_id, check_run, (case / "dest").resolve(), item, m_old, None)
+        except RuntimeError as exc:
+            outcome = str(exc)
+    finally:
+        repair.record_kept = real
+        conn.close()
+    target = case / "dest" / "library" / "2022" / "01" / "02" / m.name
+    check(target.is_file() and not m.exists(), f"the interrupted keep did not move the file before stopping: {outcome}, "
+          f"{rows(case, 'SELECT status, error_message FROM operations WHERE run_id=?', (run_id,))}")
+    run_engine(case)
+    photo = rows(case, "SELECT dest_path, sha1_hash FROM photos WHERE id=?", (m_id,))[0]
+    check((photo["dest_path"], photo["sha1_hash"]) == (str(target), hashlib.sha1(target.read_bytes()).hexdigest()),
+          f"recovery did not record the kept version at its new place: {dict(photo)}")
+    check(rows(case, "SELECT COUNT(*) n FROM destination_findings WHERE run_id=? AND photo_id=? AND settled_by IS NULL",
+               (check_run, m_id))[0]["n"] == 0, "recovery did not settle the kept version's finding")
 
 
 def _engine_json(case, *args, expect_rc=0):

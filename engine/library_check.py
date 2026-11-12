@@ -342,12 +342,16 @@ def describe(f: dict, library: Path, catalogued: dict, moved_here: Optional[dict
         return {"finding": "replaced", "tone": "warn" if where else "bad",
                 "what": "A different picture is saved under this name. The photo NegativeSpace filed here is missing"
                         + (f"; a copy is {'in the source' if where == 'source' else 'at ' + rel(f['found_path'])}." if where else "."),
-                "todo": "Restore the photo from a copy or backup, and keep the other picture under another name."}
+                "todo": "If it's an edit of this photo, Repair can keep it as a later version of the photo. If not, "
+                        "restore the photo from a copy or backup, and keep the other picture under another name."}
     if kind == "changed":
         return {"finding": "changed", "tone": "warn",
                 "what": "Changed by another program since NegativeSpace filed it"
                         + ("; it still looks like the same photo." if f.get("look") == "alike" else "."),
-                "todo": "Nothing is lost if the change was intended. If not, restore the file from a backup."}
+                "todo": ("Repair keeps the new version as a later version of the photo, filed by the date in the "
+                         "file. If the change wasn't intended, restore the file from a backup instead."
+                         if f.get("look") == "alike" else
+                         "Nothing is lost if the change was intended. If not, restore the file from a backup.")}
     if kind == "unreadable":
         copy = ("" if not where else " A copy is in the source, so the photo isn't lost." if where == "source"
                 else f" A copy is at {rel(f['found_path'])}, so the photo isn't lost.")
