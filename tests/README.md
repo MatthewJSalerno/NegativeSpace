@@ -1046,7 +1046,6 @@ drivers exercise the same controls in their complete workflows. Both suites and 
 driver run in PR CI; extended navigation/layout/set drivers retain nightly/manual coverage.
 
 Manual steps and results: [pending validation](../docs/manual-validation.md#pending-checks).
-The historical pin walkthrough remains an acceptance record for the replaced design.
 
 ## Uncertain-operation recovery
 
@@ -1528,7 +1527,7 @@ The preview changes nothing. A deliberate `--move --confirm-edited-sources
 --request-id <new-id>` confirms edited-source removal for that job's normal selection;
 Copy rejects the flag. Use generated fixtures, inspect retained bytes/history and
 remaining source names, and verify that omitting the flag preserves edited originals.
-The web confirmation now uses a read-only catalog snapshot followed by one explicit
+The web confirmation uses a read-only catalog snapshot followed by one explicit
 job choice. `move_confirmation_test.py` runs in the standard Docker unittest form and
 is included in PR CI: Include/Leave, preserved bytes/history, stale scope, engine-lock
 recheck, request replay, live-file refusal, literal folder boundaries, Rejects and
@@ -1542,23 +1541,17 @@ Manual steps and recorded results: [Move after an embedded edit](../docs/manual-
 
 ### Metadata engine delivery and later UI acceptance
 
-The metadata engine has automated generated-fixture coverage, including verified saves,
-date refiling, recovery and job-confirmed source cleanup. The engine-only delivery did
-not include screens. The later source viewer and Date taken editor have now passed
-maintainer acceptance, including all numbered follow-ups below. Broader source-choice,
-and recovery controls remain separate work. Edited-source Move confirmation is now built
-and passed the M1–M3 walkthroughs above; broader source-choice and recovery controls
-remain separate work.
+The metadata engine has generated-fixture coverage for saves, date refiling, recovery
+and job-confirmed source cleanup. Manual source-viewer, Date taken and edited-source
+Move checks are recorded in [maintainer validation](../docs/manual-validation.md#edited-source-move).
 
 ### Combined metadata and navigation schema
 
-Schema 28 includes both metadata provenance and notification read receipts. The database
-contract suite checks the combined tables and receipts, and verifies that schema-26/27
-catalogs are refused without modification. The filter-pin API and recovery browser
-suites cover File issues in the shared sidebar, including pin exclusivity, counts,
-refresh and recovery. Local integration validation passed 195 database/API tests and
-six browser workflows: main UI, filters, notifications, review, file-issue recovery and
-externally removed copied originals. GitHub runs the complete combined suite before merge.
+Read: the database contract suite checks metadata provenance tables and notification
+read receipts together, and refuses incompatible catalogs without modifying them
+(`database_test.py:389–405`; incompatible schema fixtures: 26 and 27). Sidebar refinement and recovery coverage is described in
+[Sidebar refinements and Bookmarks](#sidebar-refinements-and-bookmarks) and
+[Uncertain-operation recovery](#uncertain-operation-recovery).
 
 ### First metadata editing UI acceptance — passed
 
@@ -1760,43 +1753,32 @@ reminder-clearing coverage. API tests cover cross-place search counts and groupe
 representatives independently of whole-place counts.
 
 Maintainer results: [Sidebar and Bookmarks](../docs/manual-validation.md#sidebar-bookmarks).
-The [earlier pin follow-up](../docs/manual-validation.md#pin-count-followup) is a
-historical acceptance record, not the current navigation contract.
 
 
 ### Completed date-editor branch acceptance after review-control cleanup
 
 Manual steps and recorded results: [Date-editor branch and follow-ups](../docs/manual-validation.md#date-editor).
 
-Automated review-control cleanup checks: frontend build; nine generated Docker browser
-workflows (sidebar refinements, layout stability, similarity comparison, Reject/Keep, review,
-cross-location, source scope, metadata sources and date editing); all three spec checkers
-and whitespace checks pass. Comparison checks assert dropdown/refresh alignment and
-reference-only Keep placement at desktop and narrow widths. Layout checks retain the
-1px limit. A comparison-test mock cleanup race was corrected by waiting for in-flight
-handlers before removing them; no assertions were removed or loosened. The year controls
-leave an empty gutter so hiding them does not rewrap the gallery guidance.
+Read: the comparison driver checks dropdown/refresh alignment and reference-only
+Keep placement at desktop and narrow widths. It waits for in-flight mock handlers
+before removing them (`browser/similar_browser_drive.py:174–188,329–330`). The layout driver
+checks the 1px limit and stable gallery geometry (`browser/layout_stability_browser_drive.py:29–36`).
 
 
-Reported-fix regression results: all 439 metadata tests, 98 API tests and 5 notification
-tests passed in Docker (317 s, 88 s and under 1 s respectively). Five generated browser
-workflows passed: date editing (24 s), source scope/folder alignment (12 s), similarity
-comparison (14 s), notifications (22 s), and layout stability (21 s). Tests verify
+Regression coverage includes
 numbered-name saves for sidecar and embedded EXIF, preservation of occupied files and
 source bytes, stale-target/orphan/symlink refusal, saved/failed/no-change counts, blank
 explicit-clear inputs and draft restoration, stable candidate positioning when tags
 expand, and aligned empty-folder rows at three widths. All three spec/schema checkers
-and whitespace checks passed. These automated results supplement the maintainer acceptance recorded above.
+and whitespace checks are required alongside the maintainer acceptance recorded above.
 
 
-Post-acceptance comment checks: all five generated Docker browser workflows passed
-(date editing, metadata sources, source scope, layout stability and the full web UI).
-The date flow verifies a second explicit clear cannot save or start another job; the
+The date-editing, metadata-source, source-scope, layout and full-UI browser drivers
+cover the corresponding presentation flows. The date flow verifies a second explicit clear cannot save or start another job; the
 folder flow checks tree-relative geometry when choosing one, multiple or no folders.
-Desktop/narrow rendering, completion-dialog screenshots, all three spec checks and
-whitespace checks passed. Engine behavior was unchanged in this presentation batch.
+Presentation coverage includes desktop/narrow rendering and completion dialogs.
 
-CI follow-up: the request-freshness browser driver checks one gallery request and no
+The request-freshness browser driver checks one gallery request and no
 folder-tree request on the default gallery, then exactly one folder-tree request in
 Source folders. The unchanged-feed and job-completion freshness assertions remain.
 
@@ -1808,8 +1790,8 @@ Copy/Move publication, unchanged source bytes until verified success, destinatio
 reuse, stale snapshots, the API/engine race, request replay, invalid/busy requests,
 changed live files and same-mode safety answers. It runs in PR/main/manual CI.
 `PAIR_RETRY_FIXTURE=1 DRIVER=pair_retry_browser_drive.py sh tests/browser/webui_browser_test.sh`
-adds generated XMP pairs and injects one initial sidecar-publication failure per
-mode. Only this fixture's generated source is writable; no real source is used.
+adds generated XMP pairs; `pair_retry_engine_fixture.py` injects one initial
+sidecar-publication failure per mode (Read: `browser/webui_browser_test.sh:97–112`). Only this fixture's generated source is writable; no real source is used.
 The browser covers latest-failure notices with retained retry history in either response
 order, photo-log links, Inspector/selection entry points, Cancel, Copy/Move confirmation,
 verified completion, source preservation/removal and narrow/200% layouts. Artifacts
@@ -1823,9 +1805,10 @@ recovery. Those retain their separate engine contracts and backlog entries.
 ## Metadata setup and Settings preferences
 
 `METADATA_SETTINGS_FIXTURE=1 DRIVER=metadata_settings_browser_drive.py sh tests/browser/webui_browser_test.sh`
-uses generated photos and pauses a real Copy immediately after its run configuration is
-recorded. The browser saves new preferences while that job is held, then checks that
-its recorded settings remain unchanged and a later job captures the saved values. The
+uses generated photos and `settings_engine_fixture.py` to pause a real Copy
+immediately after its run configuration is recorded. The browser saves new preferences while that job is held, then checks that
+its recorded settings remain unchanged and a later job captures the saved values
+(Read: `browser/settings_engine_fixture.py:12–21`). The
 catalog connection is read-only; its generated mount permits SQLite WAL shared-memory
 bookkeeping. The fixture never touches a real library. All holds are bounded and released
 in test cleanup.
@@ -2087,22 +2070,15 @@ docker run --rm -v "$PWD":/app -w /app negativespace python3 -m unittest discove
 METADATA_VIEW_FIXTURE=1 DRIVER=metadata_primary_browser_drive.py sh tests/browser/webui_browser_test.sh
 ```
 
-PR validation follow-up: final local metadata regressions passed 145 tests (149.846s),
-plus API/schema/spec checks. CI caught a motion-photo test that expected refusal only
-at Apply; it now checks both early preview refusal and the independent Apply gate,
-with unchanged source/video assertions and no new metadata-save event. All four motion
-tests passed (11.167s). CI also caught focus loss after discarding comparison turns:
-discard no longer refreshes unchanged catalog results, so it does not remove the focused
-opener. The unchanged strict similarity browser checks passed after that fix, as did
-the generated import/rotation/consolidation browser workflow and web build.
+Read: motion-photo coverage checks preview refusal and the independent Apply gate,
+source/video preservation and absence of a metadata-save event. The similarity driver
+checks focus restoration after discarding comparison turns
+(`metadata_motion_save_test.py:62–84,110–127`, `browser/similar_browser_drive.py:380–386`).
 
-The next CI browser pass exposed a stale thumbnail interception URL and a grid
-refresh regression: healthy images reloaded after unrelated jobs. The driver now
-intercepts grid URLs with revision parameters; its bounded-retry and healthy-image
-assertions remain unchanged. Grid URLs use each photo's catalog revision, fetched
-in one batch per page. A rotation regression checks that saving changes that
-revision. Rotation/API checks passed 112 tests (108.797s), all three contract tools
-passed, and both preview-refresh and import/rotation browser workflows passed.
+Read: the preview-refresh driver intercepts grid URLs with revision parameters and
+checks bounded retries and preservation of healthy images after unrelated jobs.
+Rotation coverage checks that saving changes the thumbnail revision
+(`browser/preview_refresh_browser_drive.py:43–65`, `rotations_test.py:60–67`).
 
 
 ### Low-detail matches
@@ -2137,21 +2113,12 @@ Maintainer checks for this batch use [Tests U1–U4](../docs/manual-validation.m
 
 ### Shared Reject confirmation validation
 
-The Rejects, comparison rejection, photo review, main-page, Move confirmation and
-submission browser drivers passed in Docker. The first new focus assertion was
-corrected to check restoration before resizing changes the underlying photo pane;
-the final Rejects rerun passed. Existing coverage remains intact. The web build,
-spec/schema/API checks and user-document link checks passed. Rendered questions were
-inspected in dark/light mode and at narrow width with 200% text sizing.
+Read: shared Reject confirmation coverage includes Rejects, comparison rejection,
+photo review, the main page, Move confirmation and submission. The Rejects driver
+checks focus restoration before resizing the underlying photo pane, plus dark/light
+mode, narrow width and 200% text sizing (`browser/rejects_browser_drive.py:81–100`).
 
 Maintainer acceptance passed: [RC1–RC3, all steps](../docs/manual-validation.md#shared-reject).
-Publication validation completed in Docker: 157 engine smoke tests (no skips, including
-both public RAW checks), 575 metadata tests, 301 contract tests and 16 CI-routing tests
-passed. All 38 browser workflows have passing results. The initial reference-set browser
-run timed out waiting for the help window to scroll to the top; its unchanged isolated
-rerun passed. No assertion was removed or weakened. All three tools/check-*.py checks
-passed, along with 206 local documentation links/images and 117 linked anchors.
-GitHub checks remain the final merge gate; maintainer approval has been given.
 
 ## Photo naming and compact rotation exit
 
@@ -2209,9 +2176,11 @@ Maintainer steps are in [manual validation](../docs/manual-validation.md#lineage
 attempts, failure/retry without repeating file work, prompt busy refusals without a
 queue, and reuse/invalidation of idle backup counts. The browser harness with
 `BACKUP_FIXTURE=1 DRIVER=backup_browser_drive.py` runs real jobs and snapshots, holding
-or failing only a generated fixture's backup. It checks Library/Logs/Stats progress,
+or failing only a generated fixture's backup through `backup_engine_fixture.py`.
+It checks Library/Logs/Stats progress,
 disabled actions, failure notices, repeated retry, interrupted snapshots and successful
-clearance. The fixture control lives only in the harness's disposable appdata.
+clearance. The fixture control lives only in the harness's disposable appdata
+(Read: `browser/backup_engine_fixture.py:14–39`).
 Manual steps are in [manual-validation.md](../docs/manual-validation.md#catalog-backup-status).
 
 ### Date review and clearing history

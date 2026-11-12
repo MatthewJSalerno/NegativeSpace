@@ -78,7 +78,7 @@ Three layers, balancing heavy data processing against a usable interface.
 
 ### 3.1. The Frontend (User Experience)
 
-*   **Technology:** Modern web framework (e.g. React, Vue, or Svelte).
+*   **Technology:** React + TypeScript (Read: `webui/frontend/package.json:12–22`).
 *   **Function:** A dashboard for path configuration, catalog browsing with
     file-level selection, report viewing, and real-time progress over WebSockets.
     Talks only to the API layer, never to the engine or the database. See
@@ -88,7 +88,7 @@ Three layers, balancing heavy data processing against a usable interface.
 
 *   **Role:** Command centre and communication bridge.
 *   **Function:** Handles HTTP and WebSocket requests, spawns the engine as a
-    child process (passing `--file-ids` or `--source-subdir` for selection-scoped
+    child process (passing `--file-ids-from` or `--source-subdir` for selection-scoped
     operations), reads the catalog to report progress, and relays updates to the
     frontend. The only layer that talks to both the engine and the database.
 *   **Communication:** WebSockets for live updates; `SIGTERM` to the engine
@@ -128,7 +128,9 @@ Delivered and validated against a real library. In place today:
 *   Rejects: turned-down photos move from `dest/library/` to `dest/rejects/` and can be
     returned; nothing is deleted, and identical copies stay out of the library
     (`engine-spec.md` §9.5).
-*   Selection-scoped operations via `--file-ids` and `--source-subdir`.
+*   Selection-scoped operations via `--file-ids-from` and `--source-subdir`;
+    `--file-ids` is also available for direct CLI calls (Read: `webui/jobs.py:704`,
+    `engine/cli.py:108–128`).
 *   Graceful cancellation, with every selected photo receiving a recorded
     outcome.
 *   Crash-safe resume, including run-history reconciliation after a hard kill.
@@ -163,15 +165,15 @@ The agreed XMP import/source-precedence contract and the metadata-source UI are
 tracked in [xmp-metadata.md](xmp-metadata.md). Pure resolution, bounded sidecar reading
 and ownership-planning helpers plus immutable compressed version/arrival storage are
 built. Supported field-value validation and independent ExifTool compatibility tests
-cover the reader; catalog backups verify and retain originals. Index now records qualified
-EXIF/embedded-XMP and sidecar evidence with proposed priority. Schema 25 adds saved
+cover the reader; catalog backups verify and retain originals. Index records qualified
+EXIF/embedded-XMP and sidecar evidence with proposed priority. The catalog retains
 explicit ownership/primary choices, stale-safe confirmation and frozen XMP preferences.
-Resolved single-/multiple-sidecar first imports now use the selected source for filing through normal
+Resolved single-/multiple-sidecar first imports use the selected source for filing through normal
 Copy/Move, with verification before activation and source cleanup. Recorded pairs follow
 Rename/Reject/Return. Reindex preserves established filing and names; unresolved ownership/primary choices remain held. Alternatives stay in exact
 catalog storage and shared-source cleanup requires verified preservation. Incoming duplicate XMP can be preserved
 without replacing current primary/location; deliberate Library XMP and embedded-source
-activation are built. Photo-only filing now applies captured embedded-XMP/EXIF priority
+activation are built. Photo-only filing applies captured embedded-XMP/EXIF priority
 after verified delivery without rewriting tags or changing write defaults. Common-field
 XMP saves, minimal first-sidecar creation,
 base-version composition with explicit field overrides, individual field copying,
@@ -204,9 +206,8 @@ Further gaps between the documented web workflows and what the engine can answer
 
 | Gap | Blocks |
 | :--- | :--- |
-| Thumbnail cleanup after an interrupted edit (waits on metadata editing) | Cache tidiness after an interrupted edit; nothing user-facing |
+| Thumbnail cleanup after an interrupted edit (not built) | Cache tidiness after an interrupted edit; nothing user-facing |
 | Refiling for additional embedded formats | XMP and qualified JPEG date refiling are built; other formats remain unfinished |
-| Serving a file for download | Log export and backup retrieval — API work, not engine |
 
 **The destination contract** — every file under `--dest` sits in the folder its
 own metadata implies — is recorded in `engine-spec.md` §9.7. It is the
@@ -237,7 +238,7 @@ service. Built and tested:
     *   settings as a window over the page, with catalog backups (list, Back up now,
         download);
     *   the page frame: a top bar with the filename search and the **Jobs** menu on the
-        Library page (Index; Copy and Move for the one folder shown or all), and a sidebar
+        Library page (Index; Copy and Move for the one folder shown or all; Check library), and a sidebar
         on every page with the places and their counts, warning shortcuts, Logs, Stats
         and the build; the selection bar (Copy, Move, Reject or Return to library for the
         ticked photos, only what applies) takes the top bar while photos are ticked;
@@ -310,9 +311,9 @@ rotations (inline on the large preview, or **Rotate…** for a selection) and **
 primary…** on a Library photo's other metadata sources. XMP ownership and competing
 versions for first imports are resolved in Not organized → Needs attention, and
 incomplete photo/XMP imports have **Retry**. A later Move
-now offers one job-scoped Include/Leave confirmation for edited originals, with a bound
-selection and engine recheck; maintainer acceptance of this confirmation passed
-on 2026-10-14 (tests M1–M3).
+offers one job-scoped Include/Leave confirmation for edited originals, with a bound
+selection and engine recheck. Manual checks are recorded in
+[maintainer validation](manual-validation.md#edited-source-move).
 
 Index summaries link to their exact source scopes and share a recorded file-type
 breakdown with Logs. Photo information offers Rename and recorded alternative names;
@@ -320,10 +321,15 @@ the single-photo unsaved-rotation exit has a compact save/discard decision.
 The shared job-status area stays busy through the final catalog backup. At idle,
 unbacked changes and failed backups offer Back up now or Retry backup; no job queue.
 
+Read: Repair offers Move back, Back from Rejects, Copy back from source, Keep the new
+version and It’s an edit of this photo (`webui/frontend/src/components/Repair.tsx:25–31`,
+`engine/repair.py:60–108`).
+
 Specified but not yet on screen:
 *   A downloadable Copy/Move plan is deferred for discussion only after every other
     requirement is built (`webui-spec.md` §2); the grouped folder preview is implemented.
-*   Repair in place, Add to catalog and Rebuild from the earlier version; Check library itself is built (`engine-spec.md` §9.2, `webui-spec.md` §7.6).
+*   The remaining Repair answers: catalog-only changes, paired-XMP repair, Add to catalog
+    and Rebuild from the earlier version (`engine-spec.md` §9.2, `webui-spec.md` §7.6).
 *   Undated-photo evidence with a per-library back-test (`webui-spec.md` §3.1). Date taken editing/copying
     with a filing preview is built and validated, as are saved rotations. Other fields
     remain read-only; broader engine capabilities do not imply a general-purpose web editor.
@@ -370,4 +376,6 @@ See `webui-spec.md` §11 for revision checks, current-address confirmation and l
 Uncertain-operation verification is built: the Inspector and Logs expose open issues
 and recorded evidence in every location; active Library issues also enter Needs review.
 Check it now performs a scoped read-only verification and atomic catalog repair without
-moving or deleting photos. Broader destination inventory UI remains planned.
+moving or deleting photos. Read: Check library provides destination inventory and
+findings through `webui/app.py:279–313`; the Jobs menu exposes it in
+`webui/frontend/src/components/JobsMenu.tsx:72`.

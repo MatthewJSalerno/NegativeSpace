@@ -270,10 +270,9 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
     and other active restrictions, with Reason choices replacing only that reason.
   - **Short labels:** Odd dates (Suspicious dates), No date (No usable capture date),
     Small (Small images), with the full names in accessible labels and on hover.
-  - *Why a row above the photos again:* the 2026-10-09 removal of the chip row was right
-    while the sidebar also listed the filters; here the sidebar no longer does, so
-    nothing repeats. *Why not grouped headings or nested sidebar filters:* both were
-    mocked; headings still dim what does not apply, and nesting repeats the date filters
+  - *Why a row above the photos:* refinements appear only above the photos, so the
+    sidebar does not repeat them. *Why not grouped headings or nested sidebar filters:*
+    headings still dim what does not apply, and nesting repeats the date filters
     under every place.
 - **Bookmarks** (implemented on the feature branch; renames Review later, since "review"
   already names Needs review and Review one by one). **Bookmark…** beside **Reject…**
