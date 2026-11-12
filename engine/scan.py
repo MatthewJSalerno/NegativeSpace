@@ -225,9 +225,9 @@ def discover_source_files(root: Path, extensions: set, errors: Optional[list] = 
                     if entry.name.startswith('.'):
                         continue
                     try:
-                        unreadable_name = fileinfo.control_character_in(entry.name)
+                        invalid_name = fileinfo.control_character_in(entry.name)
                         if entry.is_dir(follow_symlinks=False):
-                            if unreadable_name:
+                            if invalid_name:
                                 skip_named(entry.path, fileinfo.CONTROL_CHARACTER_FOLDER)
                             else:
                                 stack.append(entry.path)
@@ -238,7 +238,7 @@ def discover_source_files(root: Path, extensions: set, errors: Optional[list] = 
                                 excluded[ext] = excluded.get(ext, 0) + 1
                             continue
                         if entry.is_file(follow_symlinks=False):
-                            if unreadable_name:
+                            if invalid_name:
                                 skip_named(entry.path, fileinfo.CONTROL_CHARACTER_FILE)
                             else:
                                 found.append(entry.path)

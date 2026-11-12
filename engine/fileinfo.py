@@ -46,12 +46,15 @@ def control_character_in(path) -> bool:
     return any(ord(c) < 32 or ord(c) == 127 for c in str(path))
 
 
-# Why Index leaves such a file or folder out, as its Skipped log entry says it. The API
-# groups skip reasons by how they start (webui/outcomes.py, _SKIP_REASONS).
-CONTROL_CHARACTER_FILE = ("Name not read: this file's name contains a line break or another control "
-                          "character, so Index left it out. Rename it, then run Index again.")
-CONTROL_CHARACTER_FOLDER = ("Name not read: this folder's name contains a line break or another control "
-                            "character, so Index left out everything inside it. Rename it, then run Index again.")
+# Why Index leaves such a file or folder out, as its Skipped log entry says it. The words
+# say only that the name is invalid: which characters are is in the user guide (Index), so
+# no message has to diagnose one. The API groups skip reasons by how they start
+# (webui/outcomes.py, _SKIP_REASONS).
+INVALID_NAME_HELP = "The user guide lists them under Index."
+CONTROL_CHARACTER_FILE = ("Invalid file name: Index left this file out. Make sure its name has no invalid "
+                          f"characters, then run Index again. {INVALID_NAME_HELP}")
+CONTROL_CHARACTER_FOLDER = ("Invalid folder name: Index left this folder and everything inside it out. Make "
+                            f"sure its name has no invalid characters, then run Index again. {INVALID_NAME_HELP}")
 
 
 # --- Dates ---

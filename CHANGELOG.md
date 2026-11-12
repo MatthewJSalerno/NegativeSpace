@@ -12,7 +12,7 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 - Security: Index skips, unread, a source file or folder whose name holds a line break or
   another control character, and its log lists each one as Skipped. Such a name reached ExifTool as
   several arguments and could run code in the app container. Rename refuses such a name,
-  and Check library lists one found in the Library as Unreadable name
+  and Check library lists one found in the Library as Invalid name
   (`engine/fileinfo.py`, `docs/engine-spec.md` §4.2).
 
 - READ (`webui/jobs.py`, `webui/transfer_plans.py`): destination previews no longer

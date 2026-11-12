@@ -37,7 +37,7 @@ _SKIP_REASONS = (("Duplicate", "duplicate"), ("Already copied", "already_copied"
                  ("Already rejected", "already_rejected"), ("Already in Rejects", "already_in_rejects"),
                  ("Not organized yet", "not_organized"), ("A copy of another photo", "copy_follows_original"),
                  ("Already in the library", "already_in_library"), ("Not in Rejects", "not_in_rejects"),
-                 ("Rejects has been emptied", "rejects_emptied"), ("Name not read", "unreadable_name"),
+                 ("Rejects has been emptied", "rejects_emptied"), ("Invalid f", "invalid_name"),
                  ("Not attempted: the destination is a network share", "network_share_unconfirmed"),
                  ("Not attempted: the source folder is empty", "source_looked_empty"))
 

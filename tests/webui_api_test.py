@@ -850,7 +850,7 @@ class JobsAndCatalog(ApiCase):
         make_photo(self.cfg.source / "two\nlines.jpg", "c")
         run = self.index_library()
         self.assertEqual(run["outcome"]["counts"].get("Skipped"), 1, run["outcome"])
-        self.assertEqual(run["outcome"]["skip_reasons"], {"unreadable_name": 1},
+        self.assertEqual(run["outcome"]["skip_reasons"], {"invalid_name": 1},
                          "the left-out name's reason was not recognised; did the engine's wording change?")
         self.assertEqual((run["outcome"]["failed"], run["outcome"]["run_level_issues"]), (0, 0))
         self.assertEqual(self.client.get("/api/v1/photos", params={"view": "unorganized"}).json()["total"], 2)

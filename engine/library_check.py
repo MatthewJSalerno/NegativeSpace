@@ -412,10 +412,9 @@ def describe(f: dict, library: Path, catalogued: dict, moved_here: Optional[dict
                 + copy, "todo": "Check the file's permissions and the disk, then check the library again."}
     if fileinfo.control_character_in(os.path.relpath(f["path"], library)):
         # Not offered to Repair or as a photo to add: no reader is given such a name.
-        return {"finding": "unreadable_name", "tone": "warn",
-                "what": "Its name, or a folder's above it, contains a line break or another control character, "
-                        "so NegativeSpace does not read it.",
-                "todo": "Rename it in the Library folder, then check the library again."}
+        return {"finding": "invalid_name", "tone": "warn", "what": "Invalid path or file name.",
+                "todo": "Make sure the name and its folders have no invalid characters, then check the library "
+                        f"again. {fileinfo.INVALID_NAME_HELP}"}
     ext = os.path.splitext(f["path"])[1]
     if f["path"] in moved_here:
         source = moved_here[f["path"]]

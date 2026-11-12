@@ -472,7 +472,7 @@ def a_name_with_a_line_break_is_never_read_or_catalogued():
         case, "SELECT source_path, error_message FROM operations WHERE status = 'Skipped' AND photo_id IS NULL")}
     check(set(skipped) == {str(case / "src" / hostile), str(case / "src" / "fol\rder")},
           f"the run's log names the skipped file and folder: {skipped}")
-    check(all(m.startswith("Name not read") and "Rename" in m for m in skipped.values()), f"reasons: {skipped}")
+    check(all(m.startswith("Invalid f") and "invalid characters" in m for m in skipped.values()), f"reasons: {skipped}")
     # Left out on purpose, so the walk is whole: the source still counts as indexed.
     check(rows(case, "SELECT unreadable FROM run_discovery")[0]["unreadable"] == 0, "the walk was recorded as partial")
     check(not rows(case, "SELECT 1 FROM operations WHERE status = 'Failed'"), "a skipped name was recorded as a failure")
@@ -481,7 +481,7 @@ def a_name_with_a_line_break_is_never_read_or_catalogued():
     from engine import fileinfo, scan
     check(fileinfo.get_full_exif_via_exiftool(case / "src" / hostile) is None, "the reader took the name")
     refused = scan.process_file_task(str(case / "src" / hostile), str(case / "dest"), 1)
-    check(refused.status == "Failed" and "control character" in refused.error_message, f"{refused}")
+    check(refused.status == "Failed" and refused.error_message.startswith("Invalid file name"), f"{refused}")
     check(not marker.exists(), "an expression in a file name was evaluated on the targeted path")
     run_engine(case, "--copy")
     photo_id = rows(case, "SELECT id FROM photos")[0]["id"]
@@ -499,7 +499,7 @@ def a_name_with_a_line_break_is_never_read_or_catalogued():
     with contextlib.closing(db(case)) as conn:
         report = library_check.report(conn, rows(case, "SELECT MAX(run_id) m FROM library_checks")[0]["m"])
     found = {f["relative"].rsplit("/", 1)[-1]: f["finding"] for f in report["findings"]}
-    check(found.get("stray\nfile.jpg") == "unreadable_name" and found.get("re\tnamed.jpg") == "unreadable_name",
+    check(found.get("stray\nfile.jpg") == "invalid_name" and found.get("re\tnamed.jpg") == "invalid_name",
           f"the check did not name them: {found}")
     check(report["attention"] >= 1, f"they are not counted as needing attention: {report['attention']}")
 
