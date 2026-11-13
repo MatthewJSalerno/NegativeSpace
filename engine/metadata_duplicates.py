@@ -111,7 +111,7 @@ def preview(db_path, plan):
         return metadata_edits._token(plan)
 
 
-def guard(conn, db_path, op, pid, m, output):
+def guard(conn, db_path, pid, m, output):
     """Called before publication, including retries and callers without web previews."""
     expected=m['preview'].get('exact_output')
     if expected and output['after_sha1']!=expected['sha1']:

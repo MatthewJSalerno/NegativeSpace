@@ -42,7 +42,7 @@ def execute(conn, op, pid, m):
                 side=m['sidecar_receipt']
                 ns_db.record_event(conn,operation_id=op,step='pair_complete',outcome='verified',
                     detail=dict(receipt,xmp_sha256=side['sha256'],version_id=side['version_id']))
-    metadata_photo_save._refile(conn,op,pid,m,{'after_sha1':m['sha1']})
+    metadata_photo_save._refile(conn,op,m,{'after_sha1':m['sha1']})
     photo=metadata_photo_save._catalog_photo(conn,pid,op,m)
     metadata_photo_save._verify(m,photo,m['sha1'])
     return metadata_save._finish(conn,op)
