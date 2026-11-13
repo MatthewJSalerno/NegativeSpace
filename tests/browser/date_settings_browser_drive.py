@@ -1,6 +1,5 @@
 """First-run year choice and immediate date-policy updates in the rendered app."""
 import os
-import re
 import sys
 import time
 from playwright.sync_api import sync_playwright, expect

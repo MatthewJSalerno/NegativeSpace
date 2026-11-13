@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-export type Palette = "cool" | "warm";
+type Palette = "cool" | "warm";
 export type Theme = "system" | "light" | "dark";
 const listeners = new Set<() => void>();
 let palette: Palette = "cool";

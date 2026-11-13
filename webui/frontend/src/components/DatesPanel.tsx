@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Timeline } from "../api";
 import { count } from "../format";
 
-export const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
   "October", "November", "December"];
 
 // Readable names for the date filter: "June 2023", "2019", "No date".

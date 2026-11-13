@@ -5,7 +5,6 @@ metadata provenance before retiring the edited destination. Sources stay untouch
 """
 import contextlib
 import hashlib
-import json
 import os
 from pathlib import Path
 import shutil

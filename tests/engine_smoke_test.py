@@ -4777,7 +4777,6 @@ def check_library_names_files_by_content_and_finds_where_missing_photos_went():
     covers exactly the photos with a finding. Nothing is changed.
     """
     from engine import library_check, review
-    from engine import ns_db as ns
     case = new_case("check_library")
     seeds = {"a": "01", "b": "01", "c": "01", "d": "01", "e": "02", "f": "02", "g": "03", "h": "03", "k": "04"}
     for name, day in seeds.items():
@@ -5056,7 +5055,7 @@ def repair_recovers_an_interrupted_move_back():
     recorded it, is finished by recovery at the next job, pointing the photo from the path
     the catalog named to where the file now is.
     """
-    from engine import ns_db, repair
+    from engine import ns_db
     case = new_case("repair_recovery")
     make_photo(case / "src" / "a.jpg", "repair-recover", date="2021:07:01 10:00:00")
     run_engine(case)
@@ -5132,7 +5131,7 @@ def repair_keeps_a_changed_version_filed_by_its_date():
     from engine import library_check, metadata_edits, repair
     case, placed, check_run = _changed_versions_case("repair_keep")
     library = case / "dest" / "library"
-    k_id, k, k_old = placed["k"]
+    k_id, k, _ = placed["k"]
     m_id, m, _ = placed["m"]
     u_id, u, _ = placed["u"]
     r_id, r, _ = placed["r"]

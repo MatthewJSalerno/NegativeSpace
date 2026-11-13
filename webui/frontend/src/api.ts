@@ -549,7 +549,7 @@ export interface LogFilters {
   until: string;
 }
 
-export function logQuery(f: LogFilters): URLSearchParams {
+function logQuery(f: LogFilters): URLSearchParams {
   const p = new URLSearchParams();
   f.run.forEach((r) => p.append("run", String(r)));
   f.status.forEach((s) => p.append("status", s));

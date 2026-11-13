@@ -1,6 +1,5 @@
 """Evidence-based recovery checks use isolated generated files and catalogs."""
 import hashlib
-import json
 from unittest.mock import patch
 from webui_api_test import ApiCase
 from engine import ns_db, runtime

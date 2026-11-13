@@ -6,7 +6,6 @@ Mutating requests run under the normal engine lock and freeze settings once per 
 import contextlib
 import json
 from pathlib import Path
-import sys
 
 from engine import backups, jobs, metadata_edits, metadata_duplicates, metadata_incoming_apply, metadata_reproduce, metadata_save, ns_db, ns_similarity, runtime, xmp
 from engine.ns_db import RunStatus

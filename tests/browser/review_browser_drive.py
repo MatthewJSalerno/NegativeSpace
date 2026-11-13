@@ -4,7 +4,6 @@ import re
 import sys
 import time
 import uuid
-from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
 
 
