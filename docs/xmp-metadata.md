@@ -19,27 +19,27 @@ field origins and differences. It does not read files or change the catalog.
 `engine/metadata_adapter.py` adds a tested comparison view for initial qualified
 embedded EXIF fields and validated XMP sources; see the adapter boundary below.
 
-`engine/xmp.py` now captures bounded RDF/XML sidecars without writing files, and
+`engine/xmp.py` captures bounded RDF/XML sidecars without writing files, and
 `engine/xmp_association.py` plans ownership from a complete source photo inventory.
 Both are independently tested, including generated ExifTool output.
 
-`engine/xmp_store.py` now retains exact originals, parsed snapshots and immutable
-arrival/participant records (introduced in schema 23; current catalog schema 36), with
+`engine/xmp_store.py` retains exact originals, parsed snapshots and immutable
+arrival/participant records, with
 verified catalog backup coverage.
 
-**Index now reads associated XMP as capture-only evidence.** It retains qualified
+**Index reads associated XMP as capture-only evidence.** It retains qualified
 embedded EXIF/XMP, sidecar originals and proposed priority separately from live filing
 metadata. `metadata_capture` and `metadata_index` implement this boundary.
 `metadata_import` connects resolved first imports to normal Copy/Move and
 selected-date filing; primary/ownership establishment follows verified pair completion.
 Reindex preserves an established import's filing and current filename. Other canonical
 fields/origins remain in the activation receipt for the source viewer. Photo-only
-imports now apply embedded-XMP/EXIF priority after verified delivery. Deliberate embedded
+imports apply embedded-XMP/EXIF priority after verified delivery. Deliberate embedded
 primary switches are available through the engine CLI without rewriting tags.
 First-import choices and pair retry have API/UI controls. Incoming-alternative
 decisions, organized primary changes and non-JPEG embedded editing remain unfinished. The web source
 viewer is read-only and compares recorded EXIF, embedded XMP and sidecar versions.
-The engine now saves common-field XMP edits, copies explicit fields from retained sources,
+The engine saves common-field XMP edits, copies explicit fields from retained sources,
 activates associated XMP versions deliberately, and refiles verified pairs. Confirmed
 incoming metadata/Return choices execute through verified jobs; their decision UI remains
 unbuilt. Older catalogs are refused, not migrated; do not deploy this
@@ -552,8 +552,8 @@ beside an already organized source remains on the separate incoming-choice path.
 
 ## Incoming duplicate XMP (engine preservation and confirmed activation built)
 
-Schema 26 adds immutable `incoming` decisions and persists the metadata-observation
-progress phase. Rebuild development catalogs; there is no upgrade path. For an identical
+The catalog retains immutable `incoming` decisions and the metadata-observation
+progress phase. Development catalogs must match the required schema; there is no upgrade path. For an identical
 photo already in Library or Rejects, `metadata_incoming` preserves associated original
 XMP versions and arrivals without replacing the retained primary or changing its location.
 Different incoming metadata beside an existing XMP records a review flag. An identical
@@ -774,7 +774,8 @@ control is exposed to users. Catalog backups are already compressed, so a smalle
 working catalog is the main benefit. Capacity and backup costs at 200k/500k unique XMP
 versions are not yet measured.
 
-Schema 23 adds `xmp_versions`, `xmp_arrivals` and `xmp_arrival_files`. Versions carry
+The catalog stores originals and their provenance in `xmp_versions`, `xmp_arrivals`
+and `xmp_arrival_files`. Versions carry
 binary payload, encoding, original size/SHA-256, reader revision, classification/code,
 parsed fields and qualified tags. Arrivals keep run and relative source path (including
 original filename), while participant rows independently retain each file identity and

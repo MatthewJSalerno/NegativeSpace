@@ -361,8 +361,9 @@ user catalog as routine repair.
     new arrival with its own photo row and identity; the consumed row keeps its identity,
     evidence and history. With the content still recorded as delivered, the new arrival is
     a duplicate of that photo (maintainer's rule; §10).
-*   Not yet implemented: content-version transitions (nothing modifies content yet)
-    and revision enforcement across a whole transfer.
+*   Read: verified embedded edits record content-version transitions in `file_changes`
+    (`engine/metadata_photo_save.py` `_record_saved`). Revision enforcement across a whole
+    transfer remains unimplemented.
 
 
 **Status vocabularies are enforced, not merely documented.** Each of the three `status` columns carries a `CHECK` constraint listing exactly the values above (`photos.status` also permits `NULL`, since a row can exist before its scan result lands). The constraint text is generated from the same Python tuples the engine uses — `PHOTO_STATUSES`, `RUN_STATUSES`, `OPERATION_STATUSES` in `engine/ns_db.py` — so the database and the code cannot drift apart.
@@ -642,7 +643,7 @@ CREATE INDEX idx_lineage_file ON operation_files(file_id,operation_id);
 
 **Recovery, content, cache, discovery and backup records.** The first five are
 written by recovery (4.2), `contents` and `thumbnail_cache` by the scan,
-`run_discovery` by a full Index (4.3; schema 31 adds the selected-extension counts, calculated from the already-discovered candidate list with no extra filesystem reads), `run_progress` by every job (4.3), `destination_findings` and `library_checks` by Check library (9.1), and the backup records by catalog backups
+`run_discovery` by a full Index (4.3; selected-extension counts are calculated from the already-discovered candidate list with no extra filesystem reads), `run_progress` by every job (4.3), `destination_findings` and `library_checks` by Check library (9.1), and the backup records by catalog backups
 (4.1). A verified metadata edit that rewrites a Library file writes `file_changes`; Index
 and that edit write `photo_versions` when a source file holds content an edit replaced
 (section 10); the user's answers write `photo_version_answers`. Index writes `content_similarity`.
@@ -1193,8 +1194,9 @@ dropped 1,365 and added 986 of about 15,400, and every sampled change in both di
 was a real look-alike, mostly bursts near the 90% line. Of the share's dark pairs it
 dropped, 3 in 12 sampled were false. A plain contrast stretch changed little on either.
 Equalization changes the hash definition and many hashes, so the algorithms cannot be
-mixed. The historical figures above were not reproduced by the current demo snapshot;
-see the measurement record for the rerun and the historical share method limitations.
+mixed. Read: the demo snapshot does not reproduce the figures above;
+[the measurement record](similarity-validation.md#low-detail-photos--2026-10-18)
+details the dataset and share-method limitations.
 
 The SHA-1 content identity and its perceptual hash are already associated in the
 SQLite catalog's `contents` table, alongside derived comparison tables. There is
@@ -1791,10 +1793,11 @@ per content identity, and after every scan that completes cleanly, with thumbnai
 enabled, the engine removes each cache entry (file first, then record) whose content no catalogued photo
 holds in any status, keeping the `contents` identity it was keyed on. Cache files the
 catalog never recorded are left alone, because the cache survives a catalog rebuild
-on purpose. Orphan cleanup after an interrupted *edit* waits for edits to exist.
+on purpose. Orphan cleanup after an interrupted *edit* is not built. Read: the sweep runs after
+a clean Index (`engine/cli.py` `main`, calling `thumbnails.sweep_orphan_thumbnails`), not as edit recovery.
 
 §9.1–§9.6 record the engine capabilities the curation workflows require. The web
-workflows need the five below as well. None of them is visible as engine work from
+workflows need the four below as well. None of them is visible as engine work from
 the UI side — each looks like a screen until you ask what it reads from.
 
 | Capability | Needed by | Engine/API status |
@@ -1803,7 +1806,9 @@ the UI side — each looks like a screen until you ask what it reads from.
 | **Field-level before/after for metadata edits** | Full lineage and informed manual correction | XMP and qualified JPEG operations retain versions, field differences, explicit donor origins and embedded hash/content transitions. No user-facing undo; see §10 |
 | **A batch identity** | Bulk metadata apply | Built for XMP and qualified JPEG through a METADATA run and one operation per photo spanning edit/refile/retry; each outcome remains distinct |
 | **Pre-action catalog backup** | Before a confirmed EXIF edit | Built: XMP/qualified JPEG edit batches and confirmed edited-source cleanup require a verified `pre_action` catalog backup before mutation, as Rename (§9.4), Reject and Return (§9.5) do. A failed backup prevents their file changes (`webui-spec.md` §9) |
-| **Serving a file for download** | Log export; retrieving a backup | **API work rather than engine work**, recorded here because it is the same gap twice and worth building once |
+
+Read: file downloads are API capabilities: backups (`webui/app.py` `GET /api/v1/backups/{attempt_id}/download`),
+log export (`webui/app.py` `GET /api/v1/operations/export`) and library-check export (`webui/app.py` `GET /api/v1/library-check/{run_id}/export`).
 
 XMP and qualified JPEG paths use immutable operation events, retained versions and run
 identities, including verified embedded content transitions; no additional schema change
@@ -1814,7 +1819,7 @@ is needed for the job-confirmed edited-source cleanup.
 Move and Copy place photos under `library/` (`ns_db.library_root`) and Reject moves
 them to `rejects/` (`ns_db.rejects_root`, §9.5). Check destination walks
 `library/` only, so the folders beside it are never reported as foreign files. Repair in
-place (§9.2, not built) adds one look under `rejects/`: for the content of photos missing
+place (§9.2) adds one look under `rejects/`: for the content of photos missing
 from the library, never to report what else is there.
 
 ```
@@ -1853,22 +1858,24 @@ match, not a historical one: the content must be recorded as delivered or pendin
 delivered copy live, as for any duplicate. Tested by
 `a_file_returning_after_a_move_is_a_duplicate_of_the_moved_photo`.
 
-**Earlier versions arriving again** (decided 2026-10-17; not built). Libraries are built in
+**Earlier versions arriving again** (exact copies built; look-alike versions not built). Libraries are built in
 rounds: index an archive, organize it, find another, repeat. A new file is checked against
 every checksum any catalogued file has ever had, not only current ones: a current checksum
 is an identical copy, as today; a checksum a photo had before a date edit or rotation
 changed its file is an earlier version of that photo; a rejected photo's checksum, emptied
 or not, is a copy of the reject. When a change to a photo's file alters its visual
-hash, the previous perceptual hash is kept in its history beside the previous checksum,
-so a re-saved or resized copy of the earlier version is recognised by appearance too (the
-strict level and low-detail exclusion of `webui-spec.md` §7.8). A rotation saved to an XMP
+hash, the previous perceptual hash is kept in its history beside the previous checksum.
+Recognition of a re-saved or resized copy of the earlier version by appearance is
+unbuilt (the strict level and low-detail exclusion of `webui-spec.md` §7.8). A rotation saved to an XMP
 sidecar changes neither, and needs neither. An earlier version is held in Not organized
 with **Don't keep it** (left at the source, recorded; Move never deletes it, since it is
 not identical to anything delivered) and **Keep it as its own photo**; the photo's
 history notes it was found. A source no longer mounted is not a problem: Copied and Moved
 record what NegativeSpace did, not whether the source file is still there. To verify when
-building: saving a rotation into EXIF records the new checksum and recomputes the
-perceptual hash.
+building for look-alike versions: matching against retained historical perceptual hashes.
+Read: exact matching uses `file_changes.before_content_id`
+(`engine/earlier_versions.py` `find`); verified embedded saves record the resulting
+checksum and perceptual hash (`engine/metadata_photo_save.py` `_record_saved`).
 
 **Earlier versions: the agreed behaviour** (decided 2026-10-25; built for exact copies, look-alike versions not yet).
 
@@ -2093,7 +2100,7 @@ operation and run, and confirms it in the same outcome transaction. Preview, fai
 rotation, primary-source switching and clearing a date do not confirm a fallback date.
 Recovery uses the original operation identity and cannot duplicate the answer.
 
-Schema 32 adds current date confirmations, the last assessed calendar year and review-clearing triggers. Changes to
+The catalog stores current date confirmations, the last assessed calendar year and review-clearing triggers. Changes to
 the expected-date setting, recorded date, small-image setting or known dimensions append
 `cleared` events only when an unanswered concern ceases to apply. The event and its cause
 commit or roll back together. Unknown dimensions do not prove a size concern resolved.

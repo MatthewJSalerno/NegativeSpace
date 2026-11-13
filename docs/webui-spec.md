@@ -35,7 +35,7 @@ The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engi
 | SQLite (WAL) / Subprocess
 +-----------------------------------------------------------------------------------+
 |                                   Engine Core                                     |
-|   (python -m engine --workers N --exts ex1,ex2 --file-ids-from selection-file   |
+|   (python -m engine --file-ids-from selection-file                                |
 |                        --source-subdir path)                                      |
 +-----------------------------------------------------------------------------------+
 ```
@@ -1391,7 +1391,7 @@ it. The 1024px detail preview is generated on first view by `python -m engine --
 <photo_id>` (`engine-spec.md` §4.1), and **Free up** is `python -m engine --clear-previews`;
 the cache-size figures are `ns_db.thumbnail_cache_totals`, and the rebuild job is
 `python -m engine --rebuild-thumbnails missing|all`. Still unbuilt: orphan cleanup after an
-interrupted edit, which waits on metadata editing itself. Removing thumbnails whose content no catalogued
+interrupted edit. Removing thumbnails whose content no catalogued
 photo holds any more is implemented (`engine-spec.md` §9.8). One documented behavior is also not
 met — recorded failure history is **not** retained across a successful
 regeneration: `thumbnail_cache` holds current state per `(content_id, size)`, so
@@ -1805,7 +1805,7 @@ Note the engine may write more `operations` rows than the job targeted — the s
 
 ### 5.6 Engine Invocation as a Trust Boundary
 
-Because the engine's flags are now assembled by FastAPI from HTTP request bodies rather than typed by someone with shell access, argument construction is a **security boundary**, not a convenience. Three rules follow:
+Because FastAPI assembles the engine's flags from HTTP request bodies, argument construction is a **security boundary**, not a convenience. Three rules follow:
 
 * **Build the command as an argument list, never a shell string.** Use `subprocess.Popen([...])` / `subprocess.run([...])` without `shell=True`. Interpolating a user-supplied `source_subdir` into a shell command would be command injection reachable directly from an HTTP request — this is the single most damaging mistake available in this layer.
 * **`--source-subdir` carries user-chosen input** from the folder picker and is the most exposed parameter. The engine already resolves it and rejects anything escaping `--source` via `..` — that check is load-bearing once the API constructs arguments, and must not be removed as a redundant-looking sanity check. FastAPI should validate independently rather than relying solely on the engine; defense in depth is the point, and the API can return a clean `400` instead of a failed job.
@@ -1867,7 +1867,7 @@ unrecorded-run assumption establishes abandonment, and same-ID retry remains saf
 
 ### 5.8 Index Is a Precondition for Move and Copy
 
-Move and Copy act on the catalog, never on the filesystem directly. Both targeting mechanisms — `--file-ids` and `--source-subdir` — resolve rows a previous Index recorded; neither walks the source tree. A Move or Copy issued against a source that has never been indexed therefore matches zero rows and does nothing.
+Move and Copy act on the catalog, never on the filesystem directly. Both API targeting mechanisms — `--file-ids-from` and `--source-subdir` — resolve rows a previous Index recorded; neither walks the source tree. A Move or Copy issued against a source that has never been indexed therefore matches zero rows and does nothing.
 
 The engine reports this rather than hiding it: each targeting mode logs a warning naming the cause and the remedy when it matches nothing. But the engine can only explain the situation *after* the user has already waited for a job that was never going to do anything, and it deliberately does not treat an empty selection as an error — "nothing left to do" is the correct outcome for a re-run, and failing would break idempotency.
 
@@ -2216,8 +2216,10 @@ shape is stated once.
 **Tab or filter?** A population that comes with its own job to do gets a tab; a
 population that is merely a subset of an existing view, with no action that view
 lacks, gets a filter. Similarity uses the gallery filter and Inspector because review
-begins with a particular photo. Renaming is planned in the photo panel (§7.3; undated photos are a Needs review reason, §3.1),
-with their eventual placement separate from the current gallery matching workflow.
+begins with a particular photo. Renaming is available in the photo panel (§7.3; Read:
+`webui/frontend/src/components/Inspector.tsx` `Inspector` and `webui/frontend/src/components/PhotoNames.tsx` `RenameDialog`).
+Undated photos are a Needs review reason (§3.1); their eventual placement is separate
+from the current gallery matching workflow.
 A "failed operations" screen is Logs filtered to failures and introduces no action
 Logs lacks.
 
@@ -3712,10 +3714,9 @@ Collapse precedes sorting and pagination. Totals count sets; selection takes onl
 representative photos. Explicit selections remain unchanged. Members include direct
 matches from the entire destination catalog. Review this set opens direct-match
 comparison, where Use as reference walks into a neighbouring set. One line above the
-sets explains them, with a diagram in its help. No transitive traversal. Explore related
-sets, which showed neighbouring sets together, was removed. See [the design contract](ui-design.md#reference-based-sets).
+sets explains them, with a diagram in its help. No transitive traversal or combined display of neighbouring sets. See [the design contract](ui-design.md#reference-based-sets).
 
-Hash recovery now records per-file failures in Logs, with photo/path, category and
+Hash recovery records per-file failures in Logs, with photo/path, category and
 external correction guidance. Inspector shows recorded visual-processing problems.
 Failures do not change delivered status or delete files. Missing EXIF alone does not
 establish damage. A broader import-completion issue summary remains pending.

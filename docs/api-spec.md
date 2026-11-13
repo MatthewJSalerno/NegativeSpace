@@ -1565,7 +1565,7 @@ Gallery listing, IDs, position, types, folders and timeline accept `similar` and
 `suspicious` booleans and `reason` (all/small/later/date/issues/attention). These combine with existing
 filters. `view=review` selects distinct active Library photos with an unresolved supported reason. Reminders on source/rejected files do not contribute. History remains readable; new decisions require a delivered active photo.
 Refinement counts in `chips` and `reasons` combine search and other active filters;
-exclusive Reason choices replace only that reason. Pins and `filter_pins` are removed.
+exclusive Reason choices replace only that reason.
 All browse endpoints accept optional `size_below` (integer 1–100000), matching known,
 positive shorter-side dimensions strictly below the cutoff, excluding Failed records.
 This fact filter ignores review acknowledgments and the reminder setting. Listing,
@@ -1704,9 +1704,12 @@ These are designed in `webui-spec.md` and will be described here when they exist
 *   A live per-operation stream, for replaying a running job's individual events on
     reconnect (`webui-spec.md` §4.1, §5.2). `GET /operations?run=` covers the history;
     the drawer needs only the aggregate feed.
-*   The curation actions: the destination check (offered from a lineage
-    tree's copy), and metadata editing beyond Date taken, rotation and the primary
-    source, all of which the engine already supports or is specified to (`engine-spec.md` §9).
+*   Metadata editing beyond Date taken, rotation and the primary source; the
+    engine capabilities are described in `engine-spec.md` §9.
+
+Read: destination checks are available through `POST /api/v1/jobs/check-library`, with result and export routes
+`GET /api/v1/library-check`, `GET /api/v1/library-check/{run_id}` and
+`GET /api/v1/library-check/{run_id}/export` in `webui/app.py`.
 
 ## Job notifications
 
