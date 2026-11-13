@@ -1597,6 +1597,25 @@ class JobsAndCatalog(ApiCase):
         self.wait_for(self.start(mode="index"))
         self.assertEqual(self.client.get(f"/api/v1/runs/{run_id}").json()["status"], "Interrupted")
 
+    def test_cancel_finishing_during_process_poll_reports_finished(self):
+        from unittest.mock import Mock
+        from webui import jobs
+
+        runner = self.app_jobs()
+        recorded = {'status': 'Running'}
+        def finish():
+            recorded['status'] = 'Completed'
+            return 0
+        proc = Mock()
+        proc.poll.side_effect = finish
+        runner._procs[1] = proc
+        with patch.object(jobs.outcomes, 'get_run', side_effect=lambda *_: dict(recorded)):
+            with self.assertRaises(jobs.JobRefused) as refused:
+                runner.cancel(1)
+        self.assertEqual((refused.exception.status, refused.exception.body),
+                         (409, {'error': 'not_running', 'message': 'That job has already finished.'}))
+        proc.send_signal.assert_not_called()
+
     def test_cancel_stops_the_job_and_it_says_so(self):
         for i in range(150):
             make_photo(self.cfg.source / f"p{i:03d}.jpg", f"cancel-{i}", size=(800, 600))

@@ -320,19 +320,8 @@ class JobRunner:
             return self._launch(flags, request_id, selection)
 
     def import_choice(self, body):
-        with self._start_lock:
-            if self._probe_lock():
-                raise self._busy()
-            try:
-                result = subprocess.run(self.cfg.engine_argv('--import-choice'), input=json.dumps(body),
-                    text=True, capture_output=True, cwd=ENGINE_CWD, timeout=30)
-                answer = json.loads(result.stdout)
-            except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
-                raise JobRefused(503, {'error':'choice_unavailable',
-                    'message':'The choice was not confirmed. Retry the same confirmation.'}) from exc
-            if result.returncode:
-                raise JobRefused(409 if result.returncode == 3 else 400, answer)
-            return answer
+        return self._catalog_answer('--import-choice', body, 30, {'error':'choice_unavailable',
+            'message':'The choice was not confirmed. Retry the same confirmation.'})
 
     def review_decision(self, body, *, batch=False):
         return self._catalog_answer('--review-batch' if batch else '--review-decision', body, 120 if batch else 30,
@@ -785,7 +774,7 @@ class JobRunner:
             run = outcomes.get_run(self.cfg.db_path, run_id)
             if run is None:
                 raise JobRefused(404, {"error": "unknown_run", "message": "No such job."})
-            if run["status"] not in catalog.ns_db.ACTIVE_RUN_STATUSES:
+            if run["status"] not in ns_db.ACTIVE_RUN_STATUSES:
                 raise JobRefused(409, {"error": "not_running", "message": "That job has already finished."})
             raise JobRefused(409, {"error": "not_cancellable",
                                    "message": "This job was started before the web server last restarted, "
