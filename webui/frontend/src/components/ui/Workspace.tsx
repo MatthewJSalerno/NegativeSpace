@@ -4,7 +4,7 @@ import { Modal } from "./Modal";
 // Controls that use the arrow keys themselves; the workspace's ← → never override them.
 const OWN_ARROWS = 'input, select, textarea, [contenteditable="true"], [role="tablist"], [role="tab"], [role="separator"], [role="slider"], [role="menu"], [role="menuitem"], [role="radiogroup"], [data-own-arrows]';
 
-export interface WorkspaceStep {
+interface WorkspaceStep {
   /** Where the user is, e.g. "Candidate 3 of 24". */
   position: string;
   /** Accessible names for the two buttons, e.g. "Previous candidate". */

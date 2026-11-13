@@ -1,11 +1,10 @@
 """Generated exact-result consolidation, immutable origins and interruption checks."""
-import hashlib
 from pathlib import Path
 import shutil
 from unittest import mock
 import unittest
 
-from engine import fileinfo, metadata_command, metadata_decisions, metadata_edits, metadata_duplicates, metadata_embedded, metadata_photo_save, metadata_save, ns_db
+from engine import fileinfo, metadata_command, metadata_decisions, metadata_edits, metadata_duplicates, metadata_embedded, metadata_save, ns_db
 import metadata_photo_save_test
 
 

@@ -47,7 +47,7 @@ def pending(conn, old):
 
 def choose_target(conn, root, old, wanted, kind):
     """Reuse this action's unfinished target; never suffix around an orphan XMP."""
-    sidecar=current(conn,old)
+    current(conn,old)
     previous=pending(conn,old)
     if previous:
         intent=previous[1]; expected=intent['expected']

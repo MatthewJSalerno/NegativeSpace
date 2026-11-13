@@ -8,7 +8,7 @@ from unittest import mock
 
 import metadata_index_test
 import metadata_incoming_test
-from engine import (constants, durable, metadata_command, metadata_incoming, metadata_incoming_apply,
+from engine import (constants, metadata_command, metadata_incoming, metadata_incoming_apply,
                     metadata_relocate, metadata_save, ns_db, runtime, xmp_store)
 
 

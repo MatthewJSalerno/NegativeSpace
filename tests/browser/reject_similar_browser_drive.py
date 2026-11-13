@@ -8,7 +8,7 @@ import re
 import sys
 import time
 from playwright.sync_api import expect, sync_playwright
-from ui_browser_checks import finished_notice, close_notifications
+from ui_browser_checks import finished_notice
 
 BASE = sys.argv[1]
 errors = []

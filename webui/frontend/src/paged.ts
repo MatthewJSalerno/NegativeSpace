@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PhotoItem } from "./api";
 
-export interface PageResult<I = PhotoItem> { items: I[]; total: number }
+interface PageResult<I = PhotoItem> { items: I[]; total: number }
 interface Loaded<I, T> { key: string; pages: Map<number, I[]>; meta: T | null }
 interface Requests { key: string; pending: Set<number>; failures: Map<number, string> }
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);

@@ -5,7 +5,7 @@ import { count, plural } from "../format";
 type Mode = "copy" | "move";
 
 // Why an item cannot run, or null when it can. Every disabled item says why.
-export interface JobsState {
+interface JobsState {
   jobRunning: boolean;
   noPhotos: boolean;
   eligible: Record<Mode, number>;
