@@ -2217,7 +2217,7 @@ shape is stated once.
 population that is merely a subset of an existing view, with no action that view
 lacks, gets a filter. Similarity uses the gallery filter and Inspector because review
 begins with a particular photo. Renaming is available in the photo panel (§7.3; Read:
-`webui/frontend/src/components/Inspector.tsx:268` and `webui/frontend/src/components/PhotoNames.tsx:72–77`).
+`webui/frontend/src/components/Inspector.tsx` `Inspector` and `webui/frontend/src/components/PhotoNames.tsx` `RenameDialog`).
 Undated photos are a Needs review reason (§3.1); their eventual placement is separate
 from the current gallery matching workflow.
 A "failed operations" screen is Logs filtered to failures and introduces no action

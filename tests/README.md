@@ -1549,7 +1549,7 @@ Move checks are recorded in [maintainer validation](../docs/manual-validation.md
 
 Read: the database contract suite checks metadata provenance tables and notification
 read receipts together, and refuses incompatible catalogs without modifying them
-(`database_test.py:389–405`; incompatible schema fixtures: 26 and 27). Sidebar refinement and recovery coverage is described in
+(`database_test.py` `DatabaseTests.test_combined_metadata_and_notification_schema`; incompatible schema fixtures: 26 and 27). Sidebar refinement and recovery coverage is described in
 [Sidebar refinements and Bookmarks](#sidebar-refinements-and-bookmarks) and
 [Uncertain-operation recovery](#uncertain-operation-recovery).
 
@@ -1761,8 +1761,8 @@ Manual steps and recorded results: [Date-editor branch and follow-ups](../docs/m
 
 Read: the comparison driver checks dropdown/refresh alignment and reference-only
 Keep placement at desktop and narrow widths. It waits for in-flight mock handlers
-before removing them (`browser/similar_browser_drive.py:174–188,329–330`). The layout driver
-checks the 1px limit and stable gallery geometry (`browser/layout_stability_browser_drive.py:29–36`).
+before removing them (`browser/similar_browser_drive.py`). The layout driver
+checks the 1px limit and stable gallery geometry (`browser/layout_stability_browser_drive.py` `unchanged`).
 
 
 Regression coverage includes
@@ -1791,7 +1791,7 @@ reuse, stale snapshots, the API/engine race, request replay, invalid/busy reques
 changed live files and same-mode safety answers. It runs in PR/main/manual CI.
 `PAIR_RETRY_FIXTURE=1 DRIVER=pair_retry_browser_drive.py sh tests/browser/webui_browser_test.sh`
 adds generated XMP pairs; `pair_retry_engine_fixture.py` injects one initial
-sidecar-publication failure per mode (Read: `browser/webui_browser_test.sh:97–112`). Only this fixture's generated source is writable; no real source is used.
+sidecar-publication failure per mode (Read: `browser/webui_browser_test.sh` `PAIR_RETRY_FIXTURE`). Only this fixture's generated source is writable; no real source is used.
 The browser covers latest-failure notices with retained retry history in either response
 order, photo-log links, Inspector/selection entry points, Cancel, Copy/Move confirmation,
 verified completion, source preservation/removal and narrow/200% layouts. Artifacts
@@ -1808,7 +1808,7 @@ recovery. Those retain their separate engine contracts and backlog entries.
 uses generated photos and `settings_engine_fixture.py` to pause a real Copy
 immediately after its run configuration is recorded. The browser saves new preferences while that job is held, then checks that
 its recorded settings remain unchanged and a later job captures the saved values
-(Read: `browser/settings_engine_fixture.py:12–21`). The
+(Read: `browser/settings_engine_fixture.py` `start`). The
 catalog connection is read-only; its generated mount permits SQLite WAL shared-memory
 bookkeeping. The fixture never touches a real library. All holds are bounded and released
 in test cleanup.
@@ -2073,12 +2073,14 @@ METADATA_VIEW_FIXTURE=1 DRIVER=metadata_primary_browser_drive.py sh tests/browse
 Read: motion-photo coverage checks preview refusal and the independent Apply gate,
 source/video preservation and absence of a metadata-save event. The similarity driver
 checks focus restoration after discarding comparison turns
-(`metadata_motion_save_test.py:62–84,110–127`, `browser/similar_browser_drive.py:380–386`).
+(`metadata_motion_save_test.py` `MotionMetadataSaves.test_sidecar_saves_keep_all_motion_videos`,
+`MotionMetadataSaves.test_embedded_xmp_refuses_motion_trailers_without_changing_files` and
+`MotionMetadataSaves.test_embedded_exif_refuses_motion_trailers_without_changing_files`, `browser/similar_browser_drive.py`).
 
 Read: the preview-refresh driver intercepts grid URLs with revision parameters and
 checks bounded retries and preservation of healthy images after unrelated jobs.
 Rotation coverage checks that saving changes the thumbnail revision
-(`browser/preview_refresh_browser_drive.py:43–65`, `rotations_test.py:60–67`).
+(`browser/preview_refresh_browser_drive.py`, `rotations_test.py` `RotationWrites.test_sidecar_save_preserves_photo_date_and_source_then_replays`).
 
 
 ### Low-detail matches
@@ -2116,7 +2118,7 @@ Maintainer checks for this batch use [Tests U1–U4](../docs/manual-validation.m
 Read: shared Reject confirmation coverage includes Rejects, comparison rejection,
 photo review, the main page, Move confirmation and submission. The Rejects driver
 checks focus restoration before resizing the underlying photo pane, plus dark/light
-mode, narrow width and 200% text sizing (`browser/rejects_browser_drive.py:81–100`).
+mode, narrow width and 200% text sizing (`browser/rejects_browser_drive.py`).
 
 Maintainer acceptance passed: [RC1–RC3, all steps](../docs/manual-validation.md#shared-reject).
 
@@ -2180,7 +2182,7 @@ or failing only a generated fixture's backup through `backup_engine_fixture.py`.
 It checks Library/Logs/Stats progress,
 disabled actions, failure notices, repeated retry, interrupted snapshots and successful
 clearance. The fixture control lives only in the harness's disposable appdata
-(Read: `browser/backup_engine_fixture.py:14–39`).
+(Read: `browser/backup_engine_fixture.py` `snapshot` and `control`).
 Manual steps are in [manual-validation.md](../docs/manual-validation.md#catalog-backup-status).
 
 ### Date review and clearing history

@@ -1707,8 +1707,9 @@ These are designed in `webui-spec.md` and will be described here when they exist
 *   Metadata editing beyond Date taken, rotation and the primary source; the
     engine capabilities are described in `engine-spec.md` §9.
 
-Read: destination checks are available through `POST /api/v1/jobs/check-library`
-(`webui/app.py:279–285`), with result and export routes at `webui/app.py:287–313`.
+Read: destination checks are available through `POST /api/v1/jobs/check-library`, with result and export routes
+`GET /api/v1/library-check`, `GET /api/v1/library-check/{run_id}` and
+`GET /api/v1/library-check/{run_id}/export` in `webui/app.py`.
 
 ## Job notifications
 

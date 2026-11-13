@@ -362,7 +362,7 @@ user catalog as routine repair.
     evidence and history. With the content still recorded as delivered, the new arrival is
     a duplicate of that photo (maintainer's rule; §10).
 *   Read: verified embedded edits record content-version transitions in `file_changes`
-    (`engine/metadata_photo_save.py:250–253`). Revision enforcement across a whole
+    (`engine/metadata_photo_save.py` `_record_saved`). Revision enforcement across a whole
     transfer remains unimplemented.
 
 
@@ -1196,7 +1196,7 @@ dropped, 3 in 12 sampled were false. A plain contrast stretch changed little on 
 Equalization changes the hash definition and many hashes, so the algorithms cannot be
 mixed. Read: the demo snapshot does not reproduce the figures above;
 [the measurement record](similarity-validation.md#low-detail-photos--2026-10-18)
-details the dataset and share-method limitations (`similarity-validation.md:466–474,538–549`).
+details the dataset and share-method limitations.
 
 The SHA-1 content identity and its perceptual hash are already associated in the
 SQLite catalog's `contents` table, alongside derived comparison tables. There is
@@ -1794,7 +1794,7 @@ enabled, the engine removes each cache entry (file first, then record) whose con
 holds in any status, keeping the `contents` identity it was keyed on. Cache files the
 catalog never recorded are left alone, because the cache survives a catalog rebuild
 on purpose. Orphan cleanup after an interrupted *edit* is not built. Read: the sweep runs after
-a clean Index (`engine/cli.py:897`), not as edit recovery.
+a clean Index (`engine/cli.py` `main`, calling `thumbnails.sweep_orphan_thumbnails`), not as edit recovery.
 
 §9.1–§9.6 record the engine capabilities the curation workflows require. The web
 workflows need the four below as well. None of them is visible as engine work from
@@ -1807,8 +1807,8 @@ the UI side — each looks like a screen until you ask what it reads from.
 | **A batch identity** | Bulk metadata apply | Built for XMP and qualified JPEG through a METADATA run and one operation per photo spanning edit/refile/retry; each outcome remains distinct |
 | **Pre-action catalog backup** | Before a confirmed EXIF edit | Built: XMP/qualified JPEG edit batches and confirmed edited-source cleanup require a verified `pre_action` catalog backup before mutation, as Rename (§9.4), Reject and Return (§9.5) do. A failed backup prevents their file changes (`webui-spec.md` §9) |
 
-Read: file downloads are API capabilities: backups (`webui/app.py:249–253`),
-log export (`webui/app.py:706–740`) and library-check export (`webui/app.py:302–313`).
+Read: file downloads are API capabilities: backups (`webui/app.py` `GET /api/v1/backups/{attempt_id}/download`),
+log export (`webui/app.py` `GET /api/v1/operations/export`) and library-check export (`webui/app.py` `GET /api/v1/library-check/{run_id}/export`).
 
 XMP and qualified JPEG paths use immutable operation events, retained versions and run
 identities, including verified embedded content transitions; no additional schema change
@@ -1874,8 +1874,8 @@ history notes it was found. A source no longer mounted is not a problem: Copied 
 record what NegativeSpace did, not whether the source file is still there. To verify when
 building for look-alike versions: matching against retained historical perceptual hashes.
 Read: exact matching uses `file_changes.before_content_id`
-(`engine/earlier_versions.py:29–42`); verified embedded saves record the resulting
-checksum and perceptual hash (`engine/metadata_photo_save.py:235–253`).
+(`engine/earlier_versions.py` `find`); verified embedded saves record the resulting
+checksum and perceptual hash (`engine/metadata_photo_save.py` `_record_saved`).
 
 **Earlier versions: the agreed behaviour** (decided 2026-10-25; built for exact copies, look-alike versions not yet).
 

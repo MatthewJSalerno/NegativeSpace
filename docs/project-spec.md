@@ -78,7 +78,7 @@ Three layers, balancing heavy data processing against a usable interface.
 
 ### 3.1. The Frontend (User Experience)
 
-*   **Technology:** React + TypeScript (Read: `webui/frontend/package.json:12–22`).
+*   **Technology:** React + TypeScript (Read: `webui/frontend/package.json` `dependencies.react` and `devDependencies.typescript`).
 *   **Function:** A dashboard for path configuration, catalog browsing with
     file-level selection, report viewing, and real-time progress over WebSockets.
     Talks only to the API layer, never to the engine or the database. See
@@ -129,8 +129,8 @@ Delivered and validated against a real library. In place today:
     returned; nothing is deleted, and identical copies stay out of the library
     (`engine-spec.md` §9.5).
 *   Selection-scoped operations via `--file-ids-from` and `--source-subdir`;
-    `--file-ids` is also available for direct CLI calls (Read: `webui/jobs.py:704`,
-    `engine/cli.py:108–128`).
+    `--file-ids` is also available for direct CLI calls (Read: `webui/jobs.py` `JobRunner._launch`,
+    `engine/cli.py`).
 *   Graceful cancellation, with every selected photo receiving a recorded
     outcome.
 *   Crash-safe resume, including run-history reconciliation after a hard kill.
@@ -322,8 +322,8 @@ The shared job-status area stays busy through the final catalog backup. At idle,
 unbacked changes and failed backups offer Back up now or Retry backup; no job queue.
 
 Read: Repair offers Move back, Back from Rejects, Copy back from source, Keep the new
-version and It’s an edit of this photo (`webui/frontend/src/components/Repair.tsx:25–31`,
-`engine/repair.py:60–108`).
+version and It’s an edit of this photo (`webui/frontend/src/components/Repair.tsx` `FIX`,
+`engine/repair.py` `classify`).
 
 Specified but not yet on screen:
 *   A downloadable Copy/Move plan is deferred for discussion only after every other
@@ -377,5 +377,5 @@ Uncertain-operation verification is built: the Inspector and Logs expose open is
 and recorded evidence in every location; active Library issues also enter Needs review.
 Check it now performs a scoped read-only verification and atomic catalog repair without
 moving or deleting photos. Read: Check library provides destination inventory and
-findings through `webui/app.py:279–313`; the Jobs menu exposes it in
-`webui/frontend/src/components/JobsMenu.tsx:72`.
+findings through `webui/app.py` `POST /api/v1/jobs/check-library`, `GET /api/v1/library-check` and `GET /api/v1/library-check/{run_id}`; the Jobs menu exposes it in
+`webui/frontend/src/components/JobsMenu.tsx` `JobsMenu`.
