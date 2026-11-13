@@ -4,7 +4,7 @@ import type { FolderNode, FolderTree } from "../api";
 import { count, indexedExact, lastIndexed, plural } from "../format";
 
 // The files directly in the source folder, which no subfolder holds (GET /photos/folders).
-export const TOP_FILES = ".";
+const TOP_FILES = ".";
 
 export function folderLabel(path: string): string {
   return path === TOP_FILES ? "files in the source folder" : path.split("/").join(" / ");

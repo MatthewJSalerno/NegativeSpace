@@ -1304,12 +1304,9 @@ def record_thumbnail(conn, *, content_id, size, availability, cache_filename=Non
          observed_path, failure_category, failure_detail, utc_now()))
 
 
-NO_EXTENSION = ""
-
-
 def record_discovery(conn, run_id, *, eligible_by_extension, excluded_by_extension, unreadable):
     """Stores one full walk's file-type accounting. `excluded_by_extension` maps a
-    lower-case extension (NO_EXTENSION for none) to a count."""
+    lower-case extension (the empty string for none) to a count."""
     eligible = sum(eligible_by_extension.values())
     excluded = sum(excluded_by_extension.values())
     with transaction(conn):

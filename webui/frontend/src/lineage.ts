@@ -108,7 +108,7 @@ export function historySummary(tree: Lineage, events: TimelineEvent[]): string {
 
 }
 
-export interface LaneState { sources: Set<number>; library: boolean; rejects: boolean; everLibrary: boolean }
+interface LaneState { sources: Set<number>; library: boolean; rejects: boolean; everLibrary: boolean }
 export interface LaneRow { before: boolean[]; after: boolean[]; dots: number[]; curves: [number, number, boolean][]; ended: number[]; libraryDashed: boolean }
 export function laneRows(tree: Lineage, events: TimelineEvent[]): Map<string, LaneRow> {
   const files = new Map(tree.files.map(file => [file.file_id, file]));

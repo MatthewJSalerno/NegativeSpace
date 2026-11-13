@@ -671,8 +671,6 @@ body.dragging { cursor: col-resize; user-select: none; }
   .lineage-dialog { scroll-padding-block: var(--space-4); }
 }
 
-.presence-removed, .presence-missing { color: var(--warn); }
-
 /* Nested windows use the native dialog top layer, not competing z-index values. */
 
 /* Which build is running, beside Settings. */
