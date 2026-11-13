@@ -141,7 +141,7 @@ def _staged(conn, op, m):
     return result
 
 
-def _publish(conn, op, m, output):
+def _publish(m, output):
     new_hash = output['after_sha1']
     live = _hash(m,m['photo'])
     previous = _hash(m,m['previous'])
@@ -273,7 +273,7 @@ def _found_here(conn, op, m):
         library_check.settle(conn,m['check_run'],op,m['recorded'])
 
 
-def _refile(conn, op, pid, m, output):
+def _refile(conn, op, m, output):
     if metadata_save._event(conn,op,'metadata_refiled'):
         return
     if m['photo']==m['proposed']:
@@ -354,7 +354,7 @@ def _execute(conn, op, pid, m):
     output=_staged(conn,op,m)
     if not metadata_save._event(conn,op,'metadata_saved'):
         db_path=conn.execute('PRAGMA database_list').fetchone()[2]
-        metadata_duplicates.guard(conn,db_path,op,pid,m,output)
+        metadata_duplicates.guard(conn,db_path,pid,m,output)
     # A photo found in another folder is still filed when its file already holds the date.
     if output['no_change'] and not duplicate and not m.get('recorded'):
         _verify(m,m['photo'],m['sha1'])
@@ -362,7 +362,7 @@ def _execute(conn, op, pid, m):
         return metadata_save._finish(conn,op,'no_change')
     if not metadata_save._event(conn,op,'metadata_saved'):
         if not output['no_change']:
-            _publish(conn,op,m,output)
+            _publish(m,output)
         _verify(m,m['photo'],output['after_sha1'])
         _record_saved(conn,op,pid,m,output)
     if duplicate:
@@ -371,7 +371,7 @@ def _execute(conn, op, pid, m):
         result=metadata_save._finish(conn,op)
         result['survivor_photo_id']=duplicate['photo_id']
         return result
-    _refile(conn,op,pid,m,output)
+    _refile(conn,op,m,output)
     photo=_catalog_photo(conn,pid,op,m)
     _verify(m,photo,output['after_sha1'])
     if m.get('cache_root'):

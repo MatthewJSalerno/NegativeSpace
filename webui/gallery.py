@@ -94,7 +94,7 @@ def _types_clause(types):
 TOP_FILES = "."
 
 
-def _folder(root: Path, folder: str) -> str:
+def _folder(folder: str) -> str:
     """A folder named relative to the source, checked as the job request checks it
     (jobs.validate_request): normalize path steps without trimming filename
     whitespace, and reject absolute paths or parent steps escaping the source."""
@@ -117,7 +117,7 @@ def _folders_clause(folders, root):
         return "", ()
     base = str(root).rstrip("/") + "/"
     parts, params = [], []
-    for f in (_folder(root, f) for f in folders):
+    for f in (_folder(f) for f in folders):
         if f == TOP_FILES:
             parts.append("(p.source_path >= ? AND p.source_path < ? AND instr(substr(p.source_path, ?), '/') = 0)")
             params += [base, base[:-1] + "0", len(base) + 1]
@@ -622,7 +622,7 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
             f"SELECT COUNT(*) FROM photos p WHERE {shown} AND NOT (p.source_path >= ? AND p.source_path < ?)",
             params + (base, base[:-1] + "0")).fetchone()[0]
         whole, by_folder = _last_indexed(conn, base[:-1])
-    kept = {_folder(root, k) for k in keep or []}
+    kept = {_folder(k) for k in keep or []}
 
     def indexed(path, inherited):
         # Carry ancestor coverage through the tree, including collapsed chains.

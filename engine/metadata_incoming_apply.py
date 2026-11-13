@@ -108,7 +108,7 @@ def execute_keep(conn, op, pid, m):
     # The relocation helper validates its original immutable intent on retry.
     if not metadata_save._event(conn, op, 'metadata_refile_intent'):
         metadata_photo_save._verify(m, photo, m['sha1'])
-    metadata_photo_save._refile(conn, op, pid, m, {'after_sha1':m['sha1']})
+    metadata_photo_save._refile(conn, op, m, {'after_sha1':m['sha1']})
     photo = metadata_photo_save._catalog_photo(conn, pid, op, m)
     metadata_photo_save._verify(m, photo, m['sha1'])
     return metadata_save._finish(conn, op)
