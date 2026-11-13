@@ -4,7 +4,7 @@ import time
 import subprocess
 import sys
 import unittest
-from engine import ns_db, relocate
+from engine import ns_db
 from webui import catalog, outcomes
 import metadata_dates_test
 

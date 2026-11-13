@@ -12,7 +12,7 @@ from unittest import mock
 
 import metadata_index_test
 from engine import review
-from engine import (constants, durable, metadata_decisions, metadata_edits, metadata_relocate, metadata_save,
+from engine import (constants, metadata_decisions, metadata_edits, metadata_relocate, metadata_save,
                     ns_db, relocate, runtime, xmp, xmp_store)
 
 

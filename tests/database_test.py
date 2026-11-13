@@ -482,7 +482,7 @@ class DatabaseTests(unittest.TestCase):
         try:
             path = Path(self.tmp.name) / 'private.db'
             db.initialize(path)
-            with db.connect(path) as conn:
+            with db.connect(path):
                 self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
                 for suffix in ('-wal', '-shm'):
                     companion = Path(str(path) + suffix)
