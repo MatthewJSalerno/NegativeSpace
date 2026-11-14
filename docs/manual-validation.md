@@ -9,7 +9,7 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Folders named like an option:** [HD1a–HD1c](#folders-named-like-an-option) await the maintainer.
+**Folders named like an option:** [HD1a–HD1c](#folders-named-like-an-option) passed, including all lettered steps, on 2026-11-14.
 
 **Invalid names:** [LB1a–LB1c](#invalid-names) passed on 2026-11-12. The messages were then reworded at the
 maintainer's request to say only that the name is invalid; LB1a and LB1c show the reworded text.
@@ -91,7 +91,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 <a id="folders-named-like-an-option"></a>
 
-**Status:** awaiting the maintainer. A source folder whose name starts with `-` is indexed,
+**Status:** the maintainer passed HD1a–HD1c on 2026-11-14. A source folder whose name starts with `-` is indexed,
 copied and moved by folder like any other. Read: `webui/jobs.py` (`validate_request`)
 (`docs/webui-spec.md` §5.6).
 
