@@ -91,6 +91,7 @@ passes by step. A relevant behavior change must explicitly identify the steps ne
 a retest. Do not infer manual acceptance from automated results.
 
 <a id="audit-message-wording"></a>
+
 ## AW1 — Copy guidance uses the screen's controls
 
 **Record:** AW1a showed the expected message; AW1b passed (maintainer, 2026-11-14).
