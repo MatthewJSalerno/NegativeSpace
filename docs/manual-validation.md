@@ -9,7 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Audit message wording:** [AW1a–AW1b](#audit-message-wording) is pending.
+**Audit message wording:** the maintainer reported the expected [AW1a](#audit-message-wording)
+message and passed AW1b on 2026-11-14.
 
 **Folders named like an option:** [HD1a–HD1c](#folders-named-like-an-option) passed, including all lettered steps, on 2026-11-14.
 
@@ -91,6 +92,8 @@ a retest. Do not infer manual acceptance from automated results.
 
 <a id="audit-message-wording"></a>
 ## AW1 — Copy guidance uses the screen's controls
+
+**Record:** AW1a showed the expected message; AW1b passed (maintainer, 2026-11-14).
 
 Verified: the generated fixture from `transfer_outcome_browser_drive.py` includes
 `photo-020.jpg`, copied once and included in a second Copy job with a **Skipped** log entry. The second job records the earlier delivery; it does not
