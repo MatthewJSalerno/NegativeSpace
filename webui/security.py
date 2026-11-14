@@ -4,6 +4,15 @@ import re
 from urllib import parse
 
 
+def spreadsheet_text(value):
+    """A CSV cell a spreadsheet will not run as a formula: text starting with =, +, -, @,
+    tab or carriage return gets a leading apostrophe (OWASP, CSV Injection). Other values
+    pass unchanged. JSON exports carry the exact text."""
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
 def browser_origin_allowed(headers) -> bool:
     """Require a browser's Origin to name the public Host and port.
 

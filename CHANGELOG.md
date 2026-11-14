@@ -15,6 +15,14 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
   and Check library lists one found in the Library as Invalid name
   (`engine/fileinfo.py`, `docs/engine-spec.md` §4.2).
 
+- Security hardening: a source folder whose name starts with `-` can be indexed, copied and
+  moved by folder; an id larger than the catalog can hold is refused as invalid instead of
+  answering a server error; the API explorer is served only with `NS_API_DOCS=1`; pages
+  carry `X-Content-Type-Options` and `Referrer-Policy`; starting as root (`PUID=0`) is
+  warned about in the container log; CSV exports put an apostrophe before a cell that a
+  spreadsheet would run as a formula (`webui/jobs.py`, `webui/app.py`, `webui/security.py`,
+  `docker/frame-policy.conf`, `docker/entrypoint.sh`).
+
 - READ (`webui/jobs.py`, `webui/transfer_plans.py`): destination previews no longer
   hold the job-start lock while planning; pages reuse the plan with a token.
 - READ (`review_batch.py`, `catalog.py`, `gallery.py`): invalid Keep items are

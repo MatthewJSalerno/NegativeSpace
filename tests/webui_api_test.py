@@ -8,7 +8,9 @@ derived outcome together rather than each against a stub.
       negativespace python3 -m unittest discover -s tests -p webui_api_test.py -v
 """
 import contextlib
+import csv
 import fcntl
+import io
 import json
 import os
 import shutil
@@ -219,6 +221,71 @@ class SameNameCards(ApiCase):
             conn.commit()
         rows = self.client.get('/api/v1/photos', params={'view':'organized'}).json()['items']
         self.assertTrue(all(not p['name_context']['renamed_on_arrival'] for p in rows))
+
+
+class Hardening(ApiCase):
+    def test_a_folder_named_like_a_flag_is_copied_as_a_folder(self):
+        self.create_catalog()
+        for folder in ("-x", "--move"):
+            make_photo(self.cfg.source / folder / "a.jpg", "flag-" + folder)
+        self.wait_for(self.start(mode="index"))
+        for folder in ("-x", "--move"):
+            run = self.wait_for(self.start(mode="copy", source_subdir=folder))
+            self.assertEqual((run["mode"], run["status"], run["outcome"]["verdict"]), ("COPY", "Completed", "success"), run)
+        organized = self.client.get("/api/v1/photos", params={"view": "organized"}).json()
+        self.assertEqual(organized["total"], 2)
+        self.assertEqual(sorted(p.name for p in self.cfg.source.rglob("a.jpg")), ["a.jpg", "a.jpg"],
+                         "Copy leaves both originals; --move was a folder name, not a mode")
+
+    def test_an_id_too_large_for_the_catalog_is_refused_not_an_error(self):
+        self.create_catalog()
+        refused = ("GET /api/v1/photos/{}/inspect", "GET /api/v1/photos/{}/lineage", "GET /api/v1/photos/{}/issues",
+                   "GET /api/v1/photos/{}/thumbnail", "GET /api/v1/similar/{}/counts", "GET /api/v1/similar/{}",
+                   "GET /api/v1/similar/1/pair/{}", "GET /api/v1/runs/{}", "POST /api/v1/jobs/{}/cancel",
+                   "GET /api/v1/backups/{}/download", "GET /api/v1/operations?photo={}", "GET /api/v1/operations?run={}",
+                   "GET /api/v1/operations/export?photo={}", "GET /api/v1/operations/export?run={}",
+                   "GET /api/v1/operations/photo-ids?photo={}", "GET /api/v1/operations/photo-ids?run={}",
+                   "GET /api/v1/metadata-history?run={}", "GET /api/v1/metadata-history?photo={}",
+                   "GET /api/v1/library-check/{}", "GET /api/v1/photos/{}/metadata-choices/1/comparison")
+        for route in refused:
+            method, path = route.split()
+            for value in (2**63, -2**63 - 1):
+                with self.subTest(route=route, value=value):
+                    self.assertEqual(self.client.request(method, path.format(value)).status_code, 422)
+        # An id in range that is no row keeps each route's own answer.
+        for route in refused[:4] + refused[7:10]:
+            method, path = route.split()
+            for value in (0, -1, 2**63 - 1):
+                with self.subTest(route=route, value=value):
+                    self.assertEqual(self.client.request(method, path.format(value)).status_code, 404)
+        # Routes that check the id themselves keep their answers for one that is too large.
+        for path, status in (("/api/v1/photos/{}/metadata", 404), ("/api/v1/photos/{}/review", 404),
+                             ("/api/v1/photos/{}/versions", 404), ("/api/v1/photos/{}/names", 400)):
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get(path.format(2**63)).status_code, status)
+
+    def test_the_api_explorer_is_served_only_when_asked_for(self):
+        for path in ("/api/docs", "/api/openapi.json", "/docs", "/redoc", "/openapi.json"):
+            self.assertEqual(self.client.get(path).status_code, 404, path)
+        with patch.dict(os.environ, {"NS_API_DOCS": "1"}):
+            asked = TestClient(create_app(self.cfg))
+        self.addCleanup(asked.close)
+        self.assertEqual([asked.get(p).status_code for p in ("/api/docs", "/api/openapi.json")], [200, 200])
+
+    def test_exported_csv_cells_cannot_be_formulas(self):
+        from webui import security
+        for text in ("=1+1", "+1", "-x/a.jpg", "@SUM(A1)", "\tx", "\rx"):
+            self.assertEqual(security.spreadsheet_text(text), "'" + text)
+        for value in ("a=b.jpg", "2020/01/a.jpg", "", None, 7):
+            self.assertEqual(security.spreadsheet_text(value), value)
+        self.create_catalog()
+        make_photo(self.cfg.source / "=cmd" / "a.jpg", "formula")
+        run = self.wait_for(self.start(mode="index"))
+        as_csv = self.client.get("/api/v1/operations/export", params={"run": run["id"], "format": "csv"}).text
+        paths = [row["source_path"] for row in csv.DictReader(io.StringIO(as_csv)) if row["source_path"]]
+        self.assertTrue(paths and all(not p.startswith("=") for p in paths), paths)
+        as_json = self.client.get("/api/v1/operations/export", params={"run": run["id"], "format": "json"}).json()
+        self.assertFalse(any((row["source_path"] or "").startswith("'") for row in as_json), "JSON keeps the exact text")
 
 
 class BrowserRequestBoundary(ApiCase):

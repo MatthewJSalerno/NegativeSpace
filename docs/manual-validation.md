@@ -9,6 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Folders named like an option:** [HD1a–HD1c](#folders-named-like-an-option) await the maintainer.
+
 **Invalid names:** [LB1a–LB1c](#invalid-names) passed on 2026-11-12. The messages were then reworded at the
 maintainer's request to say only that the name is invalid; LB1a and LB1c show the reworded text.
 
@@ -84,6 +86,43 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Folders named like an option
+
+<a id="folders-named-like-an-option"></a>
+
+**Status:** awaiting the maintainer. A source folder whose name starts with `-` is indexed,
+copied and moved by folder like any other. Read: `webui/jobs.py` (`validate_request`)
+(`docs/webui-spec.md` §5.6).
+
+### Test HD1 — A folder whose name starts with a dash is indexed and copied by folder
+
+**Where:** the review instance at `http://localhost:8092`. Verified: every step was walked on
+a copy of the instance, with the results shown.
+
+The source holds five generated photos in three folders: `-old` (`dash-01.jpg`,
+`dash-02.jpg`), `--2019` (`double-01.jpg`) and `trip` (`trip-01.jpg`, `trip-02.jpg`). The
+source was indexed once (Job #1); nothing was copied. **Not organized** in the sidebar reads
+**5**.
+
+- **HD1a — Index one such folder.**
+  - Do: choose **Source folders** in the sidebar, tick **-old** in the folder list, then choose
+    **Index this folder** and wait for it to finish.
+  - Expected: no error appears. **Logs** in the sidebar lists **Job #2 · Index had nothing to
+    do**, "2 unchanged".
+- **HD1b — Copy it.**
+  - Do: in **Source folders**, with **-old** still ticked, choose **Copy this folder (2)…**.
+  - Expected: a question headed **Copy the photos under -old?**
+  - Do: choose **Copy** and wait for it to finish.
+  - Expected: the folder list reads **-old 0**; **Library** in the sidebar reads **2**;
+    **Logs** lists **Job #3 · Copy finished**, "2 of 2 files copied". The Library shows
+    `dash-01.jpg` and `dash-02.jpg`, each **Copied**.
+- **HD1c — A name starting with two dashes.**
+  - Do: in **Source folders**, choose **Show all folders**, tick **--2019**, choose
+    **Copy this folder (1)…**, then **Copy**, and wait for it to finish.
+  - Expected: **Library** reads **3** and **Not organized** reads **2**; **Logs** lists
+    **Job #4 · Copy finished**, "1 of 1 file copied". The Library shows `double-01.jpg`,
+    **Copied**. The two photos in `trip` are still in **Not organized**: nothing was moved.
 
 ## Invalid names
 

@@ -177,7 +177,7 @@ with sync_playwright() as p:
     expect(inspector.get_by_role('button',name='Change in Settings',exact=True)).to_have_count(0)
     expect(inspector.get_by_role('button',name='Inspect photo…',exact=True)).to_be_visible()
     # Repeated refreshes must reconcile one instance of each Inspector section.
-    # Sibling sections keyed only by the same photo ID previously left orphan controls.
+    # Sibling sections keyed only by the same photo ID would leave orphan controls.
     for _ in range(3):
         with page.expect_response(lambda r: r.url.endswith('/inspect')):
             page.evaluate("window.dispatchEvent(new Event('ns-review-changed'))")
