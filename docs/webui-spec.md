@@ -260,7 +260,7 @@ always, not only when the Index is old. A folder's Copy/Move uses that folder's 
 last-indexed time (§2) and names the folder. Beside it, **Index source** (or **Index this
 folder**) starts that Index on request, closing the preview after acceptance; it never
 starts by itself. With no recorded complete Index for this scope, it says so instead of
-inventing a time (Read: `webui/frontend/src/components/Confirm.tsx:97`).
+inventing a time (Read: `webui/frontend/src/components/Confirm.tsx` `ConfirmDialog`).
 
 **Downloadable operation plan — deferred for discussion (2026-10-24):** do not build
 or offer a CSV download with the folder preview. Revisit only after every other

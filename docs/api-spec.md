@@ -689,7 +689,7 @@ paging does not repeat per-photo metadata planning. The per-server cache holds f
 plans for up to five minutes. Expiration, eviction or server restart requires a fresh
 preview (`409 transfer_preview_changed`), never an unguarded submission.
 
-**Read — `engine/index_history.py:coverage`, `webui/transfer_plans.py:49`:** an
+**Read — `engine/index_history.py` `coverage`, `webui/transfer_plans.py` `preview`:** an
 initial preview includes `index_basis`: `indexed_at` (nullable completed coverage
 time) and `source_subdir` (nullable folder scope). Coverage uses the same rules as the
 folder tree: completed whole-source or ancestor-folder Indexes, excluding selected,
@@ -700,7 +700,7 @@ not a fresh source scan.
 input returns `400 invalid_request`; a running engine returns `409 busy`. No files
 are read or changed, no filenames reserved, no job created. Catalog settings, metadata
 captures/decisions, earlier-version answers and matching destination records participate in the guard.
-Read — `engine/transfer_preview.py:21`: the token includes the latest earlier-version
+Read — `engine/transfer_preview.py` `snapshot`: the token includes the latest earlier-version
 answer ID; a changed answer invalidates both cached pages and confirmation.
 Filing reuses the import metadata planner. Source filenames identify originals, not
 reserved destination names; live file checks and collision handling remain job work.
@@ -753,8 +753,9 @@ and frozen scope while dropping deletion consent.
 The browser freezes Copy/Move all/folder to the previewed catalogued IDs; newly indexed
 photos are not silently added. A confirmed Copy/Move is therefore a targeted run: it does
 not walk the source, so it records no discovery and marks no vanished originals; only
-Index does (Read: `engine/cli.py:638–683` targets the IDs, `:684` onward is the full
-walk). Transfer-time file reads and verification still apply. The confirmation shows the
+Index does (Read: `engine/cli.py` `main`: the `--file-ids` and `--source-subdir` branches take
+catalogued rows; only the remaining branch calls `scan.discover_source_files` and
+`scan.mark_vanished_sources`). Transfer-time file reads and verification still apply. The confirmation shows the
 last finished Index's time, outcome and scope, without an age-based warning. Preview-confirmed Move (and its Copy-instead alternative) may span Library and Rejects
 (the existing whole-source Move behavior), with an explicit Rejects warning. Ordinary
 selection submissions still refuse mixed places. Source-empty/network answers carry
