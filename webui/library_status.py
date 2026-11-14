@@ -9,7 +9,7 @@ from typing import Optional
 
 from engine import repair, library_check
 
-from . import catalog
+from . import catalog, security
 
 # Fields each exported finding carries (webui-spec 7.6).
 EXPORT_COLUMNS = ("finding", "tone", "relative", "path", "folder", "found_in", "found_path", "size", "checksum",
@@ -66,7 +66,7 @@ def export(db_path: Path, run_id: int, form: str):
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=EXPORT_COLUMNS)
     writer.writeheader()
-    writer.writerows(rows)
+    writer.writerows({k: security.spreadsheet_text(v) for k, v in row.items()} for row in rows)
     return [out.getvalue()]
 
 

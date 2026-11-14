@@ -50,4 +50,20 @@ expect_owner "$DEST/2020" "$ME" "folders already in the destination keep their o
 expect_owner "$DEST/2020/01/01/existing.jpg" "$ME" "files already in the destination keep their owner"
 expect_owner "$WORK/appdata/db/ns_sqlite.db" "$MAPPED" "appdata is handed over recursively"
 
+# Running as root is allowed, and said.
+if docker run --rm -e PUID=0 -e PGID=0 -v "$WORK/appdata":/appdata "$IMAGE" python3 -c pass 2>&1 >/dev/null \
+        | grep -q "WARNING: PUID=0 runs NegativeSpace as root"; then
+    echo "  ok    PUID=0 is warned about"
+else
+    echo "  FAIL  PUID=0 starts without a warning"
+    FAILED=1
+fi
+if docker run --rm -e PUID=$MAPPED -e PGID=$MAPPED -v "$WORK/appdata":/appdata "$IMAGE" python3 -c pass 2>&1 >/dev/null \
+        | grep -q "runs NegativeSpace as root"; then
+    echo "  FAIL  an ordinary user is warned about root"
+    FAILED=1
+else
+    echo "  ok    an ordinary user gets no root warning"
+fi
+
 exit $FAILED

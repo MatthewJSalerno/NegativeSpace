@@ -124,7 +124,7 @@ def reconcile_interrupted_state(db_path: Path, run_id: int):
         for record_id, src_str, dst_str, sha1 in cursor.fetchall():
             src, dst = Path(src_str), Path(dst_str)
             # A photo alone cannot establish delivery of a required photo/XMP pair.
-            # Dispatch before the legacy photo-only recovery and partial cleanup.
+            # Dispatch before the photo-only recovery and partial cleanup.
             intents = ns_db.unsettled_operations(conn, record_id)
             if intents:
                 detail = conn.execute("SELECT detail_json FROM operation_events WHERE operation_id=? AND step='intent' ORDER BY event_id LIMIT 1",

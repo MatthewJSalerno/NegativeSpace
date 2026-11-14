@@ -94,7 +94,8 @@ def validate_request(mode: str, file_ids=None, source_subdir=None) -> tuple:
         if posixpath.isabs(normal) or normal == ".." or normal.startswith("../"):
             raise JobRefused(400, {"error": "invalid_request",
                                    "message": "The folder must be inside the source."})
-        flags += ["--source-subdir", normal]
+        # One argument, so a folder whose name starts with "-" is never read as a flag.
+        flags += ["--source-subdir=" + normal]
     return flags, selection
 
 
@@ -611,7 +612,7 @@ class JobRunner:
             return flags[flags.index(flag) + 1] if flag in flags else next((x[len(flag)+1:] for x in flags if x.startswith(flag + "=")), None)
         targeting = ({"selection": len(selection), "sha256": ns_db.selection_digest(selection)}
                      if selection else {"source_subdir": argument("--source-subdir")}
-                     if "--source-subdir" in flags else None)
+                     if argument("--source-subdir") is not None else None)
         expected = {"mode": "MOVE" if "--move" in flags else "COPY" if "--copy" in flags else "INDEX",
                     "source": str(self.cfg.source.resolve()), "destination": str(self.cfg.dest.resolve()),
                     "targeting": targeting, "overrides": {},
