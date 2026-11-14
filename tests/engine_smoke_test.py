@@ -2904,15 +2904,10 @@ def new_date_folders_are_made_durable_before_a_source_is_deleted():
 @test
 def the_documented_recovery_redelivers_a_removed_destination_file():
     """
-    The `Skipped` reason and webui-spec 5.3 tell the user to re-index with
-    --force-rehash and copy again when a destination file has gone missing.
-
-    That advice replaced worse advice — a plain re-index, which inspects
-    nothing at the destination and skips unchanged sources — so it has to be
-    true rather than merely plausible. Both halves are asserted here: a plain
-    Index leaves the row settled and delivers nothing, while --force-rehash
-    re-reads the source, resets the row, and lets the next Copy restore the
-    file.
+    Read: webui-spec 5.3 documents the CLI recovery using --force-rehash then
+    Copy. Both halves are asserted here: a plain Index leaves the row settled
+    and delivers nothing, while --force-rehash re-reads the source, resets the
+    row, and lets the next Copy restore the file.
     """
     case = new_case("documented_recovery")
     make_photo(case / "src" / "a.jpg", "a")
@@ -3806,6 +3801,10 @@ def a_second_copy_of_a_delivered_photo_records_the_outcome():
     message = (ops[0]["error_message"] or "").lower()
     check("already" in message and "earlier run" in message,
           f"the reason does not say this is a recorded prior result: {ops[0]['error_message']}")
+    check("check library…" in message and "repair…" in message and "use move" in message,
+          "the reason must name the available Check library, Repair and Move controls")
+    check("did not verify" in message and "--force-rehash" not in message and "--move" not in message,
+          "the reason must distinguish recorded delivery from verification without CLI-only instructions")
     check(ops[0]["dest_path"] and Path(ops[0]["dest_path"]).exists(),
           f"the outcome does not point at the delivered file: {ops[0]['dest_path']}")
     check(status_of(case, "a.jpg") == "Copied", "the photo's own status was changed")

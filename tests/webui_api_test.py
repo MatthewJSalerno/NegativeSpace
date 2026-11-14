@@ -378,6 +378,7 @@ class FirstRunAndSettings(ApiCase):
         self.assertEqual((again.status_code, again.json()["error"]), (409, "catalog_exists"))
         empty = self.client.post("/api/v1/jobs/start", json={"mode": "move"})
         self.assertEqual((empty.status_code, empty.json()["error"]), (409, "catalog_empty"))
+        self.assertEqual(empty.json()["message"], "Run Index first - NegativeSpace acts on indexed photos.")
 
     def test_status_says_which_build_is_running(self):
         release = (Path(__file__).resolve().parent.parent / "VERSION").read_text().strip()
