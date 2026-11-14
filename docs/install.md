@@ -78,7 +78,8 @@ replaced.
 you. On start, the container gives that user all of `/appdata` but only the top level of
 `/data/dest`; folders and files already in the destination keep their owners, so use the
 same `PUID`/`PGID` every time. The container refuses to start if `/appdata` is not writable
-by that user, and warns if `/data/dest` is not.
+by that user, and warns if `/data/dest` is not. `PUID=0` runs NegativeSpace as root, which
+can change any file in the mounted folders; the container log warns when it starts that way.
 
 New catalog and backup files are readable only by that user (`0600`). Photo permissions
 are not changed. Use the same account for any outside backup of these folders.

@@ -8,8 +8,9 @@ import contextlib
 import csv
 import io
 import json
+import os
 import sqlite3
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 from fastapi import Body, FastAPI, HTTPException, Path as PathParam, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.exception_handlers import http_exception_handler
@@ -26,6 +27,15 @@ from . import renaming, library_status
 from . import config, jobs as job_commands
 from .config import Config
 from .jobs import JobRefused, JobRunner
+
+# An integer outside SQLite's 64-bit range fails inside the query, so every id that reaches
+# one unchecked is bounded here. StoredId only keeps it in range, so an id that is in range
+# but not a row keeps the route's own "not found" answer; CatalogId and QueryId also
+# require it to be positive.
+MAX_ID = 2**63 - 1
+StoredId = Annotated[int, Field(ge=-MAX_ID - 1, le=MAX_ID)]
+CatalogId = Annotated[int, PathParam(ge=1, le=MAX_ID)]
+QueryId = Annotated[int, Field(ge=1, le=MAX_ID)]
 
 # The drawer refreshes about once a second (webui-spec 4.1); the engine writes its
 # progress snapshot at the same cadence.
@@ -65,7 +75,11 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         yield
         await run_in_threadpool(jobs.shutdown)
 
-    app = FastAPI(title="NegativeSpace", lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json")
+    # The generated schema and its explorer (which loads its script from a public CDN) are
+    # for development: served only when NS_API_DOCS=1.
+    explorer = os.environ.get("NS_API_DOCS") == "1"
+    app = FastAPI(title="NegativeSpace", lifespan=lifespan, docs_url="/api/docs" if explorer else None,
+                  redoc_url=None, openapi_url="/api/openapi.json" if explorer else None)
     app.state.cfg, app.state.jobs = cfg, jobs
 
     @app.middleware("http")
@@ -207,21 +221,21 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         return jobs.accepted_run(run_id)
 
     @app.get("/api/v1/similar/{photo_id}/counts")
-    def similarity_counts(photo_id: int, scope: str = "library"):
+    def similarity_counts(photo_id: StoredId, scope: str = "library"):
         try:
             return matching.counts(cfg.db_path, photo_id, scope=scope)
         except ValueError as exc:
             raise HTTPException(400, {"error": "invalid_request", "message": str(exc)})
 
     @app.get("/api/v1/similar/{photo_id}/pair/{other_id}")
-    def similarity_pair(photo_id: int, other_id: int):
+    def similarity_pair(photo_id: StoredId, other_id: StoredId):
         try:
             return matching.pair(cfg.db_path, photo_id, other_id)
         except matching.PairChanged as exc:
             raise HTTPException(409, {'error':'pair_changed', 'message':str(exc)})
 
     @app.get("/api/v1/similar/{photo_id}")
-    def similar_matches(photo_id: int, mode: str = "similar", threshold: float = Query(90, ge=ns_similarity.MIN_SCORE, le=100),
+    def similar_matches(photo_id: StoredId, mode: str = "similar", threshold: float = Query(90, ge=ns_similarity.MIN_SCORE, le=100),
                         page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=60), scope: str = "library"):
         try:
             return matching.matches(cfg.db_path, photo_id, mode=mode, threshold=threshold, page=page, page_size=page_size, scope=scope)
@@ -247,7 +261,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         return jobs.backup_now()
 
     @app.get("/api/v1/backups/{attempt_id}/download")
-    def download_backup(attempt_id: int):
+    def download_backup(attempt_id: StoredId):
         path = catalog_backups.backup_download(cfg.db_path, cfg.backups, attempt_id)
         if path is None:
             raise HTTPException(404, {"error": "backup_unavailable", "message": "Backup file no longer available."})
@@ -291,7 +305,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         return library_status.status(cfg.db_path, cfg.source)
 
     @app.get("/api/v1/library-check/{run_id}")
-    def get_library_check_findings(run_id: int = PathParam(..., ge=1, le=2**63-1),
+    def get_library_check_findings(run_id: CatalogId,
                                    page: int = Query(1, ge=1), page_size: int = Query(100, ge=1, le=500)):
         """One check's counts and its findings, most serious first, a page at a time."""
         found = library_status.findings(cfg.db_path, run_id, page, page_size)
@@ -300,7 +314,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         return found
 
     @app.get("/api/v1/library-check/{run_id}/export")
-    def export_library_check(run_id: int = PathParam(..., ge=1, le=2**63-1), format: str = "csv"):
+    def export_library_check(run_id: CatalogId, format: str = "csv"):
         """Every finding of one check as CSV or JSON."""
         if format not in ("csv", "json"):
             raise HTTPException(400, {"error": "invalid_request", "message": "format is csv or json."})
@@ -518,7 +532,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         return jobs.import_choice(body)
 
     @app.get("/api/v1/photos/{photo_id}/issues")
-    def photo_issues(photo_id: int):
+    def photo_issues(photo_id: StoredId):
         with catalog.connect(cfg.db_path) as conn:
             if not gallery.photo_exists(conn, photo_id):
                 raise HTTPException(404, {"error":"not_found","message":"Photo not found."})
@@ -626,21 +640,21 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         return found
 
     @app.get("/api/v1/photos/{photo_id}/inspect")
-    def inspect(photo_id: int):
+    def inspect(photo_id: StoredId):
         found = gallery.inspect_photo(cfg.db_path, photo_id, source_root=cfg.source, destination_root=cfg.dest)
         if found is None:
             raise HTTPException(404, {"error": "unknown_photo", "message": "No catalogued photo has this id."})
         return found
 
     @app.get("/api/v1/photos/{photo_id}/lineage")
-    def get_lineage(photo_id: int):
+    def get_lineage(photo_id: StoredId):
         found = lineage.photo_lineage(cfg.db_path, photo_id)
         if found is None:
             raise HTTPException(404, {"error": "unknown_photo", "message": "No such photo."})
         return found
 
     @app.get("/api/v1/photos/{photo_id}/thumbnail")
-    def thumbnail(photo_id: int, size: str = "grid"):
+    def thumbnail(photo_id: StoredId, size: str = "grid"):
         """The grid thumbnail from the cache, or the 1024px detail preview, which the
         engine makes on first view (--preview). Unavailable is a 404 carrying the
         recorded reason, for the placeholder (webui-spec 4.2.1)."""
@@ -680,32 +694,32 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
                 "since": since or None, "until": until or None}
 
     @app.get("/api/v1/metadata-history")
-    def get_metadata_history(run: Optional[List[int]] = Query(None), status: Optional[List[str]] = Query(None),
-                             photo: Optional[int] = Query(None, ge=1, le=2**63-1), q: Optional[str] = None,
+    def get_metadata_history(run: Optional[List[StoredId]] = Query(None), status: Optional[List[str]] = Query(None),
+                             photo: Optional[QueryId] = None, q: Optional[str] = None,
                              since: Optional[str] = None, until: Optional[str] = None,
                              page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
         return metadata_history.list_history(cfg.db_path, page=page, page_size=page_size,
                                              **_log_filters(run, status, photo, q, since, until))
 
     @app.get("/api/v1/photos/{photo_id}/metadata-choices/{revision}/comparison")
-    def get_metadata_choice_comparison(photo_id: int = PathParam(..., ge=1, le=2**63-1),
-                                       revision: int = PathParam(..., ge=1, le=2**63-1)):
+    def get_metadata_choice_comparison(photo_id: CatalogId,
+                                       revision: CatalogId):
         result = metadata_history.compare_choice(cfg.db_path, photo_id, revision)
         if result is None:
             raise HTTPException(404, {"error":"not_found", "message":"This saved choice is not recorded for this photo."})
         return result
 
     @app.get("/api/v1/operations")
-    def get_operations(run: Optional[List[int]] = Query(None), status: Optional[List[str]] = Query(None),
-                       photo: Optional[int] = None, q: Optional[str] = None, since: Optional[str] = None,
+    def get_operations(run: Optional[List[StoredId]] = Query(None), status: Optional[List[str]] = Query(None),
+                       photo: Optional[StoredId] = None, q: Optional[str] = None, since: Optional[str] = None,
                        until: Optional[str] = None, metadata_edits: bool = False, page: int = Query(1, ge=1),
                        page_size: int = Query(100, ge=1, le=oplog.LOG_PAGE_MAX)):
         return oplog.list_operations(cfg.db_path, page=page, page_size=page_size,
                                        metadata_edits=metadata_edits, **_log_filters(run, status, photo, q, since, until))
 
     @app.get("/api/v1/operations/export")
-    def export_operations(format: str = "csv", run: Optional[List[int]] = Query(None),
-                          status: Optional[List[str]] = Query(None), photo: Optional[int] = None,
+    def export_operations(format: str = "csv", run: Optional[List[StoredId]] = Query(None),
+                          status: Optional[List[str]] = Query(None), photo: Optional[StoredId] = None,
                           q: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None, metadata_edits: bool = False):
         """The whole filtered log as CSV or JSON, streamed, oldest first."""
         if format not in ("csv", "json"):
@@ -721,7 +735,8 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             writer = csv.DictWriter(out, fieldnames=columns, extrasaction="ignore")
             writer.writeheader()
             for item in oplog.iter_operations(cfg.db_path, **filters):
-                writer.writerow({**item, "date_change": json.dumps(item["date_change"]) if item["date_change"] else ""})
+                row = {**item, "date_change": json.dumps(item["date_change"]) if item["date_change"] else ""}
+                writer.writerow({k: security.spreadsheet_text(v) for k, v in row.items()})
                 if out.tell() > 64_000:
                     yield out.getvalue()
                     out.seek(0)
@@ -740,8 +755,8 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
                                  headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
     @app.get("/api/v1/operations/photo-ids")
-    def operation_photo_ids(run: Optional[List[int]] = Query(None), status: Optional[List[str]] = Query(None),
-                            photo: Optional[int] = None, q: Optional[str] = None, since: Optional[str] = None,
+    def operation_photo_ids(run: Optional[List[StoredId]] = Query(None), status: Optional[List[str]] = Query(None),
+                            photo: Optional[StoredId] = None, q: Optional[str] = None, since: Optional[str] = None,
                             until: Optional[str] = None, metadata_edits: bool = False, requested_only: bool = False):
         """The distinct photos behind the filtered operations, for Retry: all of them."""
         return {"photo_ids": oplog.operation_photo_ids(cfg.db_path, requested_only,
@@ -806,7 +821,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         return {"state": "accepted", "run": jobs.accepted_run(record["run_id"])} if record else {"state": "unknown", "run": None}
 
     @app.post("/api/v1/jobs/{run_id}/cancel", status_code=202)
-    def cancel_job(run_id: int):
+    def cancel_job(run_id: StoredId):
         jobs.cancel(run_id)
         return {"id": run_id, "cancel_requested": True}
 
@@ -815,7 +830,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         return jobs.state()
 
     @app.get("/api/v1/runs/{run_id}")
-    def get_run(run_id: int):
+    def get_run(run_id: StoredId):
         run = outcomes.get_run(cfg.db_path, run_id)
         if run is None:
             raise HTTPException(404, {"error": "unknown_run", "message": "No such job."})

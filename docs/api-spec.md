@@ -7,14 +7,20 @@ job control). This document is the reference for what exists. `webui-spec.md` de
 `engine-spec.md` defines the catalog it reads. A route in code that this document does
 not describe fails CI (`tools/check-api-spec.py`).
 
-FastAPI also serves a generated schema at `/api/openapi.json` and an explorer at
-`/api/docs`. They list the same routes but not the rules below.
+For development, starting the app container with `NS_API_DOCS=1` also serves FastAPI's
+generated schema at `/api/openapi.json` and an explorer at `/api/docs`, which loads its
+script from a public CDN. They list the same routes but not the rules below. Without the
+setting both answer 404.
 
 ## 1. Conventions
 
 *   **Base path** `/api/v1`. In the two-container deployment (`docker/compose.yml`) the
     `web` container passes everything under `/api` to `app`, which listens on port 8000
     and is not published.
+*   **Ids.** A photo, job or backup id in a path, and the `photo` and `run` log filters, is
+    a 64-bit integer. One outside −2^63 to 2^63 − 1 never reaches a catalog read: it answers
+    `422`, or, on a route that documents its own answer for an unknown id, that answer. An
+    id in range that names no row gets the route's own answer (usually `404`).
 *   **Host boundary.** Every HTTP API request (including reads and generated API docs)
     requires exactly one valid Host header whose hostname/IP is in the effective
     allowlist: local defaults, `NS_ALLOWED_HOSTS`, and saved Access settings. Invalid or unlisted hosts return `400 untrusted_host` with
@@ -984,7 +990,10 @@ One page, newest first (`page`, and `page_size` from 1 to 500, default 100):
 ### `GET /api/v1/operations/export`
 
 The whole filtered log, oldest first, streamed, as `format=csv` (default) or `json`, with
-the columns of an item above.
+the columns of an item above. In CSV, a text cell starting with `=`, `+`, `-`, `@`, tab or
+carriage return has an apostrophe put before it, so a spreadsheet shows it as text and
+never runs it as a formula; JSON carries the exact text (`webui/security.py`
+`spreadsheet_text`).
 
 ### `GET /api/v1/operations/photo-ids`
 
@@ -1184,7 +1193,8 @@ library check has this job number.
 
 Query: `format=csv|json` (default `csv`). Every finding of one check as a download, with
 `finding, tone, relative, path, folder, found_in, found_path, size, checksum, photo_id,
-what, todo, repaired_by`. `400` for another format, `404` for an unknown check.
+what, todo, repaired_by`. CSV cells are guarded as in `GET /api/v1/operations/export`.
+`400` for another format, `404` for an unknown check.
 
 ### `POST /api/v1/repair/preview`
 

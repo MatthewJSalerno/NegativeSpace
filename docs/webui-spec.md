@@ -1808,7 +1808,7 @@ Note the engine may write more `operations` rows than the job targeted — the s
 Because FastAPI assembles the engine's flags from HTTP request bodies, argument construction is a **security boundary**, not a convenience. Three rules follow:
 
 * **Build the command as an argument list, never a shell string.** Use `subprocess.Popen([...])` / `subprocess.run([...])` without `shell=True`. Interpolating a user-supplied `source_subdir` into a shell command would be command injection reachable directly from an HTTP request — this is the single most damaging mistake available in this layer.
-* **`--source-subdir` carries user-chosen input** from the folder picker and is the most exposed parameter. The engine already resolves it and rejects anything escaping `--source` via `..` — that check is load-bearing once the API constructs arguments, and must not be removed as a redundant-looking sanity check. FastAPI should validate independently rather than relying solely on the engine; defense in depth is the point, and the API can return a clean `400` instead of a failed job.
+* **`--source-subdir` carries user-chosen input** from the folder picker and is the most exposed parameter. The engine already resolves it and rejects anything escaping `--source` via `..` — that check is load-bearing once the API constructs arguments, and must not be removed as a redundant-looking sanity check. FastAPI should validate independently rather than relying solely on the engine; defense in depth is the point, and the API can return a clean `400` instead of a failed job. The API passes it as one argument, `--source-subdir=<folder>`, so a folder whose name starts with `-` is a folder and never a flag (`webui/jobs.py` `validate_request`).
 * **`--exts` is the subject of the validation feature in §3.2.** The engine normalizes the leading dot and casing but does not otherwise constrain the value, so the API owns deciding which extensions are acceptable. Scope is limited to the mounted source directory, so the risk is indexing unintended file types rather than reading outside the volume — but a user-facing field still needs a server-side allowlist, not just client-side checks.
 
 * **A selection travels in a file, never on the command line** (§2). The API names it from the request ID alone (already limited to letters, digits, `_` and `-`), never from anything the client sends as a path, and writes it under application data in a folder only the application's user can open (`0700`, the file `0600`): created fresh, never through a link, flushed to disk and renamed into place whole. The engine reads only a plain file, under a size cap, written for its own request, whose count and checksum match, every line one id, ascending, no repeats; and refuses the whole job, recording nothing, if any photo is no longer catalogued in this source. The checksum catches a cut-off or damaged file; it is no defence against someone who can write application data, who could change the catalog beside it anyway. The file is removed once the engine has recorded the selection with the run.
@@ -3791,6 +3791,9 @@ this does not change photo permissions or add sign-in. See [Network access](inst
 The shipped web container sends `Content-Security-Policy: frame-ancestors 'self'`
 and `X-Frame-Options: SAMEORIGIN` on its responses, including API and asset errors.
 Other origins cannot embed the app’s controls; same-origin framing remains allowed.
+The same responses carry `X-Content-Type-Options: nosniff` and
+`Referrer-Policy: same-origin`, so a browser never guesses a file's type and never sends
+a page address, which holds folder and file names, to another site (`docker/frame-policy.conf`).
 
 ### Library-only review and import failures
 

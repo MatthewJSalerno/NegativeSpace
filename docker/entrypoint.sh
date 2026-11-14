@@ -5,6 +5,10 @@ set -e
 PUID=${PUID:-1000}
 PGID=${PGID:-1000}
 
+if [ "$PUID" = 0 ]; then
+    echo "WARNING: PUID=0 runs NegativeSpace as root, so it can change any file in the folders mounted into this container. Set PUID and PGID to the owner of your photo folders unless root is intended (docs/install.md)." >&2
+fi
+
 # Create (or reuse) a group/user matching host UID/GID
 if ! getent group "$PGID" >/dev/null 2>&1; then
     addgroup --gid "$PGID" appuser

@@ -317,11 +317,11 @@ def _items(conn, rows, *, name_scope, name_params, include_review=False) -> list
             last = conn.execute("SELECT error_message FROM operations WHERE photo_id = ? AND status = ? "
                                 "ORDER BY id DESC LIMIT 1", (r["id"], PhotoStatus.FAILED)).fetchone()
             item["failure"] = catalog.failure_reason(last[0]) if last else None
-        # A Copied photo a Move could not finish: why its original is still in the source.
         # When a rejected photo was rejected, for its card in the Rejects view.
         item["rejected_at"] = None
         if r["status"] in IN_REJECTS_STATUSES:
             item["rejected_at"] = _rejected_at(conn, r["id"])
+        # A Copied photo a Move could not finish: why its original is still in the source.
         item["kept"] = None
         if r["status"] == PhotoStatus.COPIED:
             last = conn.execute("SELECT error_message FROM operations WHERE photo_id = ? AND status IN (?, ?) "
