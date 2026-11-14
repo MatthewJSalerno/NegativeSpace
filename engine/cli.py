@@ -166,12 +166,7 @@ def main():
         "--rename", type=int, metavar="PHOTO_ID", default=None,
         help="Give a delivered photo's destination file a new name (--name), keeping its date "
              "folder and real extension; a taken name gets a _N suffix. Backs up the catalog first. "
-             "Takes the engine lock. With --dry-run, prints the resulting path as JSON instead."
-    )
-    mode_group.add_argument(
-        "--rename-candidates", type=int, metavar="PHOTO_ID", default=None,
-        help="Print, as one line of JSON, the filenames this photo's content has carried across "
-             "its duplicate group. Read only; takes no lock."
+             "Takes the engine lock."
     )
     mode_group.add_argument(
         "--backup-now", action="store_true",
@@ -197,10 +192,8 @@ def main():
              "back to their date folder in dest/library. Backs up the catalog first. Takes the "
              "engine lock."
     )
-    parser.add_argument("--rename-preview-token", default=None, help="With --rename: require the unchanged dry-run preview token before writing.")
+    parser.add_argument("--rename-preview-token", default=None, help="With --rename: require the unchanged preview token before writing.")
     parser.add_argument("--name", default=None, help="The new name for --rename.")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="With --rename: print where the file would go, and change nothing.")
     mode_group.add_argument('--repair-similarity', choices=('missing','comparisons'),
                             help='Recover missing visual hashes from destination files or resume stored-hash comparisons; never edits photos.')
     parser.add_argument('--repair-photo', type=int, default=None, help='Limit missing-hash recovery to one destination photo identity.')
@@ -250,8 +243,8 @@ def main():
         parser.error("--rename-preview-token needs --rename and a SHA-256 preview token.")
     if args.rename is not None and not args.name:
         parser.error("--rename needs --name.")
-    if (args.name is not None or args.dry_run) and args.rename is None:
-        parser.error("--name and --dry-run go with --rename.")
+    if args.name is not None and args.rename is None:
+        parser.error("--name goes with --rename.")
     if args.file_ids_from is not None:
         if not args.request_id:
             parser.error("--file-ids-from needs --request-id, which the selection file names.")
@@ -282,8 +275,7 @@ def main():
 
     # 2. Configure Logging
     # --preview answers on stdout in JSON for the API, so its log goes to the file only.
-    answers_in_json = (args.import_choice or args.metadata or args.review_decision or args.review_batch or args.version_answer or args.preview is not None or args.clear_previews or args.rename_candidates is not None
-                       or (args.rename is not None and args.dry_run))
+    answers_in_json = (args.import_choice or args.metadata or args.review_decision or args.review_batch or args.version_answer or args.preview is not None or args.clear_previews)
     runtime.configure_logging(log_dir, console=not answers_in_json)
     metadata_request = None
     if args.metadata:
@@ -312,14 +304,6 @@ def main():
         result = thumbnails.clear_previews(db_path, Path(args.cache).resolve())
         print(json.dumps(result, sort_keys=True))
         sys.exit(1 if result["not_removed"] else 0)
-    if args.rename_candidates is not None:
-        result = relocate.rename_candidates(db_path, args.rename_candidates)
-        print(json.dumps(result, sort_keys=True))
-        sys.exit(1 if result["error"] else 0)
-    if args.rename is not None and args.dry_run:
-        result = relocate.preview_rename(db_path, Path(args.dest).resolve(), args.rename, args.name)
-        print(json.dumps(result, sort_keys=True))
-        sys.exit(1 if result["error"] else 0)
 
     # 2a. Single-instance enforcement (docs/engine-spec.md 4.1/7) — before
     # touching the database or source/dest paths at all. Applies to every
