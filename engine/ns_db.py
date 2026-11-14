@@ -1117,14 +1117,13 @@ def transition_run(conn, run_id, to, *, reconciled_by=None):
 
 def record_source_observation(conn, *, photo_id, run_id, source_path, sha1_hash,
                               file_size, file_mtime, birthtime, metadata, error,
-                              prior_status=None, observed_at=None):
+                              observed_at=None):
     """Participates in caller's scan savepoint, never commits independently.
 
     A photo row seen for the first time gets a new identity; a rescan keeps its binding.
     A file returning to a path whose source a Move consumed is not a rescan: the scan
     gives it a photo row of its own (idx_photos_live_source), so the moved photo keeps its
-    identity and history. `prior_status` is the row's status before this scan, kept for
-    callers' bookkeeping."""
+    identity and history."""
     if not conn.in_transaction:
         raise RuntimeError("source observation requires caller transaction")
     row = conn.execute("SELECT file_id FROM photo_files WHERE photo_id=?", (photo_id,)).fetchone()

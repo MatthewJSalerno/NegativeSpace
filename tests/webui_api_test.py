@@ -555,6 +555,8 @@ class SafetyQuestions(ApiCase):
         copied = self.answer(refused, "network_destination", "copy")
         self.assertEqual(copied["mode"], "COPY")
         self.assertEqual(copied["targeting"], recorded)
+        self.assertNotIn("file_ids_filter", copied)
+        self.assertIn("reconciled_by_run_id", copied)
         with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
             self.assertEqual([r[0] for r in conn.execute("SELECT photo_id FROM run_selections WHERE run_id = ?",
                                                          (copied["id"],))], [photo_id] if scope == "ids" else [],
@@ -582,6 +584,8 @@ class SafetyQuestions(ApiCase):
             self.assertEqual(self.client.post(f"/api/v1/runs/{refused['id']}/answer", json=body).status_code, 400)
         moved = self.answer(refused, "network_destination", "confirm_move")
         self.assertEqual(moved["targeting"], recorded)
+        self.assertNotIn("file_ids_filter", moved)
+        self.assertIn("reconciled_by_run_id", moved)
         self.assertEqual(moved["outcome"]["verdict"], "success")
         self.assertFalse(chosen.exists())
         self.assertEqual(other.exists(), scope != "all")

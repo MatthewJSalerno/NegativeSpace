@@ -22,10 +22,13 @@ FastAPI also serves a generated schema at `/api/openapi.json` and an explorer at
     names are case-insensitive; valid ports are permitted, forwarded headers do not
     override Host. Existing browser-origin restrictions still apply independently.
 *   **JSON** in and out, except thumbnails (`image/jpeg`).
-*   **One error shape**, for every refusal: `{"error": "<code>", "message": "<text for the
+*   **App refusals** use `{"error": "<code>", "message": "<text for the
     user>"}`, sometimes with extra fields (§7). `400` is a bad request, `404` an unknown
     photo or run, `409` a conflict with the catalog's or a job's state, `503` a catalog
     too busy to answer, and `500` the engine failing unexpectedly.
+*   **Request validation failures** return `422` with FastAPI's standard
+    `{"detail": [...]}` shape. Read: `webui/app.py` `create_app` registers the app's
+    refusal handlers and leaves request validation to FastAPI.
 *   **No usable catalog** makes every catalog-reading route answer `409` with
     `catalog_missing`, `catalog_incompatible` or `catalog_error`. `GET /status` reports
     the same state without failing.
@@ -49,7 +52,8 @@ FastAPI also serves a generated schema at `/api/openapi.json` and an explorer at
 The first screen's state. It never creates anything.
 
     {"state": "missing" | "ok" | "incompatible" | "error", "detail": "<reason or null>",
-     "photos": 1160, "indexed": true, "eligible": {"copy": 0, "move": 1160}, "copied": 1160,
+     "photos": 1160, "library_photos": 1160, "indexed": true,
+     "eligible": {"copy": 0, "move": 1160}, "copied": 1160,
      "rejected_with_source": 0, "held": 0,
      "rejects": {"photos": 340, "bytes": 1200000000, "oldest_rejected_at": "<UTC instant or null>",
                  "emptied": {"photos": 1200, "bytes": 4800000000},
@@ -58,6 +62,9 @@ The first screen's state. It never creates anything.
      "version": {"release": "0.1.0", "branch": "main" | null, "commit": "2c4728f" | null},
      "application_data": "/appdata", "catalog_backups": "/backups",
      "active_job": <Run or null, as in GET /jobs/active>}
+
+`library_photos` counts photos with a delivered Library status, excluding Rejects.
+It is present when `state` is `ok`. Read: `webui/catalog.py` `status`, using `DELIVERED`.
 
 `eligible` is how many photos a Copy all and a Move all would take, by the engine's own
 rule (`ns_db.TRANSFER_ELIGIBLE`): Copy takes `Pending`; Move also takes `Copied`, deleting
@@ -462,6 +469,11 @@ Each source has `id`, `kind`, `label`,
 sidecars also carry `version_id`. EXIF and embedded XMP are distinct. Retained sidecar
 versions remain alternatives unless a verified receipt identifies them as primary.
 Empty JSON values and absent keys remain distinct. No raw XMP payload is returned.
+
+Canonical source `fields` can include `camera_make` and `camera_model` as strings when
+recorded; an absent field is omitted. Read: `webui/metadata_view.py` `inspect_connection`,
+`engine/metadata_adapter.py` `_EMBEDDED`, `engine/metadata_capture.py` `_XMP_KEYS` and
+`engine/xmp.py` `FIELD_TAGS`.
 
 Reads use a single catalog transaction; no filesystem reads, XMP decompression,
 source activation, job submission or catalog writes occur. Verified saved values take

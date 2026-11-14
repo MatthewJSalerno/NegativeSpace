@@ -70,11 +70,6 @@ def export(db_path: Path, run_id: int, form: str):
     return [out.getvalue()]
 
 
-def is_library_check(conn, run_id: int) -> bool:
-    return conn.execute("SELECT 1 FROM library_checks WHERE run_id=?", (run_id,)).fetchone() is not None
-
-
-
 # What the Repair preview shows of each planned change (webui-spec 7.6): paths from the
 # Library or the destination folder, never the app's own paths inside its container.
 _REPAIR_ITEM = ("photo_id", "relative", "finding", "what", "todo", "repair", "from_relative", "to_relative",
