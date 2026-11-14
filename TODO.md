@@ -81,177 +81,33 @@ development until the maintainer decides.
 
 ## Uncertain file outcomes
 
-- [x] Shared warning/evidence and Check it now in photo information and Logs; active
-  Library issues also appear in Needs review → File issues. A read-only engine check
-  resolves supported outcomes only with fresh verified evidence, preserving original
-  history and the deletion gate while uncertainty remains.
 - [ ] Repair's remaining fixes, Add to catalog and Rebuild from the earlier version: decided, not built; Check library and Repair's Move it back, back from Rejects, Copy it back, Keep the new version and It's an edit are built (`docs/engine-spec.md` §9.2, `docs/webui-spec.md` §7.6).
   `recovery.md` gets its entry when this is built.
-## Copy, then delete the originals yourself
-
-- [x] Full Index detects externally missing originals of Copied Library photos, verifies
-  their recorded destination, and records Found_At_Destination with source presence
-  missing. Verified photos stay in Library and leave Move's eligible count. An empty
-  source still requires confirmation; unverified copies enter File issues with Check
-  it now. Repeat Index does not duplicate observations or retry an open file issue.
-  Duplicate savings recognize observed deliveries; absent duplicate originals no longer
-  contribute to Stats' “A Move would free.” No photo is moved or deleted by this check.
-
-## Names
-
-- [x] Rename, recorded alternative names and Has other names — automated and maintainer checks passed, including focused follow-ups (`docs/webui-spec.md` §7.3).
-
-## One screen per job
-
-Found 2026-10-05 looking for screens that do the same job twice.
-
-- [x] Shared Reject confirmation for gallery, photo review and comparison, including bulk confirmation (`docs/ui-design.md`, Rejecting while comparing); maintainer validation passed (`docs/manual-validation.md`, RC1–RC3).
-- [x] **Remove Explore reference sets** (decided 2026-10-05), leaving no trace: the window
-  (`ReferenceSets.tsx`), the Explore related sets button on set cards, its API route
-  (`/similar/{id}/sets`), its tests and its spec and API-spec text. The comparison covers it:
-  ‹ › steps through a photo's look-alikes and **Use as reference** walks into a neighbouring
-  set. Only the combined view of several overlapping sets goes; if it is ever missed, it
-  returns as a section of the Similar photos tab, not a window.
-- [x] Needs review decision layout: large photo, compact controls, one reason/action
-  panel and a match-count link to the existing Similar photos tab. Remaining two-photo rejection
-  proposals belong with the unbuilt "looks like a reject" reason below.
-
-- [x] Saved import-choice history offers read-only comparison against the current photo's
-  primary, including excluded shared-sidecar candidates. Historical values stay bound
-  to the choice's capture; no ownership, metadata or file changes. Maintainer Test 5 passed.
-
 ## Views
 
-- [x] Shared-sidecar filename examples and RAW sidecar-only statement in setup/Settings (`docs/webui-spec.md` §7.5).
-
-- [x] Metadata choices in Logs and lineage has a shared bordered disclosure with a
-  strong heading and short description. It stays collapsed by default. Maintainer Tests 7a/7b passed.
-
-- [x] Fit portrait previews inside their available height in the Inspector and enlarged
-  view; prevent intrinsic image sizing from clipping the bottom. Maintainer Test 6 passed.
-
-- [x] Sidebar place labels/counts align; refinements live above results (`docs/ui-design.md`, Page frame).
-- [x] Shared page frame already keeps navigation and Jobs geometry stable across Library, Logs and Stats (`docs/ui-design.md`, Page frame).
 - [x] Refresh user-guide screenshots for the current setup and review workflows (dark,
   1440 × 900, NASA demo set), including Notifications and Settings › Performance.
 
-- [x] Empty review queues return to the filtered gallery with a completion message;
-  closing review checks whether the open preview still belongs in the view.
-
-- [x] Additional allowed addresses in setup and Settings, independent of catalog
-  replacement; protected local/deployment recovery, revision checks and explicit
-  confirmation before removing the current address.
-- [x] Shared grouping-checkbox alignment, visible Inspector failure reasons, and
-  a compact match-count link to the existing match browser, with browser Back
-  returning to the same photo in review.
-
-- [x] Fresh catalog setup replaces stale photo/log URLs with the base URL. Ordinary
-  Index submission stays on its button without a transient global banner; uncertain
-  requests retain recovery controls.
-- [x] Undecodable source photos remain flagged in Not organized and are excluded from
-  Copy/Move and Library matching. Missing EXIF/hash-only/cache-write failures do not
-  block readable images. External repair plus Index reassesses failed sources.
-
-- [x] Stable filter guidance and navigation: shared guidance sizing for Logs/gallery/
-  review reasons; fixed Logs position when Jobs is absent; stable status shortcuts,
-  filter summaries and action heights. Browser positions checked at desktop/reflow widths.
-- [x] Needs review became a Library refinement with a Reason selector, in the sidebar and
-  refinements design (`docs/ui-design.md`, Page frame); SB1–SB6 passed.
-
-- [x] Workflow order, Not organized guidance and Index summary; Library review markers
-  open the photo’s reason in Needs review without changing selection, with a return
-  to the entry Library context.
-- [x] Clickable Index summary figures — merged in PR #138; maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2).
-
-- [x] Same-named photo cards: built and maintainer validated ([spec](docs/webui-spec.md#telling-same-named-photos-apart)).
-
-- [x] Superseded requested-job waiting with blocking through the final backup; no queue (`docs/webui-spec.md` §5.7). BK1–BK3 passed.
-
-- [x] Location views, overlapping Needs review inbox, combined filter chips, cross-location
-  filename search and first-visit default (`webui-spec.md` §2).
-
-- [x] Copy all/Move all ready and held counts — merged in PR #138; maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2).
-- [x] Index summary by file type — merged in PR #138; maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2).
-- [x] Metadata setup/Settings point to Resolve XMP in Not organized → Needs attention (`docs/webui-spec.md` §7.5).
-
 ## Needs review
 
-- [x] Earliest expected year in setup and Settings; shared suspicious-date query policy
-  updates counts, filtering and inspection without editing metadata. Schema 25 requires
-  a fresh development catalog, following the existing no-migration policy.
-- [x] Responsive Inspector waits behind already-open dialogs during resizing; Settings
-  remains usable and retains focus until closed.
-- [x] Explicit System/Light/Dark appearance preference and a shared Dark mode toggle
-  across Library, Logs and Stats; shared page tools prevent header control drift.
-
-- [x] Similarity grouping/control parity between Library and Needs review. Extra
-  filters/search show every matching photo individually; clearing them restores the
-  explicit grouping preference. Group representatives must belong to the inbox before
-  collapsing; a reviewed representative cannot hide unreviewed members.
-
-- [x] Inspector actions at the top, rejected-match disclosure above Library candidates,
-  and bottom-aligned Review side by side labels across matching cards.
-- [x] Cross-location filter discoverability — resolved by place navigation clearing refinements and Back restoring them (`docs/ui-design.md`, Sidebar and refinements).
-
-- [x] UX consistency batch: one toggle row per place, in-place Small images filter,
-  closed Inspector on place changes, contextual/collapsible source summary, grouped
-  photo actions and the dedicated review layout. Date facts remain independent of the review decisions tracked below. Single-photo date editing is tracked below.
-
-- [x] The in-tray for Small images and Review later (`docs/webui-spec.md` §7.9).
-- [x] Library-only review decisions, source exclusion from similarity, backend eligibility, separate source
-  failure facts, explicit Stats scopes and consistent Job #ID · Action status labels.
-
-- [x] Show first-import XMP ownership/primary decisions and their verified application
-  in shared Logs/lineage history, distinct from file operations and job counts.
-
-- [x] First-import XMP ownership/version choices in Not organized → Needs attention:
-  read captured candidates/fields, preview and confirm under the engine lock, preserve
-  source files, and apply through normal verified Copy/Move. Source repair remains separate.
-  Automated validation is tracked in tests/README.md; maintainer steps and acceptance are in docs/manual-validation.md.
 - [ ] Incoming-alternative decisions for already organized/rejected matches, with independent
   metadata/location choices. Durable BLOB storage and engine primitives are built;
   their decision UI remains unfinished. Import-pair retry is already built.
-- [x] Suspicious-date acknowledgment and explicit saved-date confirmation: DR1–DR4 passed (`docs/webui-spec.md` §7.9).
 - [ ] Add No capture date and sidecar/edit reasons to the shared inbox with their respective workstreams.
-- [x] Bulk catalog-only review answers: BR1–BR4 passed (`docs/webui-spec.md` §7.9).
 - [ ] Bulk answers for future file-changing review reasons: not built (`docs/webui-spec.md` §7.9).
-- [x] Automatic date/size clearing history: DR1–DR4 passed (`docs/webui-spec.md` §7.9).
-- [x] Date-save warnings and recorded job details — DR5 passed (`docs/ui-design.md`, Date-only metadata editing).
 - [ ] Automatic history for future review reasons: not built (`docs/webui-spec.md` §7.9).
 - [ ] Broader performance coverage with many accumulated review events. A 200k-photo
   generated catalog has been checked with an empty history; this does not model
   years of bookmarks and acknowledgments.
 
-- [x] Manual cross-location matching: separate, paged Rejects matches in Library;
-  Library matches for rejected references; location labels and confirmed Return or
-  Reject actions. Keep-reference and gallery grouping remain Library-only. Review
-  links retain candidate scope. Not organized and emptied rejects stay excluded.
 - [ ] "Looks like a reject": designed, not built (`docs/webui-spec.md` §7.8).
 - [ ] 💬 Dates from other applications’ records: parked for discussion (`docs/webui-spec.md` §3.1).
 - [ ] Undated-photo evidence, suggestions and per-library back-test: decided, not built (`docs/webui-spec.md` §3.1).
-- [x] "Review later": a button beside Reject… in the photo panel, with an optional short
-  note; Done clears it (`docs/webui-spec.md` §7.9).
-- [x] Small-image destination cleanup: user chooses on/off and minimum at first run;
-  never blocks Copy/Move. Mark reviewed persists per photo/content and does not clear
-  other reasons. Existing selection/Reject workflow; no bulk Keep or automatic unticking.
-- [x] "Which photo is this sidecar for?": a short-named XMP sidecar that could belong to
-  several photos, held in Not organized until association is resolved
-  (`docs/xmp-metadata.md`, `docs/engine-spec.md` §9.6).
 
 ## Similar photos
 
 - [ ] Selected-photo gallery discoverability and grouped-set behavior. Show only
   selected already exists; discuss before adding another control.
-- [x] Overlapping sets (decided 2026-10-17): no view of neighbouring sets together; **Use as
-  reference** in the comparison walks from one set to the next, and one line above the sets
-  explains them with a diagram. Skipped option, if neighbouring sets are missed on a real
-  library: a line in a photo's Similar photos tab (`docs/ui-design.md`, Reference-based sets).
-  Never infer transitive matches.
-- [x] Rotated matches assessed (`docs/engine-spec.md` §9.3): pHash is taken from the photo
-  as displayed, which matches a portrait RAW to its own JPEG and copies stored turned with
-  an orientation tag. Searching every rotation as well was measured and declined: on the
-  demo library its new matches were two different, mostly black photos.
-- [x] Low-detail matches: implemented; automated checks and maintainer Tests 1a–1c / 2a–2b passed (`docs/engine-spec.md` §9.3).
 - [ ] Follow the [large-library measurement plan](docs/large-library-performance.md):
   query performance at 250k/500k, dense and overlapping sets, memory, invalidated caches
   and response times. Repeat A/B runs before claiming supported capacity. Original-file
@@ -322,62 +178,6 @@ related tags together, with no invented or mixed components. See
 
 ### Completed engine foundation
 
-These are completed capabilities, not additional open closeout tasks.
-
-- [x] Production metadata capture/precedence and qualified EXIF/embedded-XMP comparison:
-  separate source snapshots, exact field origins, explicit empty-versus-absent rules,
-  linked date/GPS components and retained unknown evidence. Legacy flat metadata is not
-  used as qualified input; this is not full XMP conformance certification.
-- [x] Bounded RDF/XML reader, complete-folder ownership planning, supported-value
-  validation and independent generated ExifTool compatibility checks. Index captures
-  proposed priority without activating a new primary or changing delivered files.
-- [x] Exact XMP original BLOBs, Zstandard level 1 only when smaller, immutable
-  versions/arrivals/participants, size/hash verification and catalog backup coverage.
-  Parsed-data growth and backup costs were measured at 200,000 unique generated versions;
-  see [xmp-storage-measurements.md](docs/xmp-storage-measurements.md). This metadata-only
-  fixture is not a full-library capacity prediction.
-- [x] Immutable ownership/primary decisions, version-bound previews, stale/replay refusal
-  and backup coverage. Preferences and decision revisions freeze at job acceptance;
-  later Settings changes do not affect the running job.
-- [x] Resolved single-/multiple-sidecar first Copy/Move imports: primary/ownership and selected-date filing activate
-  after pair verification. Shared-owner cleanup, collision/orphan refusal, space estimates,
-  per-photo cancellation, explicit same-mode retry and read-only recovery are tested.
-  Unresolved metadata choices remain at source with a specific explanation.
-  Full-filename priority is applied without discarding alternatives; identical versions
-  reuse a BLOB while retaining distinct arrivals. Shared ownership survives partial
-  Move jobs, but a new file identity at an old source path cannot inherit that ownership.
-  Every original must verify before source cleanup; incomplete cleanup requires explicit retry.
-- [x] Photo-only imports apply embedded XMP before EXIF after verified delivery; automatic
-  read priority does not establish an embedded write primary or override RAW-sidecar defaults.
-  Explicit blank/partial dates stay Undated using the original file year. Reindex preserves
-  established metadata/names; photo-only force Index retains delivery-repair eligibility.
-- [x] Recorded photo/XMP pairs follow Rename, Reject and Return, verifying both new members
-  before retiring old names. Recovery refuses photo-only success. Check it now observes
-  without changing files; fault tests cover history, cancellation and durability barriers.
-- [x] Incoming duplicate XMP alternatives and combined version/location choice records
-  (schema 26). Keep current preserves primary/Rejects location. Copy keeps sources;
-  Move cleanup verifies the retained photo, exact BLOB and shared ownership. Interrupted
-  cleanup is retryable. Confirmed Use incoming/Return choices now apply through verified
-  metadata jobs; sources remain untouched until a separate verified Copy/Move. Failed
-  filing keeps saved metadata and requires explicit Retry; no implicit Return or undo.
-- [x] Common-field plans and preservation-aware XMP saves: date, orientation, title/caption,
-  keywords, rating, creators/rights and linked GPS. Unknown properties and exact originals
-  survive; first XMP contains only requested fields. No fallback autofill or implicit
-  primary change. True no-ops preserve bytes.
-- [x] Bounded metadata JSON CLI with preview/apply/retry/discard, a job identity and
-  per-photo outcomes, one verified pre-action backup per prepared batch, immutable
-  before/after history and field donor provenance. Unchanged unsaved edits can be discarded;
-  saved metadata survives failed refiling, with move-only retry. Unsafe shared storage
-  stops new edits while preserving completed work. No job-level undo.
-- [x] Deliberate Library XMP-version and embedded EXIF/XMP activation, with effective-value
-  and date-filing preview. Embedded-source switching rewrites neither metadata source;
-  inactive sidecars follow unchanged. Copy/Move holds unfinished metadata operations.
-- [x] Qualified JPEG working-copy writer and durable publication/recovery: metadata
-  read-back, protected encoded image/ICC bytes and decoded pixels, bounded tools,
-  permissions and cleanup. Embedded XMP supports the common fields; EXIF refuses
-  unrepresentable values. Source/retained content lineage, SHA/cache updates and date
-  refiling are connected. Reindex preserves edited state and unfinished bindings;
-  old duplicate pointers detach. Confirmed exact-result consolidation is covered below.
 - [x] Generated JPEG content-fingerprint experiment: 20 tests plus warm-read measurements;
   see [jpeg-content-hash-experiment.md](docs/jpeg-content-hash-experiment.md).
   No production image-only hashing or image-content consolidation is enabled.
@@ -412,7 +212,6 @@ These are completed capabilities, not additional open closeout tasks.
   and advertised capabilities before publication. No in-app conversion/deletion,
   detailed tool tutorials or conversion-support workstream. See webui-spec §7.5.
 
-
 ### API/UI work — source viewer/date editor built; decisions pending
 
 First UI scope agreed: show metadata broadly, edit/copy **Date taken only**. The
@@ -420,130 +219,12 @@ common-field engine remains intact. General metadata editors, whole-source compo
 cross-photo/bulk copying and date shifts are deferred controls, not prerequisites.
 Saved orientation stays a separate action from temporary preview rotation.
 
-- [x] Read-only source viewer in Photo information: separate XMP Sidecar / Embedded XMP / EXIF
-  tabs, textual Primary badge and stable captured-field tables. Alternative tabs offer
-  Compare with primary and Show differences only; distinguish Empty, Not recorded and
-  unreadable/request failures. Follow `docs/ui-design.md` for the shared controls.
-  Maintainer validation passed, including broken-sidecar source-attention guidance.
-- [x] Source attention for processing failures and metadata holds, with a summary shortcut.
-  Initial filtering acceptance passed. Updated navigation puts counted Needs attention
-  beside Source folders under Not organized; only Source folders has a folder selector,
-  and destination navigation clears its scope. Maintainer revalidation passed (Test 3).
-- [x] Unpinning deactivates the filter and updates results/counts; unfiltered places
-  use the sidebar total without repeating it in the gallery or pager. Filtered, grouped,
-  selected and job/source scopes retain meaningful counts. Seven generated browser
-  workflows pass, including filter reset and layout stability. Maintainer validation passed (Test 1).
-- [x] Hide the year panel while No capture date is active (including pinned
-  combinations), restoring it when cleared and sorted by date. No filing/filter change.
-- [x] Rename the photo-opening action Inspect photo to distinguish it from Review
-  later. Align Refresh comparison with Minimum similarity and place Keep below the
-  reference preview’s details, separate from filtering. Maintainer validation passed (Test 2).
-- [x] Expanding All recorded tags uses independent metadata scrolling on desktop,
-  keeping candidate navigation in place; narrow layouts retain the outer scroll.
-- [x] Maintainer passed acceptance Tests 1–6 and all follow-up checks (3b, 4f,
-  5a, 5c–e) on 2026-10-13. No manual acceptance remains for this batch.
-- [x] Empty source-folder rows use their own class, avoiding whole-screen empty-state
-  styling; sibling label alignment is checked at desktop and narrow widths.
-- [x] Explicitly clear Date taken blanks/disables visible date inputs. Unchecking
-  restores the unsaved draft; preview and Save are still required.
-- [x] Copy Date taken to primary: diagnosed a destination-name collision, not lost
-  donor data. Preview now offers a numbered filename (maintainer-approved); Save
-  revalidates it and preserves existing photos/sidecars. Race/orphan/symlink guards stay.
-- [x] Metadata job outcomes derive saved/skipped/failed photo counts from journaled
-  operations, including previous jobs without progress phases. Maintainer validation
-  passed for the previous job and new copy-date workflow.
-- [x] Separate Metadata inspector tab; compact file/date summary, Edit date shortcut,
-  collapsed technical details, gallery-click reset and tab retention on previous/next.
-- [x] Recorded-tag disclosure shares primary comparison, differences-only and field filtering.
-- [x] Primary metadata Date taken row has an inline Edit date link, including missing/empty
-  dates; alternate sources retain Copy Date taken to primary.
-- [x] Date-editor usability: calendar day picker preserving recorded time/offset,
-  explicit missing-XMP clear guidance, and stable version/action rows across source tabs.
-- [x] First date editor: manual Date taken or Copy to primary from another source of
-  the photo; complete date/companion handling, explicit clear, previewed target and
-  before/after date/path, one Save/refile confirmation and verified failure recovery.
-  Other fields remain read-only. Copying never activates the donor source.
-  Maintainer validation of editing/saving passed; broad recovery/primary UI is separate.
-
-- [x] One Move-job confirmation for edited-source originals: affected count/list,
-  **Include these originals** or **Leave these originals at source**; explain that exact
-  original photo bytes are not retained. Bind the displayed selection to the job.
-  No per-photo prompts or permanent consent. All entry points use a frozen catalogued
-  selection; the engine checks its snapshot under the lock before work, then verifies
-  live files before deletion. Include/Leave is carried only along the same Move's
-  safety-question chain; Copy instead retains scope without deletion consent.
-  Automated API/browser coverage passed; **maintainer UI acceptance passed**
-  (2026-10-14, tests/README.md, Move confirmation tests M1–M3), including the
-  refresh-button and source/destination Inspector follow-ups.
-
-- [x] Metadata setup/Settings preferences: explicit shared-sidecar choice at first run,
-  RAW/non-RAW write defaults with qualified-writer limits, and shared read-priority
-  guidance. Existing primary/ownership decisions remain unchanged. Automated validation
-  covers persistence, revisions and frozen running-job settings; maintainer acceptance
-  passed S1–S3 (tests/README.md). R1–R3 passed.
-- [x] Separate informational metadata-reader warnings from import holds: unrecognized
-  MakerNotes and other reader warnings preserve their diagnostics without blocking
-  unchanged Copy/Move. Reader errors, unstable files and unresolved sidecars remain
-  protected. Metadata viewer shows notes with readable explanations and technical detail.
-  130 targeted tests and the metadata browser passed; maintainer W1 acceptance passed.
-- [x] Clarify date filters versus source blockers: No usable capture date describes
-  the filing date; Needs attention explains what prevents organizing. Show repeated
-  date errors once, retain affected paths, and recognize usable XMP dates in the
-  Inspector. Viewer tests and three browser workflows passed; maintainer D1 acceptance
-  passed, including D1.c (XMP date without EXIF Date taken).
-- [x] Metadata grouping (S1/S3 feedback): dedicated Metadata setup step and Settings
-  tab, shared controls, required association choice and per-tab unsaved indicators.
-  Specs and setup browser checks follow the six-step flow. Maintainer acceptance
-  Tests 1–4 passed on 2026-10-16.
-- [x] Message readability acceptance: project-wide pass covers Settings/setup, gallery,
-  metadata, matching, recovery, job submission and logs. Keep specific causes and safety
-  consequences, simplify prose and separate multiple issues. Validation and
-  maintainer readability review are tracked in tests/README.md; follow `ui-design.md`,
-  Writing messages. Targeted automated checks and maintainer Tests 1–4 passed
-  on 2026-10-16.
-- [x] Organized-photo primary-choice controls, separate from viewing and copying:
-  Use as primary on alternative source tabs, effective-value/refiling preview and
-  one verified-job confirmation. Imported/saved XMP can be selected again; unowned
-  candidates remain refused. Settings defaults do not replace deliberate choices.
-  Automated validation passed; maintainer accepted all Test 10a–10e steps
-  (tests/README.md). No manual checks remain for this primary-source batch.
-- [x] Prominent active-job Settings notice (`webui-spec.md` §3): shared live feed, stable
-  geometry across active/idle/unknown states and tabs, no draft reload or separate poll.
-  Generic future-jobs notice/save confirmation remain. Maintainer acceptance S2 passed on 2026-10-15.
-- [x] Source metadata attention markers and photo-information explanations: affected
-  source-relative sidecar paths, external correction/reindex guidance and job logs.
-  Latest-capture holds count as attention, not ready-to-organize photos. No source
-  photo is added to Library's Needs review. Broader decisions remain below.
 - [ ] Metadata-choice job notices and linked Not organized queue; metadata-difference
   review for edited Library photos and combined metadata/location choices for rejected
   matches. Retained alternatives already have engine preservation notices/history.
-- [x] Import-pair retry API/UI: eligible selection counts, recorded issue/file details,
-  separate Copy/Move confirmation and original-mode recovery. Snapshot checks bind
-  roots, catalog state and pair intent at acceptance; source deletion still requires
-  verified pair evidence. Automated API/engine and browser checks cover retry/replay,
-  stale/live changes, cancellation, selection and narrow/200% layouts. Maintainer
-  visual acceptance passed on 2026-10-15 (tests/README.md, R1–R3). R1 feedback adds shared
-  Source/Destination groups in information panes and recorded failed-step/file context;
-  older records explicitly identify missing detail rather than guessing a failed file.
-  R1 follow-up adds green verified/amber incomplete-or-unconfirmed destination results,
-  with text labels and intended-path guidance; source originals remain neutral.
-  Photo notices show the latest failure once and link to earlier attempts in Logs;
-  confirmations say the retry resumes the original Copy/Move.
 - [ ] Deferred broader composition/cross-photo and bulk date controls. Engine support
   exists for qualified common fields; exposing it is outside the first date UI. Preserve
   explicit donor/target roles and never choose primary implicitly (`webui-spec.md` §7.5).
-- [x] Inline curved-arrow controls on the large preview, with explicit Save rotation /
-  Reset and per-photo targets/refusals. Bulk selection and end-of-review decisions
-  retain the shared confirmation. Verified saves refresh applied XMP previews;
-  viewing turns never save automatically. Bulk turn/reset/save affects checked eligible
-  photos only. Maintainer validation 8a–8g passed.
-- [x] Confirm exact-result embedded edits before consolidation: keep the existing Library
-  photo/name/location, retain both histories and XMP versions, verify before deletion,
-  and refuse Rejects or different primary metadata. Recheck on retry and preserve source
-  originals until a separately confirmed Move. Generated engine/browser validation and
-  maintainer Test 9 are tracked in tests/README.md; all steps 9a–9d passed.
-- [x] Compact single-photo rotation exit — automated and maintainer checks passed (`docs/ui-design.md`, Orientation-save interaction).
-- [x] Turned Inspector preview fits the whole photo without stretching; NR3d passed (`docs/manual-validation.md`, Photo-name follow-ups).
 
 ### Deferred work and open discussions
 
@@ -563,14 +244,6 @@ Saved orientation stays a separate action from temporary preview rotation.
   reindexes after an external edit; existing verification/deletion gates still apply.
 - [ ] Legacy IPTC precedence/mappings and additional RDF representations require decisions
   and fixtures. Preserving extracted evidence does not imply a qualified read/write mapping.
-
-## Stats
-
-- [x] The thumbnail cache panel in Settings › Performance (Free up previews, Repair grid
-  thumbnails, Rebuild all), with API routes for the existing engine jobs, and a Manage
-  thumbnails link from Stats (`docs/webui-spec.md` §4.2.1).
-- [x] Full-width Dates chart, separate suspicious-year counts and adjacent undated count (`docs/webui-spec.md` §5.9).
-- [x] Metadata edits count verified saves by photo and kind; waste means exact duplicates only (`docs/webui-spec.md` §5.9).
 
 ## Warnings that need a way out
 
@@ -620,9 +293,6 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 
 - [ ] **Version 1.0.0 and the changelog:** keep [CHANGELOG.md](CHANGELOG.md) current as each
   change merges; 1.0.0 is the first release ([Semantic Versioning](https://semver.org/)).
-- [x] Platform wording: documented as decided (`docs/user-docs-standard.md`, Voice).
-
-- [x] No built-in sign-in: documented as decided (`docs/webui-spec.md` §11).
 
 - [ ] **Decide on catalog migration.** `engine/ns_db.py` stamps `catalog_schema.version` and refuses any catalog whose version it does not recognise. While every catalog is a development catalog, refusal plus a fresh Index is enough; that stops being acceptable once a user holds history that cannot be recreated.
 
@@ -647,62 +317,16 @@ Completed entries below retain earlier validation results. References to pins, R
 later and remembered per-place filters are historical; the current sidebar/refinements
 and Bookmark contract is in `docs/ui-design.md`, Page frame.
 
-- [x] Verification navigation — historical filter/pins superseded by the sidebar warning note; source failures remain under Not organized (`docs/ui-design.md`, Sidebar and refinements).
-
-- [x] UI alignment/stability pass: separate filtered-log exports from filters, align
-  log input edges and shared inline controls, keep small-image settings and preview
-  zoom/rotation controls stationary, and reuse the confirmation action-row spacing.
-- [x] Maintainer visual acceptance: alignment/stability Tests 1a–4a and the renamed
-  verification filter Test 5a passed.
-- [x] Source-view filter isolation — historical saved pins superseded by clean place navigation and URL-based Back/Forward (`docs/ui-design.md`, Sidebar and refinements).
-- [x] Maintainer validated revised Test 5b: source navigation and restored filters.
-- [x] Filter counts distinguish zero, unavailable and incompatible, with hover/focus explanations (`docs/ui-design.md`, Page frame).
-
-- [x] Replace the enlarged-photo layout with the shared two-pane Inspector: large
-  preview beside information, Metadata and eligible Similar photos tabs; retain the
-  resize divider, navigation and nested dialogs.
-- [x] Maintainer validated the expanded two-pane photo view: all posted steps,
-  Test 1a through Test 3b, passed (tests/README.md).
-
-- [x] Phase 2 navigation (date scrubber and Source folders): maintainer accepted navigation.
-- [x] Shared notification bell with catalog-backed per-job read state; ordinary completed
-  jobs move out of banners, while active progress and actionable safety warnings remain.
-- [x] Stable selection/action count widths based on catalog capacity, with no selection cap.
 - [x] Automated validation: 155 notification/database/API tests; full browser workflow,
   notification persistence/retry/geometry, safety decisions, job-refresh requests and
   both Reject workflows passed. Shared light/dark and narrow-window screenshots inspected;
   spec/schema/API checks passed. No claim of full UI acceptance from automated checks.
-- [x] Maintainer validated the bell options, new-job updates and stationary selection actions.
-- [x] Maintainer validated the Details disclosure replacing notification hovers that covered links.
 - [x] Final local checks: navigation, preview refresh, mixed/all-failed transfers and
   stalled-job cancellation passed; oversized notification IDs are rejected before SQLite,
   and old job-photo links follow subsequent Reject/Return operations. Contract checks passed.
-- [x] Subtle date-scrubber ticks between year labels, preserving year positions and
-  click targets; spacing follows photo counts, not equal time intervals.
-- [x] Maintainer validated date-scrubber ticks.
-- [x] Gallery-card clicks reset the Inspector to Photo information, including in Has
-  similar photos. Explicit match links and Inspector previous/next keep their intended tab.
-  Generated filter-pin and similarity browser suites passed, including tab restoration.
-- [x] Maintainer validated the Inspector tab reset when clicking gallery photos.
-- [x] Inspector tabs use gallery status while details load, preventing the single-tab
-  flash during gallery clicks and Previous/Next navigation. Held-response browser
-  checks verify both labels, selection and widths before details arrive; the full
-  similarity browser flow passes. Maintainer confirmed the tabs look good.
-- [x] Historical filter pins (superseded by always-combined refinements): pins survived
-  refresh in the browser. Clear all filters removed pins. Small images/Review later stayed
-  exclusive, with an Unpin explanation. Existing gallery queries supply next-click counts.
 - [x] Final automated validation: 116 API/review tests, focused pin browser flow, full
   browser/shared UI and review workflows, spec/API/schema checks and light/dark/narrow
   screenshot review passed. Clear action geometry and source-folder reset are covered.
-- [x] Review later and its count are available in Library and Needs review; the same
-  pin, replacement and reminder-exclusion rules apply in both. Validated with 20
-  API/review tests and the generated-photo browser flow (zero/nonzero counts, filtering,
-  navigation, refresh, pins and desktop reflow).
-- [x] Maintainer validated Review later in Library and Needs review.
-- [x] Maintainer validated filter pins.
-- [x] Move Clear all filters beside Look into, reserve its space, and clear search,
-  folder/date/type restrictions and saved pins while retaining place and selection.
-- [x] Clear all filters placement — superseded and validated in the sidebar/refinements batch (`docs/manual-validation.md`, Sidebar and Bookmarks).
 - [x] Consolidate page-frame/date-scrubber/refinement into the gallery UX PR. Metadata
   is merged; combined schema 28 preserves metadata tables and notification receipts.
 - [x] Validate the combined metadata/navigation integration locally: 195 database/API
@@ -712,24 +336,11 @@ and Bookmark contract is in `docs/ui-design.md`, Page frame.
 - [x] Combined GitHub checks passed (68 steps); PR #107 merged after #105. Superseded
   PRs #104/#106 closed. Main includes the full navigation and metadata engine stack.
 
-
-- [x] Validation follow-up: stable folder/date/type filter summaries; persistent disabled
-  folder actions when a single-folder operation is unavailable; inline Copy date to primary;
-  Edit metadata date wording; absent-primary-date links to alternatives; shared completion
-  footer; suppress duplicated lineage selection links while retaining unmatched jobs.
-  Focused spot-checks passed: Tests 3b, 4f, 5a, 5c–e in tests/README.md.
 - [ ] Post-validation discussion: whether/how to expose copying all metadata or a broader
   field selection. Date-only copying remains the current UI scope; no implementation yet.
 
 - [ ] Future discussion (accepted Test 3b): could source-folder handling happen behind
   the scenes? Clarify the desired behavior before changing selection or action rules.
-- [x] History and lineage use View photo logs (`docs/webui-spec.md` §4.2).
-
-- [x] Saved rotation log wording: Logs, recent History and lineage derive action labels
-  from recorded metadata intent, including existing operations. Date/source edits also
-  avoid Move labels; status filters and stored outcomes remain intact.
-
-- [x] Bulk bookmark removal and Keep decisions — BR3–BR4 passed (`docs/ui-design.md`, Bulk review answers).
 
 - Guide screenshots for sidebar, Bookmarks and current workflows — refreshed from main with the NASA demo set (`docs/user-docs-standard.md`, Screenshots).
 
