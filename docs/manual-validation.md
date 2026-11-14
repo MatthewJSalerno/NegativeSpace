@@ -639,7 +639,7 @@ The same review instance, after CL1: its last check is Job #4, the thorough chec
 ## Audit 043 preview Index
 
 **Accepted:** the maintainer passed A1a–A1d on 2026-11-03. Read — the implemented notice and
-explicit Index action are in `webui/frontend/src/components/Confirm.tsx:97`.
+explicit Index action are in `webui/frontend/src/components/Confirm.tsx` `ConfirmDialog`.
 
 Verified — the generated metadata review catalog contains one searchable
 `md-exif-only.jpg` in Library, with source folder `agree/exif_only`; Index and Copy

@@ -584,7 +584,7 @@ docker run --rm -v "$PWD":/app -w /app negativespace python3 tools/check-api-spe
 
 ## Manual validation
 
-Steps the maintainer runs by hand in the browser, on an instance of their own. Record results as aggregate figures in the pull request (see `CLAUDE.md`).
+Steps the maintainer runs by hand in the browser, on an instance of their own. Record results as aggregate figures in the pull request (see `AGENTS.md`, Validation records).
 
 ### Choosing a source
 
