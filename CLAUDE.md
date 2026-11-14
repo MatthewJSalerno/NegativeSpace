@@ -29,30 +29,3 @@ Specifications are organized by component, not by release phase:
 | `docs/ui-design.md` | Appearance and interaction; read it before any UI work and record design decisions there |
 
 How to run each test suite is in `tests/README.md`.
-
-## Privacy: never publish library contents
-
-The maintainer validates against a real photo library. Its directory names and filenames
-contain personal information: family names, event names, locations, dates.
-
-Never put any of these into a commit message, PR title or body, issue, code comment, test
-fixture or any other file in this repository:
-
-- Absolute paths from a real run (`/nfs/...`, `/data/source/...`, `/home/<user>/...`).
-- Directory or file names seen in the library, including partial ones.
-- Hostnames, usernames or mount points from the maintainer's machines.
-- Verbatim log output or SQL query results from a run against the real library.
-
-Aggregate figures are safe and are what make a validation record useful: file counts, byte
-totals, throughput, wall-clock times, per-status counts, schema versions. To refer to one
-file or directory, describe its shape ("a single leaf directory of ~1,300 files from a
-bulk-download export"), never its path.
-
-Run output the maintainer pastes into a conversation is reference material for that
-conversation only. Summarize it as numbers before any of it goes into the repository.
-
-## Validation records
-
-The maintainer validates a branch against the real library before it merges. Record the
-results in the PR body as a table of counts, sizes, rates and wall-clock times, so the
-evidence outlives the terminal scrollback. Never paste the raw run log.
