@@ -1245,7 +1245,10 @@ checkbox selection. A clean reindex removes a resolved hold.
 This does not add source photos to Library's Needs review or implement choice controls.
 
 **Metadata sources.** Inside the dedicated Metadata inspector tab, separate XMP Sidecar, Embedded XMP and EXIF tabs show captured
-source values. A textual Primary badge identifies verified activation, not the viewed
+source values. Read: `MetadataSources` retains the viewed source across background
+refreshes of the same photo; another photo starts on its primary source. Explicit
+date saves, date copies and primary-source changes show the saved primary source.
+A textual Primary badge identifies verified activation, not the viewed
 tab or an unexecuted decision. Other tabs compare canonical fields against primary,
 with differences-only and field filtering. Empty and Not recorded are distinct. Multiple sidecar
 versions reserve the same selector row across tabs, with the selector hidden and
@@ -1874,7 +1877,7 @@ The engine reports this rather than hiding it: each targeting mode logs a warnin
 Preventing the situation is the UI's job:
 
 * **The folder picker can only offer indexed folders.** Its tree should be built from `SELECT DISTINCT` over indexed `source_path` prefixes, not from a filesystem listing. A folder the user cannot select is a folder they cannot mis-target. This also matches what the user is choosing between — they are picking from photos the app knows about, not browsing a disk.
-* **Move and Copy are disabled while the catalog is empty**, with the control labelled to say why (*"Run a Scan first — NegativeSpace acts on indexed photos"*) rather than being inert with no explanation. `SELECT COUNT(*) FROM photos` is sufficient to drive this.
+* **Move and Copy are disabled while the catalog is empty**, with the control labelled to say why (*"Run Index first — NegativeSpace acts on indexed photos"*) rather than being inert with no explanation. `SELECT COUNT(*) FROM photos` is sufficient to drive this.
 * **A newly added source directory is not silently actionable.** A source the user has just configured has no rows until a Scan completes over it. The Settings flow that adds a source should offer to run that Scan immediately, so the common path never produces an un-indexed source.
 * **Stale scope is surfaced, not assumed.** `--source-subdir` sees only rows as of the last Index over that path, so files added to a folder since then are invisible to a Move or Copy targeting it. Where the UI shows a folder's file count, it should show when that folder was last scanned alongside it, so a user comparing "1,318 photos" against what they see in their file manager can tell the difference between a bug and a stale index.
 
@@ -2290,10 +2293,10 @@ actual result, preserve the real extension and date folder, and update
 related current references without rewriting history. A missing or changed target
 stops the operation and shows §7.6 guidance.
 
-**Engine calls** (`engine-spec.md` §9.4): the candidate names come from
-`python -m engine --rename-candidates <id>`; the live check of a typed name is
-`--rename <id> --name <name> --dry-run`, which prints the resolved path, or the reason
-there is none, and takes no lock; confirming runs `--rename <id> --name <name>` as a
+**Engine calls** (`engine-spec.md` §9.4): Read: `webui/renaming.py` calls
+`engine/relocate.py` `rename_candidates` for candidate names and `preview_rename`
+for the live check of a typed name. The preview returns the resolved path, or the
+reason there is none, and takes no lock; confirming runs `--rename <id> --name <name>` as a
 job. Its outcome and the actual resulting name are its `Renamed` (or `Failed`) operation.
 
 **Choosing the name at move time is a different feature, and is deferred.** It

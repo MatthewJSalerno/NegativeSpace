@@ -98,7 +98,10 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.exception_handler(HTTPException)
     async def http_error(request, exc: HTTPException):
-        """One error shape for every refusal: {"error": code, "message": text}."""
+        """App refusals use {"error": code, "message": text}.
+
+        Request validation failures use FastAPI's standard 422 {"detail": [...]}.
+        """
         if isinstance(exc.detail, dict):
             return JSONResponse(exc.detail, status_code=exc.status_code)
         return await http_exception_handler(request, exc)

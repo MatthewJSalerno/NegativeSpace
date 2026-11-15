@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type Ref } from "react";
+import { useEffect, useId, useRef, useState, type Ref } from "react";
 import { api, type MetadataView, type MetadataSourceView } from "../api";
 import { TabList, tabPanel } from "./ui/Tabs";
 import { logUrl, follow } from "../nav";
@@ -7,11 +7,12 @@ import { SearchField } from "./ui/SearchField";
 import { LABELS, own, stable, comparable, display } from "./metadataFields";
 import { MetadataFieldTable } from "./MetadataFieldTable";
 
-export function MetadataSources({ photoId, refreshKey, editable = false, jobRunning = false, onEdit, onPrimary, dateActionRef }: { photoId: number; refreshKey: number; dateActionRef?: Ref<HTMLButtonElement>; editable?: boolean; jobRunning?: boolean; onEdit?: (donor?: MetadataSourceView) => void; onPrimary?: (source: MetadataSourceView, captureId: number) => void }) {
+export function MetadataSources({ photoId, refreshKey, primaryKey = 0, editable = false, jobRunning = false, onEdit, onPrimary, dateActionRef }: { photoId: number; refreshKey: number; primaryKey?: number; dateActionRef?: Ref<HTMLButtonElement>; editable?: boolean; jobRunning?: boolean; onEdit?: (donor?: MetadataSourceView) => void; onPrimary?: (source: MetadataSourceView, captureId: number) => void }) {
   const [data, setData] = useState<MetadataView | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
   const [selected, setSelected] = useState("");
+  const loaded = useRef<{ photoId: number; primaryKey: number } | null>(null);
   const [compare, setCompare] = useState(false);
   const [differences, setDifferences] = useState(false);
   const [query, setQuery] = useState("");
@@ -21,11 +22,15 @@ export function MetadataSources({ photoId, refreshKey, editable = false, jobRunn
     setData(null); setError("");
     api.metadata(photoId).then(value => {
       if (!current) return;
-      setData(value); setSelected(value.primary_id ?? "exif");
+      const keepSelection = loaded.current?.photoId === photoId && loaded.current.primaryKey === primaryKey;
+      loaded.current = { photoId, primaryKey };
+      setData(value);
+      setSelected(previous => keepSelection && value.sources.some(source => source.id === previous)
+        ? previous : value.primary_id ?? "exif");
       setCompare(false); setDifferences(false); setQuery("");
     }).catch(e => { if (current) setError(String(e.message ?? e)); });
     return () => { current = false; };
-  }, [photoId, refreshKey, retry]);
+  }, [photoId, refreshKey, primaryKey, retry]);
   if (error) return <section className="info-section metadata-sources"><h3>Metadata sources</h3><p className="error">{error}</p><button onClick={() => setRetry(x => x + 1)}>Retry metadata</button></section>;
   if (!data) return <section className="info-section metadata-sources" aria-busy="true"><h3>Metadata sources</h3><p className="muted">Loading metadata sources…</p></section>;
   const primary = data.sources.find(s => s.id === data.primary_id);

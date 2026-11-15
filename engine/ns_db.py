@@ -1117,14 +1117,13 @@ def transition_run(conn, run_id, to, *, reconciled_by=None):
 
 def record_source_observation(conn, *, photo_id, run_id, source_path, sha1_hash,
                               file_size, file_mtime, birthtime, metadata, error,
-                              prior_status=None, observed_at=None):
+                              observed_at=None):
     """Participates in caller's scan savepoint, never commits independently.
 
     A photo row seen for the first time gets a new identity; a rescan keeps its binding.
     A file returning to a path whose source a Move consumed is not a rescan: the scan
     gives it a photo row of its own (idx_photos_live_source), so the moved photo keeps its
-    identity and history. `prior_status` is the row's status before this scan, kept for
-    callers' bookkeeping."""
+    identity and history."""
     if not conn.in_transaction:
         raise RuntimeError("source observation requires caller transaction")
     row = conn.execute("SELECT file_id FROM photo_files WHERE photo_id=?", (photo_id,)).fetchone()
@@ -1822,18 +1821,3 @@ def prune_automatic_backups(conn, backups_dir):
                          "WHERE artifact_id=?", (utc_now(), artifact_id))
         pruned.append(name)
     return pruned
-
-
-def refresh_backup_availability(conn, backups_dir):
-    """Re-observes every unpruned artifact. An unreachable /backups makes each one
-    'unknown' rather than 'missing': storage trouble is not evidence of deletion."""
-    reachable = Path(backups_dir).is_dir() and os.access(backups_dir, os.R_OK | os.X_OK)
-    now = utc_now()
-    rows = conn.execute("SELECT artifact_id, relative_filename FROM backup_artifacts "
-                        "WHERE availability != 'pruned'").fetchall()
-    with transaction(conn):
-        for artifact_id, name in rows:
-            state = ('present' if (Path(backups_dir) / name).is_file() else 'missing') if reachable else 'unknown'
-            conn.execute("UPDATE backup_artifacts SET availability=?, last_checked_at=? WHERE artifact_id=?",
-                         (state, now, artifact_id))
-    return reachable

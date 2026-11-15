@@ -3,6 +3,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 from playwright.sync_api import expect, sync_playwright
 
 base=sys.argv[1]
@@ -72,8 +73,48 @@ with sync_playwright() as p:
         expect(viewer.get_by_role('tab',name=tab+' Primary',exact=True)).to_be_visible()
         expect(viewer.get_by_role('button',name='Use as primary…',exact=True)).not_to_be_visible()
     apply_source('EXIF','exif','2023/01/15')
+
+    held_status=[]
+    held_metadata=[]
+    def hold_status(route):
+        held_status.append((route,route.fetch()))
+    def hold_metadata(route):
+        held_metadata.append((route,route.fetch()))
+    def await_reply(replies):
+        deadline=time.monotonic()+10
+        while not replies and time.monotonic()<deadline:
+            page.wait_for_timeout(50)
+        assert replies,'Expected a held refresh response'
+    page.route('**/api/v1/status',hold_status)
+    page.evaluate("window.dispatchEvent(new Event('focus'))")
+    await_reply(held_status)
+    next_tab=viewer.get_by_role('tab',name='Embedded XMP',exact=True)
+    next_tab.click()
+    expect(next_tab).to_have_attribute('aria-selected','true')
+    metadata_url=f'**/api/v1/photos/{pid}/metadata'
+    page.route(metadata_url,hold_metadata)
+    for route,response in held_status:route.fulfill(response=response)
+    page.unroute('**/api/v1/status',hold_status)
+    expect(viewer).to_have_attribute('aria-busy','true')
+    await_reply(held_metadata)
+    for route,response in held_metadata:route.fulfill(response=response)
+    page.unroute(metadata_url,hold_metadata)
+    expect(next_tab).to_have_attribute('aria-selected','true')
+    assert request.get(f'/api/v1/photos/{pid}/metadata').json()['primary_id']=='exif'
+
     apply_source('Embedded XMP','embedded_xmp','2022/02/03')
     apply_source('XMP Sidecar',sidecar_id,'2021/02/03')
+    viewer.get_by_role('tab',name='EXIF',exact=True).click()
+    with page.expect_response(lambda response: '/inspect' in response.url and f'/photos/{pid}/' not in response.url):
+        page.get_by_role('button',name='Next photo',exact=True).click()
+    next_id=int(parse_qs(urlparse(page.url).query)['photo'][0])
+    assert next_id!=pid
+    next_metadata=request.get(f'/api/v1/photos/{next_id}/metadata').json()
+    next_primary=next(source for source in next_metadata['sources'] if source['id']==next_metadata['primary_id'])
+    next_label={'sidecar_xmp':'XMP Sidecar','embedded_xmp':'Embedded XMP','embedded_exif':'EXIF'}[next_primary['kind']]
+    expect(viewer.get_by_role('tab',name=next_label+' Primary',exact=True)).to_have_attribute('aria-selected','true')
+    page.go_back()
+    expect(viewer.get_by_role('tab',name='XMP Sidecar Primary',exact=True)).to_have_attribute('aria-selected','true')
     page.reload()
     expect(viewer.get_by_role('tab',name='XMP Sidecar Primary',exact=True)).to_have_attribute('aria-selected','true')
     page.goto(base+f'/logs?photo={pid}')
@@ -81,4 +122,4 @@ with sync_playwright() as p:
     expect(page.get_by_text('Metadata source changed',exact=False).first).to_be_visible()
     assert not errors,errors
     browser.close()
-print('PASS: primary choices cancel/save, all three sources, refiling, bytes, history, source eligibility and reflow')
+print('PASS: primary choices cancel/save, all three sources, delayed refresh selection, new-photo primary, refiling, bytes, history, source eligibility and reflow')

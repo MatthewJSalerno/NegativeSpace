@@ -5,6 +5,7 @@
 Uses only the harness's disposable, generated source files.
 """
 import re
+import os
 import sys
 import time
 from pathlib import Path
@@ -57,5 +58,24 @@ with sync_playwright() as p:
         expect(page).to_have_url(re.compile(r'status=Failed'))
         expect(page.locator('.log-table tbody tr')).to_have_count(outcome['failed'])
         page.close()
+    found = request.get('/api/v1/photos', params={'q':'photo-020.jpg'}).json()['items']
+    assert len(found) == 1
+    run_job(mode='copy', file_ids=[found[0]['id']])
+    repeated = run_job(mode='copy', file_ids=[found[0]['id']])
+    assert repeated['outcome']['skipped'] == 1
+    page = browser.new_page(viewport={'width':1440, 'height':900}, color_scheme='dark')
+    page.goto(f"{sys.argv[1]}/logs?run={repeated['id']}&status=Skipped")
+    row = page.locator('.log-table tbody tr').filter(has_text='photo-020.jpg')
+    expect(row).to_have_count(1)
+    expect(row).to_contain_text('This run did not verify the destination.')
+    expect(row).to_contain_text('Check library…, then Repair…')
+    expect(row).to_contain_text('Use Move')
+    expect(row).not_to_contain_text('--force-rehash')
+    for width, size in ((1440, 16), (720, 32)):
+        page.set_viewport_size({'width':width, 'height':900})
+        page.evaluate('(size) => document.documentElement.style.fontSize = `${size}px`', size)
+        expect(row).to_be_visible()
+        if os.environ.get('SHOTS'):
+            page.screenshot(path=f"{os.environ['SHOTS']}/copy-guidance-{width}-{size}.png", full_page=True)
     browser.close()
-print('Copy/Move mixed and all-failed scans: counts, banners and failure links passed')
+print('Copy/Move mixed and all-failed scans, and repeated-Copy guidance: passed')

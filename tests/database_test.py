@@ -509,20 +509,6 @@ class DatabaseTests(unittest.TestCase):
         store.mkdir(exist_ok=True)
         return store
 
-    def test_backup_availability_separates_missing_from_unreachable(self):
-        store = self.backups()
-        first = db.backup_catalog(self.path, store, Path(self.tmp.name) / 'appdata', trigger='manual')
-        second = db.backup_catalog(self.path, store, Path(self.tmp.name) / 'appdata', trigger='manual')
-        self.assertEqual((first['outcome'], second['outcome']), ('succeeded', 'succeeded'))
-        (store / first['filename']).unlink()
-        self.assertTrue(db.refresh_backup_availability(self.conn, store))
-        states = [r[0] for r in self.conn.execute("SELECT availability FROM backup_artifacts ORDER BY artifact_id")]
-        self.assertEqual(states, ['missing', 'present'])
-        # Storage that cannot be reached says nothing about individual files.
-        self.assertFalse(db.refresh_backup_availability(self.conn, store / 'unmounted'))
-        states = [r[0] for r in self.conn.execute("SELECT availability FROM backup_artifacts ORDER BY artifact_id")]
-        self.assertEqual(states, ['unknown', 'unknown'])
-
     def test_backup_retention_setting_is_validated(self):
         for bad in (0, -1, '5', 2.0, True):
             with self.assertRaises(ValueError):
