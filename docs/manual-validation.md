@@ -9,7 +9,7 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Dependency update:** [DP1a–DP1c](#dependency-update-public-photos) await maintainer validation.
+**Dependency update:** [DP1a–DP1c](#dependency-update-public-photos) passed (maintainer, 2026-11-14); measured similarity differences accepted.
 
 **Metadata source refresh:** [MR1a–MR1c](#metadata-source-refresh) passed (maintainer, 2026-11-14).
 
@@ -98,7 +98,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## DP1 — Public JPEG and RAW previews after the dependency update
 
-**Status:** Awaiting maintainer validation. Use the dedicated public-photo review instance.
+**Status:** DP1a–DP1c passed (maintainer, 2026-11-14). The maintainer also accepted the measured similarity differences. These steps describe the dedicated public-photo review instance.
 No Index, Copy, metadata edit or deletion is required; the library is prepared.
 
 Verified: the browser probe found the three filenames below in Library, loaded their
@@ -115,8 +115,9 @@ Verified: separate baseline/updated Index and Copy runs catalogued 4,525 public 
 and copied 4,518 each. Every copied file matched its recorded source hash. All 4,525
 grid thumbnails decoded in both runs. The comparison found three changed visual hashes
 and four changed grid-thumbnail pixel digests; unchanged image bytes do not imply an
-unchanged resized similarity input. Dependency acceptance remains pending review of
-those differences, independently of the visual checks above.
+unchanged resized similarity input. The maintainer accepted
+those differences after DP1 passed. No matching-rule change or automatic rehash of
+existing catalogs was authorized.
 
 **Limits:** These checks do not establish behavior for every format or library.
 
