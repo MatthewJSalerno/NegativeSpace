@@ -295,7 +295,7 @@ class JobRunner:
             raise JobRefused(409, {"error": f"catalog_{status['state']}", "message": status["detail"]})
         if mode != "index" and status["photos"] == 0:
             raise JobRefused(409, {"error": "catalog_empty",
-                                   "message": "Run a Scan first - NegativeSpace acts on indexed photos."})
+                                   "message": "Run Index first - NegativeSpace acts on indexed photos."})
         # No fixed limit: a selection is bounded by the catalog it was chosen from.
         if selection is not None and len(selection) > status["photos"]:
             raise JobRefused(400, {"error": "invalid_request",

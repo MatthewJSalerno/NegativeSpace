@@ -1081,10 +1081,9 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         for record_id, copied_src, copied_dst in cursor.fetchall():
             store.log_operation(
                 conn, run_id, record_id, copied_src, copied_dst, OPERATION_SKIPPED,
-                f"Already copied to {copied_dst} by an earlier run, so there is nothing to copy; "
-                f"this run re-verified nothing. Index reads sources, never the destination — if "
-                f"that file is missing, re-index with --force-rehash and copy again. Use --move "
-                f"to finish moving it.",
+                f"Already copied to {copied_dst} by an earlier run. This run did not verify the destination. "
+                "If the file is missing, use Check library…, then Repair… to copy it back from the source. "
+                "Use Move to finish moving it.",
                 commit=False
             )
             copy_skips += 1

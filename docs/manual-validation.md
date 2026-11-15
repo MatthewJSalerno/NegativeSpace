@@ -9,6 +9,9 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Audit message wording:** the maintainer reported the expected [AW1a](#audit-message-wording)
+message and passed AW1b on 2026-11-14.
+
 **Folders named like an option:** [HD1a–HD1c](#folders-named-like-an-option) passed, including all lettered steps, on 2026-11-14.
 
 **Invalid names:** [LB1a–LB1c](#invalid-names) passed on 2026-11-12. The messages were then reworded at the
@@ -86,6 +89,23 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+<a id="audit-message-wording"></a>
+
+## AW1 — Copy guidance uses the screen's controls
+
+**Record:** AW1a showed the expected message; AW1b passed (maintainer, 2026-11-14).
+
+Verified: the generated fixture from `transfer_outcome_browser_drive.py` includes
+`photo-020.jpg`, copied once and included in a second Copy job with a **Skipped** log entry. The second job records the earlier delivery; it does not
+verify the destination again.
+
+| Step | Do | Expected |
+| --- | --- | --- |
+| AW1a | Open Logs, search for `photo-020.jpg`, and open its latest Copy job's Skipped entry. | The message names **Check library…**, **Repair…** and **Move**. It says this run did not verify the destination; it gives no command-line flags. |
+| AW1b | Read the same entry at 200% browser zoom and in a narrower window. | The guidance wraps and remains readable. Return to your usual zoom afterward. |
+
+**Limits:** No repair or file deletion is required for this wording check.
 
 ## Folders named like an option
 
