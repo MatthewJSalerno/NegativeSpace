@@ -2065,6 +2065,10 @@ for this focused UI batch; its preceding branch run passed 154 tests, including 
 
 CI runs the Python suite and the generated browser workflow:
 
+Read: `metadata_primary_browser_drive.py` also delays a status response after a save,
+selects another source, and checks that the resulting metadata refresh preserves that
+selection. Manual follow-up: [Metadata source refresh](../docs/manual-validation.md#metadata-source-refresh).
+
 ```sh
 docker run --rm -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_primary_ui_test.py -v
 METADATA_VIEW_FIXTURE=1 DRIVER=metadata_primary_browser_drive.py sh tests/browser/webui_browser_test.sh

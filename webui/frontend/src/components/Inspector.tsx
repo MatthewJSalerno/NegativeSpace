@@ -99,6 +99,11 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
   useEffect(() => setRenameName(null), [id]);
   const [dateEdit, setDateEdit] = useState<{ photoId: number; donor?: MetadataSourceView } | null>(null);
   const [primaryEdit, setPrimaryEdit] = useState<{ photoId: number; source: MetadataSourceView; captureId: number } | null>(null);
+  const [metadataPrimaryKey, setMetadataPrimaryKey] = useState(0);
+  const metadataSaved = () => {
+    setMetadataPrimaryKey(n => n + 1);
+    window.dispatchEvent(new Event("ns-review-changed"));
+  };
   const editDate = (donor?: MetadataSourceView) => { onTab("metadata"); setDateEdit({ photoId:id, donor }); };
   const openMetadata = () => { onTab("metadata"); requestAnimationFrame(() => document.getElementById(`${tabId}-metadata`)?.focus()); };
   const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 800px)").matches);
@@ -326,7 +331,7 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
           </div>
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "metadata", activeTab)}>
             {detail && activeTab === "metadata" && <div className="inspector-body">
-              <MetadataSources onPrimary={(source, captureId) => setPrimaryEdit({photoId:detail.id, source, captureId})} onEdit={editDate} key={`metadata:${detail.id}`} photoId={detail.id} refreshKey={refreshKey} editable={inLibrary} jobRunning={jobRunning} />
+              <MetadataSources onPrimary={(source, captureId) => setPrimaryEdit({photoId:detail.id, source, captureId})} onEdit={editDate} key={`metadata:${detail.id}`} photoId={detail.id} refreshKey={refreshKey} primaryKey={metadataPrimaryKey} editable={inLibrary} jobRunning={jobRunning} />
             </div>}
           </div>
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "similar", activeTab)}>
@@ -348,8 +353,8 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
     {renameName != null && <RenameDialog id={id} name={renameName} jobRunning={jobRunning} onClose={() => setRenameName(null)}/>}
     {rotationExit.editor}
     {importChoices && <ImportChoiceDialog photoId={id} onClose={() => setImportChoices(false)} />}
-    {primaryEdit && <PrimarySourceEditor {...primaryEdit} onClose={() => setPrimaryEdit(null)} onSaved={() => window.dispatchEvent(new Event("ns-review-changed"))} />}
-    {dateEdit && <DateEditor photoId={dateEdit.photoId} donor={dateEdit.donor} onClose={() => setDateEdit(null)} onSaved={() => window.dispatchEvent(new Event("ns-review-changed"))} />}
+    {primaryEdit && <PrimarySourceEditor {...primaryEdit} onClose={() => setPrimaryEdit(null)} onSaved={metadataSaved} />}
+    {dateEdit && <DateEditor photoId={dateEdit.photoId} donor={dateEdit.donor} onClose={() => setDateEdit(null)} onSaved={metadataSaved} />}
     {enlarged && !narrow && <div className="inspector-placeholder" aria-hidden="true" style={width ? { flexBasis: `${width}px` } : undefined} />}
     {enlarged ? <Modal className="lightbox" label={`Enlarged: ${detail?.filename ?? ""}`} onClose={() => setEnlarged(false)}>{body}</Modal>
       : narrow && comparison == null ? <Modal deferWhileCovered className="mobile-inspector" label="Photo details" onClose={close}>{body}</Modal> : body}
