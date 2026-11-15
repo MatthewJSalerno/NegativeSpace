@@ -336,9 +336,9 @@ def db_writer_worker(db_path: str):
             # its own (idx_photos_live_source), compared below against that delivered
             # content like any other file, so it becomes its duplicate (engine-spec 6.5).
             live = cursor.execute(
-                "SELECT id, status FROM photos WHERE source_path = ? AND (status IS NULL OR status NOT IN "
+                "SELECT id FROM photos WHERE source_path = ? AND (status IS NULL OR status NOT IN "
                 f"({constants.sql_values(constants.SOURCE_CONSUMED_STATUSES)}))", (result.file_path,)).fetchone()
-            live_id, prior_status = live if live else (None, None)
+            live_id = live[0] if live else None
             from engine import metadata_photo_save
             protected_edit = metadata_photo_save.protect_scan(conn, live_id)
 
@@ -382,7 +382,7 @@ def db_writer_worker(db_path: str):
                 source_path=result.file_path, sha1_hash=result.sha1_hash,
                 file_size=result.file_size, file_mtime=result.file_mtime,
                 birthtime=result.birthtime, metadata=result.metadata,
-                error=result.error_message, prior_status=prior_status,
+                error=result.error_message,
                 observed_at=result.observed_at,
             )
             from engine import earlier_versions

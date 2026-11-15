@@ -198,7 +198,8 @@ def safety_questions(conn, run) -> list:
 
 def _run_dict(conn, row) -> dict:
     run = dict(row)
-    run["targeting"] = json.loads(run.pop("file_ids_filter")) if run.get("file_ids_filter") else None
+    targeting = run.pop("file_ids_filter")
+    run["targeting"] = json.loads(targeting) if targeting else None
     run["progress"] = ns_db.read_progress(conn, run["id"])
     run["outcome"] = _outcome(conn, run, run["progress"])
     if run["mode"] == "INDEX":
