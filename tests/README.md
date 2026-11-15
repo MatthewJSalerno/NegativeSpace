@@ -170,6 +170,11 @@ review-link alignment with mixed EXIF/file dates and wrapped status badges. The 
 `SameNameCards` cases also check exact copies, missing hashes, Unicode folders,
 explicit selections and failed-versus-successful transfer history.
 
+Read: `same_name_browser_drive.py` identifies the generated photos by their recorded
+source paths, checks the ascending-photo-ID tie-break from `webui/catalog.py`
+`SORTS`, and verifies each card and one-item API page against that ID and folder.
+It does not require one source folder to be indexed before the other.
+
 Manual steps and recorded results: [Same-name cards](../docs/manual-validation.md#same-name-cards).
 
 ## Engine smoke suite — `engine_smoke_test.py`

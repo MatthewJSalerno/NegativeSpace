@@ -35,12 +35,34 @@ with sync_playwright() as p:
     expect(page.locator('.card')).to_have_count(2)
     page.get_by_role('button',name='Close index summary',exact=True).click()
     labels=page.locator('.card-folder')
-    expect(labels).to_have_text(['…/Camera/DCIM','…/Phone/DCIM'])
-    for i, folder in enumerate(['Camera','Phone']):
-        expect(page.locator('.card-name').nth(i)).to_have_attribute('title', f'/data/source/{folder}/DCIM/same-name.jpg')
-    # Page-size-one API reads must already contain the same labels.
-    for n, folder in enumerate(['Camera','Phone'],1):
+    response=request.get('/api/v1/photos?view=unorganized&q=same-name&sort=name')
+    assert response.ok, response.text()
+    items=response.json()['items']
+    assert len(items)==2, items
+    source_folders={f'/data/source/{folder}/DCIM/same-name.jpg':folder for folder in ('Camera','Phone')}
+    folders_by_id={}
+    for item in items:
+        detail=request.get(f"/api/v1/photos/{item['id']}/inspect")
+        assert detail.ok, detail.text()
+        source_path=detail.json()['source_path']
+        assert source_path in source_folders, source_path
+        folders_by_id[item['id']]=source_folders[source_path]
+    assert sorted(folders_by_id.values())==['Camera','Phone'], folders_by_id
+    # Read: webui/catalog.py SORTS breaks equal filenames by photo ID.
+    ordered_ids=sorted(folders_by_id)
+    assert [item['id'] for item in items]==ordered_ids
+    expect(labels).to_have_text([f'…/{folders_by_id[pid]}/DCIM' for pid in ordered_ids])
+    assert page.locator('.card').evaluate_all('els => els.map(e => Number(e.dataset.id))')==ordered_ids
+    for pid, folder in folders_by_id.items():
+        card=page.locator(f'.card[data-id="{pid}"]')
+        expect(card.locator('.card-folder')).to_have_text(f'…/{folder}/DCIM')
+        expect(card.locator('.card-name')).to_have_attribute('title', f'/data/source/{folder}/DCIM/same-name.jpg')
+    # Check that page-size-one API reads preserve those IDs and labels.
+    for n, pid in enumerate(ordered_ids,1):
+        folder=folders_by_id[pid]
         result=request.get(f'/api/v1/photos?view=unorganized&q=same-name&sort=name&page_size=1&page={n}').json()
+        assert len(result['items'])==1, result
+        assert result['items'][0]['id']==pid
         assert result['items'][0]['name_context']['folder']==f'…/{folder}/DCIM'
     for theme in ('dark','light'):
         page.evaluate("theme => { localStorage.setItem('ns.theme',theme); location.reload(); }",theme)
