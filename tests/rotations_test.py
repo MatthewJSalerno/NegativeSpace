@@ -9,6 +9,7 @@ from PIL import Image
 from engine import fileinfo, ns_db, xmp
 from webui import photo_orientation, operation_actions
 import metadata_dates_test
+import webui_api_test
 
 
 class OrientationMath(unittest.TestCase):
@@ -51,8 +52,10 @@ class RotationWrites(unittest.TestCase):
         body={'edits':[plan['edit']], 'request_id':rid}
         answer=client.post('/api/v1/rotations/save',json=body)
         self.assertEqual(answer.status_code,202,answer.text)
-        for _ in range(400):
-            run=client.get(f"/api/v1/runs/{answer.json()['id']}").json()
+        run_id=answer.json()['id']
+        started=time.monotonic()
+        for poll in range(1,401):
+            run=webui_api_test.read_run(self,client,run_id,poll,started)
             if run['status'] not in ('Preparing','Running','Cancelling'):return run,body
             time.sleep(.05)
         self.fail('Rotation job timed out')

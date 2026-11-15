@@ -7,6 +7,7 @@ import unittest
 from engine import ns_db
 from webui import catalog, outcomes
 import metadata_dates_test
+import webui_api_test
 
 
 class RenameTests(unittest.TestCase):
@@ -25,8 +26,10 @@ class RenameTests(unittest.TestCase):
         body = dict(name=name, token=plan['token'], request_id=request)
         result = client.post(f'/api/v1/photos/{self.pid}/rename', json=body)
         self.assertEqual(result.status_code, 202, result.text)
-        for _ in range(300):
-            run = client.get(f"/api/v1/runs/{result.json()['id']}").json()
+        run_id = result.json()['id']
+        started = time.monotonic()
+        for poll in range(1, 301):
+            run = webui_api_test.read_run(self, client, run_id, poll, started)
             if run['status'] not in ('Preparing','Running','Cancelling'):
                 return run, body
             time.sleep(.05)

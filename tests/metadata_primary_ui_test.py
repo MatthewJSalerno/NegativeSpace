@@ -4,6 +4,7 @@ import unittest
 from engine import ns_db, xmp_store
 import metadata_index_test
 import metadata_dates_test
+import webui_api_test
 
 
 class PrimaryUI(unittest.TestCase):
@@ -22,9 +23,10 @@ class PrimaryUI(unittest.TestCase):
         body = {'edit':plan['edit'], 'token':plan['token'], 'request_id':request_id}
         response = client.post(f'/api/v1/photos/{self.pid}/primary-save', json=body)
         self.assertEqual(response.status_code, 202, response.text)
-        run = response.json()
-        for _ in range(300):
-            run = client.get(f"/api/v1/runs/{run['id']}").json()
+        run_id = response.json()['id']
+        started = time.monotonic()
+        for poll in range(1, 301):
+            run = webui_api_test.read_run(self, client, run_id, poll, started)
             if run['status'] not in ('Preparing','Running','Cancelling'):
                 return run, body
             time.sleep(.05)
