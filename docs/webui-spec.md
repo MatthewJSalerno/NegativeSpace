@@ -2290,10 +2290,10 @@ actual result, preserve the real extension and date folder, and update
 related current references without rewriting history. A missing or changed target
 stops the operation and shows §7.6 guidance.
 
-**Engine calls** (`engine-spec.md` §9.4): the candidate names come from
-`python -m engine --rename-candidates <id>`; the live check of a typed name is
-`--rename <id> --name <name> --dry-run`, which prints the resolved path, or the reason
-there is none, and takes no lock; confirming runs `--rename <id> --name <name>` as a
+**Engine calls** (`engine-spec.md` §9.4): Read: `webui/renaming.py` calls
+`engine/relocate.py` `rename_candidates` for candidate names and `preview_rename`
+for the live check of a typed name. The preview returns the resolved path, or the
+reason there is none, and takes no lock; confirming runs `--rename <id> --name <name>` as a
 job. Its outcome and the actual resulting name are its `Renamed` (or `Failed`) operation.
 
 **Choosing the name at move time is a different feature, and is deferred.** It

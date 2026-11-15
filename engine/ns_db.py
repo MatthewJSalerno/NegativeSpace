@@ -1822,18 +1822,3 @@ def prune_automatic_backups(conn, backups_dir):
                          "WHERE artifact_id=?", (utc_now(), artifact_id))
         pruned.append(name)
     return pruned
-
-
-def refresh_backup_availability(conn, backups_dir):
-    """Re-observes every unpruned artifact. An unreachable /backups makes each one
-    'unknown' rather than 'missing': storage trouble is not evidence of deletion."""
-    reachable = Path(backups_dir).is_dir() and os.access(backups_dir, os.R_OK | os.X_OK)
-    now = utc_now()
-    rows = conn.execute("SELECT artifact_id, relative_filename FROM backup_artifacts "
-                        "WHERE availability != 'pruned'").fetchall()
-    with transaction(conn):
-        for artifact_id, name in rows:
-            state = ('present' if (Path(backups_dir) / name).is_file() else 'missing') if reachable else 'unknown'
-            conn.execute("UPDATE backup_artifacts SET availability=?, last_checked_at=? WHERE artifact_id=?",
-                         (state, now, artifact_id))
-    return reachable

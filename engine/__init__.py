@@ -160,9 +160,8 @@ default Index):
   date folders (from another folder or from Rejects), copying them back from the source, or
   keeping a changed file as the photo's new version filed by its date, as the named check
   found them; refused if a newer check has completed. Nothing is deleted.
-- --rename PHOTO_ID --name NAME [--dry-run] / --rename-candidates PHOTO_ID: give a
-  delivered file a new name, or list the names its duplicate group carried.
-  --rename-preview-token TOKEN binds confirmation to the unchanged dry-run result.
+- --rename PHOTO_ID --name NAME: give a delivered file a new name.
+  --rename-preview-token TOKEN binds confirmation to the unchanged preview result.
 - --reject / --return-to-library, with --file-ids(-from) or --source-subdir: move organized
   photos from dest/library to dest/rejects, or back (spec §9.5). Nothing is deleted.
 - --check-issue ISSUE_ID: verify one uncertain operation and record fresh evidence;
