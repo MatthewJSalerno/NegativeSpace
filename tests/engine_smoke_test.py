@@ -2904,15 +2904,10 @@ def new_date_folders_are_made_durable_before_a_source_is_deleted():
 @test
 def the_documented_recovery_redelivers_a_removed_destination_file():
     """
-    The `Skipped` reason and webui-spec 5.3 tell the user to re-index with
-    --force-rehash and copy again when a destination file has gone missing.
-
-    That advice replaced worse advice — a plain re-index, which inspects
-    nothing at the destination and skips unchanged sources — so it has to be
-    true rather than merely plausible. Both halves are asserted here: a plain
-    Index leaves the row settled and delivers nothing, while --force-rehash
-    re-reads the source, resets the row, and lets the next Copy restore the
-    file.
+    Read: webui-spec 5.3 documents the CLI recovery using --force-rehash then
+    Copy. Both halves are asserted here: a plain Index leaves the row settled
+    and delivers nothing, while --force-rehash re-reads the source, resets the
+    row, and lets the next Copy restore the file.
     """
     case = new_case("documented_recovery")
     make_photo(case / "src" / "a.jpg", "a")
@@ -3806,6 +3801,10 @@ def a_second_copy_of_a_delivered_photo_records_the_outcome():
     message = (ops[0]["error_message"] or "").lower()
     check("already" in message and "earlier run" in message,
           f"the reason does not say this is a recorded prior result: {ops[0]['error_message']}")
+    check("check library…" in message and "repair…" in message and "use move" in message,
+          "the reason must name the available Check library, Repair and Move controls")
+    check("did not verify" in message and "--force-rehash" not in message and "--move" not in message,
+          "the reason must distinguish recorded delivery from verification without CLI-only instructions")
     check(ops[0]["dest_path"] and Path(ops[0]["dest_path"]).exists(),
           f"the outcome does not point at the delivered file: {ops[0]['dest_path']}")
     check(status_of(case, "a.jpg") == "Copied", "the photo's own status was changed")
@@ -5234,13 +5233,6 @@ def repair_recovers_an_interrupted_keep_and_move():
                (check_run, m_id))[0]["n"] == 0, "recovery did not settle the kept version's finding")
 
 
-def _engine_json(case, *args, expect_rc=0):
-    proc = run_engine(case, *args, expect_rc=expect_rc)
-    lines = [l for l in proc.stdout.splitlines() if l.strip()]
-    check(len(lines) == 1, f"expected one line of JSON, got:\n{proc.stdout}")
-    return json.loads(lines[0])
-
-
 def _renamable_case(name):
     """A delivered photo whose removed duplicate carried the better name."""
     case = new_case(name)
@@ -5261,20 +5253,22 @@ def a_delivered_file_is_renamed_without_overwriting_and_its_history_follows():
     first. Every current reference and the file's identity follow the file; the
     operation records both paths; history is not rewritten.
     """
+    from engine import relocate
     case, photo, old = _renamable_case("rename_happy")
+    db_path = case / "appdata" / "db" / "ns_sqlite.db"
     other = "Beach Sunset" if old.stem != "Beach Sunset" else "IMG_0001"
-    cands = _engine_json(case, "--rename-candidates", photo)
+    cands = relocate.rename_candidates(db_path, photo)
     check([c["name"] for c in cands["candidates"]] == [other],
           f"the group's other name was not offered: {cands}")
 
     for bad in ("a/b", ".hidden", "  "):
-        err = _engine_json(case, "--rename", photo, "--name", bad, "--dry-run", expect_rc=1)["error"]
+        err = relocate.preview_rename(db_path, case / "dest", photo, bad)["error"]
         check(err, f"{bad!r} was accepted as a name")
     (old.parent / "Taken.jpg").write_bytes(b"someone else's file")
-    plan = _engine_json(case, "--rename", photo, "--name", "Taken.PNG", "--dry-run")
+    plan = relocate.preview_rename(db_path, case / "dest", photo, "Taken.PNG")
     check(Path(plan["new_path"]) == old.parent / "Taken_1.jpg" and plan["collision"],
           f"a taken name, typed with another extension, did not resolve to Taken_1.jpg: {plan}")
-    check(old.exists(), "a dry run changed something")
+    check(old.exists(), "a rename preview changed something")
 
     inode, backups = old.stat().st_ino, len(backups_of(case))
     run_engine(case, "--rename", photo, "--name", other)
@@ -5316,7 +5310,9 @@ def a_rename_stops_before_changing_anything_when_it_cannot_be_safe():
     """A changed destination file, a failed catalog backup, an undelivered photo and a
     held lock each stop the rename with the file untouched (webui-spec 7.3, 9)."""
     import fcntl
+    from engine import relocate
     case, photo, old = _renamable_case("rename_refused")
+    db_path = case / "appdata" / "db" / "ns_sqlite.db"
     data = old.read_bytes()
 
     shutil.rmtree(case / "backups")
@@ -5338,7 +5334,7 @@ def a_rename_stops_before_changing_anything_when_it_cannot_be_safe():
     os.utime(old)
 
     pending = rows(case, "SELECT id FROM photos WHERE status != 'Completed'")[0]["id"]
-    err = _engine_json(case, "--rename", pending, "--name", "x", "--dry-run", expect_rc=1)["error"]
+    err = relocate.preview_rename(db_path, case / "dest", pending, "x")["error"]
     check("not been delivered" in err, f"an undelivered photo was offered a rename: {err}")
 
     with open(case / "appdata" / "engine.lock", "a") as held:

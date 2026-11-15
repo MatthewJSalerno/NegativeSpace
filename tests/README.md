@@ -446,7 +446,8 @@ answers, changed roots, busy engine and unsupported input. No real network share
 or maintainer data is needed; network durability itself is not tested.
 
 `DRIVER=transfer_outcome_browser_drive.py` checks mixed and all-failed prerequisite scans for Copy and Move, including notification
-counts and View failures links. It modifies only the harness's disposable photos.
+counts and View failures links. It also checks repeated-Copy guidance in Logs at desktop
+and narrow/200% text sizes. It modifies only the harness's disposable photos.
 The API suite also runs all four cases with a writable source to verify successful
 Move alongside scan failures. Existing verdict cases cover cancellation, copied-only,
 unchanged Index, repeated Copy and unrelated recovery.

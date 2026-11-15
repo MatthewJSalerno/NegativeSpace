@@ -150,7 +150,7 @@ def rename_token(plan: dict) -> str:
 
 
 def preview_rename(db_path: Path, dest_root: Path, photo_id: int, name: str) -> dict:
-    """--rename --dry-run: the plan, or why there is none. No lock, changes nothing."""
+    """The rename preview, or why there is none. No lock, changes nothing."""
     if not Path(db_path).exists():
         return {"photo_id": photo_id, "error": "There is no catalog yet."}
     with contextlib.closing(store.get_db_connection(str(db_path))) as conn:
