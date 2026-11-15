@@ -9,6 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Dependency update:** [DP1a–DP1c](#dependency-update-public-photos) passed (maintainer, 2026-11-14); measured similarity differences accepted.
+
 **Metadata source refresh:** [MR1a–MR1c](#metadata-source-refresh) passed (maintainer, 2026-11-14).
 
 **Audit message wording:** the maintainer reported the expected [AW1a](#audit-message-wording)
@@ -91,6 +93,33 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+<a id="dependency-update-public-photos"></a>
+
+## DP1 — Public JPEG and RAW previews after the dependency update
+
+**Status:** DP1a–DP1c passed (maintainer, 2026-11-14). The maintainer also accepted the measured similarity differences. These steps describe the dedicated public-photo review instance.
+No Index, Copy, metadata edit or deletion is required; the library is prepared.
+
+Verified: the browser probe found the three filenames below in Library, loaded their
+large previews and metadata panes, and opened the enlarged view. Dark-mode screenshots
+were inspected after the panes loaded.
+
+| Step | Action | Expected result |
+| --- | --- | --- |
+| DP1a | In Library, search `0030_Earth.jpg`. Open the photo, choose Metadata, then click the large preview to enlarge it. | The globe appears in the card and both previews, with its round shape preserved. The metadata pane loads. Close the enlarged view. |
+| DP1b | Search `20130316_182932_AF6B7373.cr2`. Open the photo and enlarge it. | The portrait view shows a bell beside a wooded area. It fits vertically without stretching or an unavailable-image placeholder. Open Metadata → EXIF; the recorded fields load. |
+| DP1c | Search `20130316_183026_9D75FD4B.dng`. Open the photo and enlarge it. | The closer portrait view of the bell displays without stretching or an unavailable-image placeholder. Open Metadata → EXIF; the recorded fields load. |
+
+Verified: separate baseline/updated Index and Copy runs catalogued 4,525 public photos
+and copied 4,518 each. Every copied file matched its recorded source hash. All 4,525
+grid thumbnails decoded in both runs. The comparison found three changed visual hashes
+and four changed grid-thumbnail pixel digests; unchanged image bytes do not imply an
+unchanged resized similarity input. The maintainer accepted
+those differences after DP1 passed. No matching-rule change or automatic rehash of
+existing catalogs was authorized.
+
+**Limits:** These checks do not establish behavior for every format or library.
 
 <a id="metadata-source-refresh"></a>
 
