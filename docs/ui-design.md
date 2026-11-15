@@ -1433,7 +1433,14 @@ the same panes; nested dialogs close before the expanded view. Each
 source tab shows that source's captured values, not a merged effective view. Keep
 missing, unreadable and failed-to-load sources distinct; do not present an error as
 an empty source. Alternative sidecar versions remain inspectable without activation.
-Use the primary source as the initial source tab when available. Mark its heading
+Use the primary source as the initial source tab when available. For the same photo,
+background refreshes retain the selected source, including a selected sidecar version.
+If that source is no longer recorded, fall back to the primary source. After an explicit
+date save, Copy date to primary or primary-source change, show the saved primary source;
+later background refreshes preserve the user's subsequent selection. Opening another
+photo starts on its primary source. Read: `MetadataSources`, `Inspector` and `ReviewWorkspace` in
+`webui/frontend/src/components/` apply this selection rule.
+Mark its heading
 with a persistent textual **Primary** badge and shared emphasis; color alone is
 insufficient. The selected-tab indicator identifies the viewed source, not the primary.
 When effective filing values fall back to another source, label that origin accurately

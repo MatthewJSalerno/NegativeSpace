@@ -1245,7 +1245,10 @@ checkbox selection. A clean reindex removes a resolved hold.
 This does not add source photos to Library's Needs review or implement choice controls.
 
 **Metadata sources.** Inside the dedicated Metadata inspector tab, separate XMP Sidecar, Embedded XMP and EXIF tabs show captured
-source values. A textual Primary badge identifies verified activation, not the viewed
+source values. Read: `MetadataSources` retains the viewed source across background
+refreshes of the same photo; another photo starts on its primary source. Explicit
+date saves, date copies and primary-source changes show the saved primary source.
+A textual Primary badge identifies verified activation, not the viewed
 tab or an unexecuted decision. Other tabs compare canonical fields against primary,
 with differences-only and field filtering. Empty and Not recorded are distinct. Multiple sidecar
 versions reserve the same selector row across tabs, with the selector hidden and

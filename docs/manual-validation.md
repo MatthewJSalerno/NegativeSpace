@@ -9,6 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Metadata source refresh:** [MR1a–MR1c](#metadata-source-refresh) passed (maintainer, 2026-11-14).
+
 **Audit message wording:** the maintainer reported the expected [AW1a](#audit-message-wording)
 message and passed AW1b on 2026-11-14.
 
@@ -89,6 +91,24 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+<a id="metadata-source-refresh"></a>
+
+## MR1 — Keep the selected metadata source during refresh
+
+**Status:** MR1a–MR1c passed (maintainer, 2026-11-14). The dedicated review instance used for this batch held the fixtures below.
+The generated Library photos are `photo-000.jpg` and `photo-001.jpg`.
+Both start with **XMP Sidecar** as primary. `photo-000.jpg` also has readable EXIF
+and embedded XMP; its three recorded dates are different.
+
+| Step | Action | Expected result |
+| --- | --- | --- |
+| MR1a | In Library, search `photo-000.jpg`, open it, and choose Metadata → EXIF. Switch to another browser tab or application, then return. | EXIF remains selected after the background refresh. XMP Sidecar still carries the Primary badge. |
+| MR1b | From EXIF, choose **Use as primary…**, confirm the change and wait for completion. Close the confirmation, then select Embedded XMP. Switch away and return again. | EXIF now carries the Primary badge. Embedded XMP remains selected; once the job and backup finish, its **Use as primary…** link can open a preview. Cancel that preview. |
+| MR1c | Search `photo-001.jpg`, open it, and choose Metadata. Then return to `photo-000.jpg` and open Metadata again. | Each newly opened photo starts on its own primary source: XMP Sidecar for `photo-001.jpg`, EXIF for `photo-000.jpg` after MR1b. |
+
+Read: `MetadataSources` in `webui/frontend/src/components/MetadataSources.tsx`
+preserves the selected source only for a refresh of the same photo.
 
 <a id="audit-message-wording"></a>
 

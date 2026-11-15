@@ -34,6 +34,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [revision, setRevision] = useState(0);
+  const [metadataPrimaryKey, setMetadataPrimaryKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [rejectRun, setRejectRun] = useState<{run: number; photo: number} | null>(null);
@@ -130,7 +131,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
             const run=await api.startJob({mode:"reject",file_ids:[photo.id]});if (run.id == null) throw new Error("The Reject job was not accepted. Reload before trying again."); setRejectRun({run:run.id,photo:photo.id});setBusy(true);
           },undefined,photo.filename))}>Reject…</button>} />
         {(bookmarkReason === "date" || bookmarkReason === "details") && <section aria-label="Bookmark metadata">
-          <MetadataSources photoId={photo.id} refreshKey={revision} dateActionRef={focusDateAction} editable jobRunning={!!jobs.active} onEdit={donor => setDateEdit({photo:photo.id,donor})} />
+          <MetadataSources photoId={photo.id} refreshKey={revision} primaryKey={metadataPrimaryKey} dateActionRef={focusDateAction} editable jobRunning={!!jobs.active} onEdit={donor => setDateEdit({photo:photo.id,donor})} />
         </section>}
         {bookmarkReason === "compare" && <PhotoMatches key={photo.id} id={photo.id} name={photo.filename} delivered view={matchView} onView={setMatchView}
           refreshKey={revision} changes={revision} jobRunning={!!jobs.active} onReview={(candidate, scope = "library", page = 1) => rotationExit.requestLeave(() => setComparison({
@@ -150,7 +151,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
       </aside>
     </div>}
     {!photo && !error && (data ? <p>No more photos at this position. Earlier skipped photos may still need review. Use Previous or return to the gallery.</p> : <p role="status">Loading review…</p>)}
-    {dateEdit != null && <DateEditor photoId={dateEdit.photo} donor={dateEdit.donor} onClose={() => setDateEdit(null)} onSaved={() => { setRevision(n=>n+1); window.dispatchEvent(new Event("ns-review-changed")); }} />}
+    {dateEdit != null && <DateEditor photoId={dateEdit.photo} donor={dateEdit.donor} onClose={() => setDateEdit(null)} onSaved={() => { setMetadataPrimaryKey(n=>n+1); setRevision(n=>n+1); window.dispatchEvent(new Event("ns-review-changed")); }} />}
     {comparison && <MatchReviewDialog reference={comparison.reference} candidate={comparison.candidate} workspace={comparison} onWorkspace={setComparison}
       initialView={{threshold:comparison.threshold,page:comparison.page}} onView={setMatchView} jobRunning={!!jobs.active}
       onClose={() => setComparison(null)} onChanged={() => setRevision(n=>n+1)} />}
