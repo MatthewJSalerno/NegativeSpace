@@ -10,6 +10,7 @@ from engine import ns_db, xmp
 from webui import app as webapp
 from webui.config import Config
 import metadata_save_test
+import webui_api_test
 
 
 class DateEditorTests(unittest.TestCase):
@@ -34,9 +35,10 @@ class DateEditorTests(unittest.TestCase):
         body={'edit':p['edit'],'token':p['token'],'request_id':request}
         result=c.post(f'/api/v1/photos/{self.pid}/date-save',json=body)
         self.assertEqual(result.status_code,202,result.text)
-        run=result.json()
-        for _ in range(300):
-            run=c.get(f"/api/v1/runs/{run['id']}").json()
+        run_id=result.json()['id']
+        started=time.monotonic()
+        for poll in range(1,301):
+            run=webui_api_test.read_run(self,c,run_id,poll,started)
             if run['status'] not in ('Preparing','Running','Cancelling'):break
             time.sleep(.05)
         else:self.fail('Metadata job did not finish')

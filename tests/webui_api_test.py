@@ -50,6 +50,22 @@ def make_photo(path: Path, seed: str, size=(64, 48), mtime=None, exif=None):
         os.utime(path, (mtime, mtime))
 
 
+def read_run(case, client, run_id, poll, started):
+    """One poll of GET /api/v1/runs/{id}, for every suite that waits for a job. A reply
+    that is not a run fails `case` at once with its HTTP code, its body and which poll it
+    was. Never retried: the reply is the evidence (an unknown run, a catalog the API could
+    not open), so an intermittent failure records what the API answered."""
+    response = client.get(f"/api/v1/runs/{run_id}")
+    try:
+        run = response.json()
+    except ValueError:
+        run = None
+    if response.status_code != 200 or not isinstance(run, dict) or "status" not in run:
+        case.fail(f"run {run_id}: poll {poll}, {time.monotonic() - started:.1f} s after the first, "
+                  f"answered HTTP {response.status_code}: {response.text}")
+    return run
+
+
 class ApiCase(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp(prefix="ns-webui-"))
@@ -73,9 +89,12 @@ class ApiCase(unittest.TestCase):
         self.assertEqual(self.client.post("/api/v1/catalog").status_code, 201)
 
     def wait_for(self, run_id, timeout=120):
-        deadline = time.monotonic() + timeout
+        started = time.monotonic()
+        deadline = started + timeout
+        poll = 0
         while time.monotonic() < deadline:
-            run = self.client.get(f"/api/v1/runs/{run_id}").json()
+            poll += 1
+            run = read_run(self, self.client, run_id, poll, started)
             if run["status"] not in ns_db.ACTIVE_RUN_STATUSES and not self.app_jobs().engine_busy():
                 return run
             time.sleep(0.1)
@@ -94,6 +113,32 @@ class ApiCase(unittest.TestCase):
         with open(self.cfg.lock_path, "a") as held:
             fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
             yield
+
+
+class PollingHelper(ApiCase):
+    """`wait_for` is how every ApiCase suite waits for a job. A reply that is not a run
+    fails with its HTTP code and body, never a bare KeyError, so an intermittent failure
+    records what the API said."""
+
+    def assert_wait_reports(self, run_id, *expected):
+        with self.assertRaises(self.failureException) as caught:
+            self.wait_for(run_id, timeout=5)
+        for text in expected:
+            self.assertIn(text, str(caught.exception))
+
+    def test_an_unknown_run_reports_its_reply(self):
+        self.create_catalog()
+        self.assert_wait_reports(999_999, "HTTP 404", "unknown_run")
+
+    def test_a_missing_catalog_reports_its_reply(self):
+        self.assert_wait_reports(1, "HTTP 409", "catalog_missing")
+
+    def test_a_reply_that_is_not_json_reports_its_body(self):
+        import httpx
+        reply = httpx.Response(500, text="Internal Server Error",
+                               request=httpx.Request("GET", "http://testserver/api/v1/runs/1"))
+        with patch.object(self.client, "get", return_value=reply):
+            self.assert_wait_reports(1, "HTTP 500", "Internal Server Error")
 
 
 class StatsEdits(ApiCase):

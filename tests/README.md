@@ -33,7 +33,8 @@ CI coverage is split between two workflows:
   `sidebar_refinements_test.py`, `notifications_test.py` and `earlier_versions_test.py` use
   `PYTHONPATH=/app/tests:/app`.
   RAW smoke tests require the optional read-only public samples locally; GitHub has
-  no such samples and reports those two skips.
+  no such samples and reports those two skips. CI names them in `--allowed-skips`, so
+  any other smoke test that skips fails the step.
 - **Nightly at 05:37 UTC and manual Extended browser tests runs**:
   `.github/workflows/extended-browser-tests.yml` runs the ten extended drivers below.
   They do not add runtime to the PR gate. The nightly schedule starts once the
@@ -211,7 +212,9 @@ expected behavior, and mount the source read-only. Use the NASA-only subset when
 check deliberately needs only ordinary photos; it is not the default validation set.
 
 Flags: `--filter NAME` runs tests whose name contains NAME (a filter matching nothing
-is an error), `--keep` leaves the workspace on disk, `-v` shows engine output, and
+is an error), `--allowed-skips NAMES` makes any skip outside those comma-separated test
+names a failure (CI names the two RAW tests; a name matching no test is an error),
+`--keep` leaves the workspace on disk, `-v` shows engine output, and
 `--engine PATH` runs the suite against another copy of the engine (the folder holding its
 `engine/` package) — the way to prove a test catches the defect it guards against. The
 test file's docstring is the authoritative reference. Fault-injection tests load the
@@ -268,6 +271,13 @@ docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app \
 
 To prove a test catches a defect in the API, copy the checkout, change the copy, and
 mount the copy as `/app`: the API is imported in-process, so `--engine` cannot reach it.
+
+Every suite that waits for a job reads it with `webui_api_test.read_run`: suites built on
+`ApiCase` through `ApiCase.wait_for`, and the date, primary-source, rename and rotation
+suites through their own loops. A reply that is not a run (an unknown job, a catalog the
+API could not open, a body that is not JSON) fails the test at once with the HTTP code,
+the reply's body and which poll it was; it is never retried, so an intermittent failure
+records what the API answered (`PollingHelper`).
 
 ## Selection ownership — `selection_ownership_test.py`
 
