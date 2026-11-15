@@ -19,6 +19,12 @@ Options:
     --engine PATH   the folder holding the engine package (default: this file's parent's parent)
     --keep          leave the workspace on disk for inspection
     --filter NAME   run only tests whose name contains NAME
+    --allowed-skips NAMES
+                    comma-separated test names that may skip; any other test that
+                    skips fails the run. CI names the two RAW tests (GitHub has no
+                    RAW samples), so a test that stops exercising its case, such as
+                    a crash test whose Move finishes first, cannot pass unnoticed.
+                    Without it a skip is reported and does not fail the run
     -v              show engine stdout for each run
 
 Environment:
@@ -6548,8 +6554,20 @@ def main():
     ap.add_argument("--engine", default=str(Path(__file__).resolve().parent.parent))
     ap.add_argument("--keep", action="store_true", help="leave the workspace on disk")
     ap.add_argument("--filter", default="", help="only run tests whose name contains this")
+    ap.add_argument("--allowed-skips", metavar="NAMES",
+                    help="comma-separated test names that may skip; any other skip fails the run")
     ap.add_argument("-v", "--verbose", action="store_true", help="show engine output")
     args = ap.parse_args()
+
+    allowed_skips = None
+    if args.allowed_skips is not None:
+        allowed_skips = {name.strip() for name in args.allowed_skips.split(",") if name.strip()}
+        unknown = allowed_skips - {t.__name__ for t in RESULTS}
+        if unknown:
+            # A misspelt name would otherwise turn that test's expected skip into a failure
+            # with no hint why; name the mistake instead.
+            print(f"--allowed-skips names no test: {', '.join(sorted(unknown))}", file=sys.stderr)
+            return 2
 
     ENGINE = Path(args.engine).resolve()
     VERBOSE = args.verbose
@@ -6589,8 +6607,14 @@ def main():
             fn()
         except Fail as e:
             if str(e).startswith("SKIP:"):
-                skipped += 1
-                print(f"SKIP ({str(e)[6:]})")
+                if allowed_skips is None or fn.__name__ in allowed_skips:
+                    skipped += 1
+                    print(f"SKIP ({str(e)[6:]})")
+                    continue
+                failed += 1
+                failures.append((fn.__name__, f"skipped, but only {', '.join(sorted(allowed_skips)) or 'no test'} "
+                                              f"may skip: {str(e)[6:]}"))
+                print(f"FAIL  (skipped, not allowed: {str(e)[6:]})")
                 continue
             failed += 1
             failures.append((fn.__name__, str(e)))

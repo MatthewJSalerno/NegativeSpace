@@ -33,7 +33,8 @@ CI coverage is split between two workflows:
   `sidebar_refinements_test.py`, `notifications_test.py` and `earlier_versions_test.py` use
   `PYTHONPATH=/app/tests:/app`.
   RAW smoke tests require the optional read-only public samples locally; GitHub has
-  no such samples and reports those two skips.
+  no such samples and reports those two skips. CI names them in `--allowed-skips`, so
+  any other smoke test that skips fails the step.
 - **Nightly at 05:37 UTC and manual Extended browser tests runs**:
   `.github/workflows/extended-browser-tests.yml` runs the ten extended drivers below.
   They do not add runtime to the PR gate. The nightly schedule starts once the
@@ -211,7 +212,9 @@ expected behavior, and mount the source read-only. Use the NASA-only subset when
 check deliberately needs only ordinary photos; it is not the default validation set.
 
 Flags: `--filter NAME` runs tests whose name contains NAME (a filter matching nothing
-is an error), `--keep` leaves the workspace on disk, `-v` shows engine output, and
+is an error), `--allowed-skips NAMES` makes any skip outside those comma-separated test
+names a failure (CI names the two RAW tests; a name matching no test is an error),
+`--keep` leaves the workspace on disk, `-v` shows engine output, and
 `--engine PATH` runs the suite against another copy of the engine (the folder holding its
 `engine/` package) — the way to prove a test catches the defect it guards against. The
 test file's docstring is the authoritative reference. Fault-injection tests load the
