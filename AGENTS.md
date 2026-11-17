@@ -94,6 +94,19 @@ Rules that follow:
   generated fixture), rather than filling the gap from memory.
 - End each report with **Limits**: what you did not check, run or measure.
 
+## Messages to the maintainer
+
+Write messages to the maintainer in the style of ASD-STE100 Simplified Technical English,
+to about 80 percent compliance. This applies to conversation replies, not to the user
+documentation, which follows its own standard.
+
+- Put one idea in each sentence. Keep sentences short.
+- Use the active voice. Name who does what.
+- Use one word for one meaning. Do not rename a concept once you have named it.
+- Keep necessary technical terms and define each one once.
+- Give the answer first. Do not repeat the question. Do not add a summary.
+- If you are not sure, say so in one plain sentence.
+
 ## Privacy: never publish library contents
 
 The maintainer validates against a real photo library. Its directory names and filenames
